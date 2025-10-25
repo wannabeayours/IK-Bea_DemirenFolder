@@ -2008,10 +2008,9 @@ class Demiren_customer
                 $stmtInsert->bindParam(":booking_charges_price", $charge["booking_charges_price"]);
                 $stmtInsert->bindParam(":booking_c_notes_id", $lastInsertId);
                 $stmtInsert->execute();
-
                 $totalPrice += $charge["booking_charges_price"];
             }
-
+ 
             // $sqlSelect = "SELECT booking_totalAmount FROM tbl_booking WHERE booking_id = :bookingId";
             // $stmtSelect = $conn->prepare($sqlSelect);
             // $stmtSelect->bindParam(":bookingId", $bookingId);
