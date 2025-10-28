@@ -150,7 +150,7 @@ function ViewBookingSummary({ getBookingSummary, bookingData }) {
         <div className="flex flex-col w-full max-w-[1200px] mx-auto px-4 sm:px-6">
           <SheetHeader className="py-4 mb-2 border-b border-gray-200">
             <SheetTitle className="text-2xl sm:text-3xl md:text-4xl font-bold flex items-center gap-2 text-[#113f67]">
-              <Receipt className="w-5 h-5 sm:w-6 sm:h-6" />
+              {/* <Receipt className="w-5 h-5 sm:w-6 sm:h-6" /> */}
               Booking Summary
             </SheetTitle>
             <p className="text-sm sm:text-base text-gray-500">Review your booking details and manage requests</p>

@@ -151,7 +151,7 @@ function CustomerViewBookings() {
              
                     <div className="px-3 sm:px-4 pt-3 pb-2">
                       <div className="flex flex-wrap justify-between items-center w-full text-black">
-                        <h2 className="text-base sm:text-lg font-bold text-[#113F67] break-words">Booking #{item.booking_id}</h2>
+                        <h2 className="text-base sm:text-lg font-bold text-[#113F67] break-words">Booking #{index + 1}</h2>
                       </div>
                     </div>
 

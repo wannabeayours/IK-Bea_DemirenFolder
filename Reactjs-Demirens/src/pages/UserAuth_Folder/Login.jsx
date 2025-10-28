@@ -46,8 +46,11 @@ function Login() {
     }, []);
 
     useEffect(() => {
+        if (localStorage.getItem("userId")) {
+            navigateTo("/customer");
+        }
         generateCaptchaCharacters();
-    }, [generateCaptchaCharacters]);
+    }, [generateCaptchaCharacters, navigateTo]);
 
     const handleInputChange = (e) => {
         setUserInput(e.target.value);
@@ -91,9 +94,7 @@ function Login() {
             formData.append("operation", "login");
             formData.append("json", JSON.stringify(jsonData));
             const res = await axios.post(url, formData);
-            console.log("Full API Response:", res);
-            console.log("Response Data (raw):", res.data);
-            console.log("Response Status:", res.status);
+            console.log("res ni login", res)
 
             // Parse the JSON string response
             const responseData = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
@@ -117,12 +118,12 @@ function Login() {
                     localStorage.setItem("fname", user.customers_fname);
                     localStorage.setItem("lname", user.customers_lname);
                     localStorage.setItem("email", user.customers_email);
-                    localStorage.setItem("phone", user.customers_phone);
+                    localStorage.setItem("contactNumber", user.customers_phone);
                     localStorage.setItem("userType", "customer");
                     setTimeout(() => {
                         navigateTo("/customer");
                     }, 1500);
-                } else if (userType === "Front-Desk") {
+                } else if (userType === "employee") {
                     toast.success("Successfully logged in as Employee");
                     console.log("=== EMPLOYEE LOGIN INFO ===");
                     console.log("Employee ID:", user.employee_id);
@@ -144,7 +145,7 @@ function Login() {
                     localStorage.setItem("userType", "employee");
                     localStorage.setItem("userLevel", user.userlevel_name);
                     setTimeout(() => {
-                        navigateTo("/admin/dashboard");
+                        navigateTo("/frontdesk/dashboard");
                     }, 1500);
                 } else if (userType === "admin") {
                     toast.success("Successfully logged in as Admin");
@@ -192,7 +193,7 @@ function Login() {
 
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-600 via-indigo-700 to-purple-800 flex items-center justify-center p-3 sm:p-4 lg:p-6 relative overflow-hidden">
+        <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-indigo-700 to-indigo-800 flex items-center justify-center p-3 sm:p-4 lg:p-6 relative overflow-hidden">
             {/* Enhanced Background Elements */}
             <div className="absolute inset-0 overflow-hidden">
                 {/* Animated gradient orbs - responsive sizes */}
@@ -207,12 +208,12 @@ function Login() {
             </div>
 
             {/* Centered login card - responsive sizing */}
-            <Card className="w-full max-w-xs sm:max-w-sm md:max-w-md bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl relative z-10 mx-auto">
-                <CardContent className="w-full space-y-4 p-4 sm:p-6">
+            <Card className="w-full max-w-xs sm:max-w-sm md:max-w-md bg-white border border-gray-200 shadow-2xl rounded-2xl relative z-10 mx-auto">
+                <CardContent className="w-full space-y-4 p-4 sm:p-6 text-gray-900">
                     <div className="text-center mb-4 sm:mb-5">
                         <div className="flex items-center justify-start">
-                            <Button variant="outline" className="bg-transparent text-white"  onClick={() => navigateTo("/")} >
-                                <ArrowLeftCircleIcon  />
+                            <Button variant="ghost" className="bg-transparent text-black" onClick={() => navigateTo("/")} >
+                                <ArrowLeftCircleIcon />
                             </Button>
                         </div>
                         {/* Modern Logo/Icon - responsive sizing */}
@@ -224,12 +225,12 @@ function Login() {
                             </div>
                         </div>
                         <div className="mb-3">
-                            <h1 className="text-xl sm:text-2xl font-bold text-white mb-1">
+                            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
                                 Welcome Back
                             </h1>
                             <div className="w-12 h-0.5 bg-gradient-to-r from-blue-400 to-indigo-500 mx-auto mt-2 rounded-full"></div>
                         </div>
-                        <p className="text-xs sm:text-sm text-blue-100/80">
+                        <p className="text-xs sm:text-sm text-gray-700">
                             Please sign in to your account
                         </p>
                     </div>
@@ -243,16 +244,16 @@ function Login() {
                                 name="email"
                                 render={({ field }) => (
                                     <FormItem className="space-y-1.5">
-                                        <FormLabel className="text-sm font-medium text-white/90">Email / Username</FormLabel>
+                                        <FormLabel className="text-sm font-medium text-black/90">Email / Username :</FormLabel>
                                         <FormControl>
                                             <div className="relative">
                                                 <Input
                                                     placeholder="Enter your email or username"
-                                                    className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-white/20 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-white placeholder:text-white/50"
+                                                    className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-black/20 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-black placeholder:text-black/60"
                                                     {...field}
                                                 />
                                                 <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                                    <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <svg className="w-4 h-4 text-black/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                                                     </svg>
                                                 </div>
@@ -270,25 +271,25 @@ function Login() {
                                 render={({ field }) => (
                                     <FormItem className="space-y-1.5">
                                         <div className="flex justify-between items-center">
-                                            <FormLabel className="text-sm font-medium text-white/90">Password</FormLabel>
+                                            <FormLabel className="text-sm font-medium text-black/90">Password : </FormLabel>
                                         </div>
                                         <FormControl>
                                             <div className="relative">
                                                 <Input
                                                     type="password"
                                                     placeholder="Enter your password"
-                                                    className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-white/20 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-white placeholder:text-white/50"
+                                                    className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-black/20 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-black placeholder:text-black/60"
                                                     {...field}
                                                 />
                                                 <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                                    <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <svg className="w-4 h-4 text-black/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
                                                     </svg>
                                                 </div>
                                             </div>
                                         </FormControl>
                                         <div className="flex justify-end">
-                                            <Button variant="link" asChild className="h-auto p-0 text-xs text-blue-300 hover:text-blue-200 transition-colors">
+                                            <Button variant="link" asChild className="h-auto p-0 text-xs text-gray-800 hover:text-gray-900 transition-colors">
                                                 <Link to="/forgot-password">Forgot Password?</Link>
                                             </Button>
                                         </div>
@@ -298,8 +299,8 @@ function Login() {
                             />
 
                             {/* Enhanced Captcha */}
-                            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 shadow-inner">
-                                <h2 className="text-sm font-bold mb-3 text-white/90 text-center flex items-center justify-center gap-2">
+                            <div className="bg-gray-100 backdrop-blur-sm rounded-xl p-4 border border-b/20 shadow-inner">
+                                <h2 className="text-sm font-bold mb-3 text-black/90 text-center flex items-center justify-center gap-2">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
                                     </svg>
@@ -330,7 +331,7 @@ function Login() {
                                     value={userInput}
                                     onChange={handleInputChange}
                                     placeholder="Enter the characters above"
-                                    className="border-2 border-white/20 p-2 w-full rounded-lg text-center h-9 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300 bg-white/10 shadow-sm text-white placeholder:text-white/50"
+                                    className="border-2 border-black/20 p-2 w-full rounded-lg text-center h-9 text-sm focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300 bg-white/10 shadow-sm text-black placeholder:text-black/60"
                                 />
 
                                 <div className="flex justify-center mt-2">
@@ -338,15 +339,15 @@ function Login() {
                                         type="button"
                                         variant="link"
                                         onClick={generateCaptchaCharacters}
-                                        className="text-blue-300 hover:text-blue-200 text-xs underline h-auto p-0 transition-colors"
+                                        className=" text-indigo-600 hover:text-blue-900 text-xs underline h-auto p-0 transition-colors"
                                     >
-                                        🔄 Generate New Code
+                                        Refresh CAPTCHA
                                     </Button>
                                 </div>
 
                                 {!isCaptchaValid && userInput.length > 0 && (
                                     <div className="mt-2 p-2 bg-red-500/20 border border-red-400/30 rounded-lg">
-                                        <p className="text-red-200 text-xs text-center font-medium">
+                                        <p className="text-red-500 text-xs text-center font-medium">
                                             ❌ Incorrect verification code, please try again.
                                         </p>
                                     </div>
@@ -354,7 +355,7 @@ function Login() {
 
                                 {isCaptchaValid && (
                                     <div className="mt-2 p-2 bg-green-500/20 border border-green-400/30 rounded-lg">
-                                        <p className="text-green-200 text-xs text-center font-medium">
+                                        <p className="text-green-500 text-xs text-center font-medium">
                                             ✅ Verification successful!
                                         </p>
                                     </div>
@@ -366,8 +367,8 @@ function Login() {
                                 type="submit"
                                 disabled={!isCaptchaValid}
                                 className={`w-full h-12 rounded-xl font-semibold text-base transition-all duration-300 transform hover:scale-[1.02] ${isCaptchaValid
-                                        ? 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl'
-                                        : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                                    ? 'bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700'
+                                    : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                                     }`}
                             >
                                 Sign In
@@ -375,11 +376,11 @@ function Login() {
 
                             {/* Sign Up Section */}
                             <div className="text-center pt-4 border-t border-white/10">
-                                <p className="text-white/70 text-sm">
+                                <p className="text-black/70 text-sm">
                                     Don't have an account?{' '}
                                     <Link
                                         to="/register"
-                                        className="text-blue-300 hover:text-blue-200 font-semibold transition-colors duration-200 hover:underline"
+                                        className=" text-indigo-600 hover:text-blue-900 font-semibold transition-colors duration-200 hover:underline"
                                     >
                                         Sign up here
                                     </Link>

@@ -348,8 +348,8 @@ const Register = () => {
       </div>
 
       {/* Main Registration Card - responsive sizing */}
-      <Card className="w-full max-w-xs sm:max-w-sm md:max-w-md bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl relative z-10 mx-auto">
-        <CardHeader className="text-center pb-3 sm:pb-4 pt-4 sm:pt-6 px-4 sm:px-6">
+      <Card className="w-full max-w-xs sm:max-w-sm md:max-w-md bg-white border border-gray-200 shadow-2xl rounded-2xl relative z-10 mx-auto">
+        <CardHeader className="text-center pb-3 sm:pb-4 pt-4 sm:pt-6 px-4 sm:px-6 text-gray-900">
           {/* Logo/Icon - responsive sizing */}
           <div className="mx-auto mb-2 sm:mb-3 w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
             <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -357,19 +357,19 @@ const Register = () => {
             </svg>
           </div>
 
-          <CardTitle className="text-xl sm:text-2xl font-bold text-white mb-1">Create Account</CardTitle>
-          <CardDescription className="text-indigo-100/80 text-xs sm:text-sm">
+          <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">Create Account</CardTitle>
+          <CardDescription className="text-gray-700 text-xs sm:text-sm">
             Join us today and get started
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+        <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6 text-gray-900">
 
           <form onSubmit={onSubmit} className="space-y-4">
             {/* Name Fields Row */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="firstName" className="text-sm font-medium text-white/90">
+                <Label htmlFor="firstName" className="text-sm font-medium text-black/90">
                   First Name
                 </Label>
                 <Input
@@ -377,11 +377,11 @@ const Register = () => {
                   placeholder="First name"
                   value={formData.firstName}
                   onChange={(e) => handleChange("firstName", e.target.value)}
-                  className="h-9 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-indigo-300 focus:ring-indigo-300/30 rounded-lg transition-all duration-300"
+                  className="h-9 text-sm bg-white/10 border-2 border-black/20 text-black placeholder:text-black/60 focus:border-indigo-300 focus:ring-indigo-300/30 rounded-lg transition-all duration-300"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="lastName" className="text-sm font-medium text-white/90">
+                <Label htmlFor="lastName" className="text-sm font-medium text-black/90">
                   Last Name
                 </Label>
                 <Input
@@ -389,14 +389,14 @@ const Register = () => {
                   placeholder="Last name"
                   value={formData.lastName}
                   onChange={(e) => handleChange("lastName", e.target.value)}
-                  className="h-9 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-indigo-300 focus:ring-indigo-300/30 rounded-lg transition-all duration-300"
+                  className="h-9 text-sm bg-white/10 border-2 border-black/20 text-black placeholder:text-black/60 focus:border-indigo-300 focus:ring-indigo-300/30 rounded-lg transition-all duration-300"
                 />
               </div>
             </div>
 
             {/* Email Field */}
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-sm font-medium text-white/90">
+              <Label htmlFor="email" className="text-sm font-medium text-black/90">
                 Email Address
               </Label>
               <Input
@@ -404,13 +404,13 @@ const Register = () => {
                 placeholder="you@example.com"
                 value={formData.email}
                 onChange={(e) => handleChange("email", e.target.value)}
-                className="h-9 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-indigo-300 focus:ring-indigo-300/30 rounded-lg transition-all duration-300"
+                className="h-9 text-sm bg-white/10 border-2 border-black/20 text-black placeholder:text-black/60 focus:border-indigo-300 focus:ring-indigo-300/30 rounded-lg transition-all duration-300"
               />
             </div>
 
             {/* Username Field */}
             <div className="space-y-1.5">
-              <Label htmlFor="username" className="text-sm font-medium text-white/90">
+              <Label htmlFor="username" className="text-sm font-medium text-black/90">
                 Username
               </Label>
               <Input
@@ -418,21 +418,21 @@ const Register = () => {
                 placeholder="Username"
                 value={formData.username}
                 onChange={(e) => handleChange("username", e.target.value)}
-                className="h-9 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-indigo-300 focus:ring-indigo-300/30 rounded-lg transition-all duration-300"
+                className="h-9 text-sm bg-white/10 border-2 border-black/20 text-black placeholder:text-black/60 focus:border-indigo-300 focus:ring-indigo-300/30 rounded-lg transition-all duration-300"
               />
             </div>
 
             {/* Nationality and DOB Row */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="nationality" className="text-sm font-medium text-white/90">
+                <Label htmlFor="nationality" className="text-sm font-medium text-black/90">
                   Nationality
                 </Label>
                 <select
                   id="nationality"
                   value={formData.nationality}
                   onChange={(e) => handleChange("nationality", e.target.value)}
-                  className="w-full h-9 px-2 py-1 text-sm bg-white/10 border border-white/20 text-white rounded-lg focus:border-indigo-300 focus:ring-indigo-300/30 transition-all duration-300"
+                  className="w-full h-9 px-2 py-1 text-sm bg-white/10 border-2 border-black/20 text-black rounded-lg focus:border-indigo-300 focus:ring-indigo-300/30 transition-all duration-300"
                   required
                 >
                   <option value="" className="text-gray-900">Select Nationality</option>
@@ -448,7 +448,7 @@ const Register = () => {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="dob" className="text-sm font-medium text-white/90">
+                <Label htmlFor="dob" className="text-sm font-medium text-black/90">
                   Date of Birth
                 </Label>
                 <Input
@@ -456,14 +456,14 @@ const Register = () => {
                   type="date"
                   value={formData.dob}
                   onChange={(e) => handleChange("dob", e.target.value)}
-                  className="h-9 text-sm bg-white/10 border-white/20 text-white focus:border-indigo-300 focus:ring-indigo-300/30 rounded-lg transition-all duration-300"
+                  className="h-9 text-sm bg-white/10 border-2 border-black/20 text-black focus:border-indigo-300 focus:ring-indigo-300/30 rounded-lg transition-all duration-300"
                 />
               </div>
             </div>
 
             {/* Phone Number */}
             <div className="space-y-1.5">
-              <Label htmlFor="phone" className="text-sm font-medium text-white/90">
+              <Label htmlFor="phone" className="text-sm font-medium text-black/90">
                 Phone Number
               </Label>
               <Input
@@ -474,11 +474,11 @@ const Register = () => {
                   handleChange("phone", e.target.value.replace(/\D/g, ""))
                 }
                 maxLength={15}
-                className="h-9 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-indigo-300 focus:ring-indigo-300/30 rounded-lg transition-all duration-300"
+                className="h-9 text-sm bg-white/10 border-2 border-black/20 text-black placeholder:text-black/60 focus:border-indigo-300 focus:ring-indigo-300/30 rounded-lg transition-all duration-300"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-sm font-medium text-white/90">
+              <Label htmlFor="password" className="text-sm font-medium text-black/90">
                 Password
               </Label>
               <div className="relative">
@@ -488,12 +488,12 @@ const Register = () => {
                   placeholder="Password"
                   value={formData.password}
                   onChange={(e) => handleChange("password", e.target.value)}
-                  className="h-9 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/50 \
+                  className="h-9 text-sm bg-white/10 border-2 border-black/20 text-black placeholder:text-black/60 \
         focus:border-indigo-300 focus:ring-indigo-300/30 rounded-lg transition-all duration-300 pr-8"
                 />
                 <button
                   type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-white/60 hover:text-white/80 transition-colors"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-black/60 hover:text-black/80 transition-colors"
                   onClick={() => setShowPassword((prev) => !prev)}
                   tabIndex={-1}
                 >
@@ -507,8 +507,8 @@ const Register = () => {
                 const percent = (passed / total) * 100;
                 return (
                   <div className="space-y-2 mt-2">
-                    <Progress value={percent} className="h-2 bg-white/20" />
-                    <ul className="text-xs space-y-1 text-white/80">
+                    <Progress value={percent} className="h-2 bg-gray-200" />
+                    <ul className="text-xs space-y-1 text-gray-800">
                       <li className={rules.length ? "text-green-400" : "text-red-400"}>
                         {rules.length ? "✔" : "✘"} 8–12 characters
                       </li>
@@ -539,7 +539,7 @@ const Register = () => {
 
             {/* Confirm Password Field */}
             <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword" className="text-sm font-medium text-white/90">
+              <Label htmlFor="confirmPassword" className="text-sm font-medium text-black/90">
                 Confirm Password
               </Label>
               <div className="relative">
@@ -551,11 +551,11 @@ const Register = () => {
                   onChange={(e) =>
                     handleChange("confirmPassword", e.target.value)
                   }
-                  className="h-9 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-blue-400 focus:ring-blue-400/20 rounded-lg transition-all duration-300 pr-8"
+                  className="h-9 text-sm bg-white/10 border-2 border-black/20 text-black placeholder:text-black/60 focus:border-indigo-300 focus:ring-indigo-300/30 rounded-lg transition-all duration-300 pr-8"
                 />
                 <button
                   type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-white/60 hover:text-white/80 transition-colors"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-black/60 hover:text-black/80 transition-colors"
                   onClick={() => setShowConfirmPassword((prev) => !prev)}
                   tabIndex={-1}
                 >
@@ -580,7 +580,7 @@ const Register = () => {
 
             {/* Sign in section */}
             <div className="text-center mt-4 pt-4 border-t border-white/20">
-              <p className="text-sm text-blue-100/80">
+              <p className="text-sm text-black/70">
                 Already have an account?{" "}
                 <Button variant="link" asChild className="h-auto p-0 text-sm text-blue-300 hover:text-blue-200 font-semibold transition-colors underline">
                   <Link to="/login">Sign in here</Link>

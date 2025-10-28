@@ -98,13 +98,13 @@ function CustomerBookingSummary() {
                             {element.booking_checkout_dateandtime}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between text-sm sm:text-base">
+                        {/* <div className="flex items-center justify-between text-sm sm:text-base">
                           <div className="flex items-center gap-2">
                             <Users className="w-4 h-4 sm:w-5 sm:h-5 text-[#113f67]" />
                             <Label className="font-medium text-gray-600">Guests:</Label>
                           </div>
                           <span className="text-right text-gray-800 font-medium break-words">{element.guests_amnt}</span>
-                        </div>
+                        </div> */}
                         <div className="flex items-center justify-between text-sm sm:text-base pt-2 border-t border-gray-100">
                           <div className="flex items-center gap-2">
 
