@@ -1,27 +1,8 @@
 import { MessageCircleHeart, Phone, PinIcon } from 'lucide-react'
 import React from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 function Footer() {
-  const navigate = useNavigate()
-  const location = useLocation()
-
-  const scrollToSection = (id) => {
-    const doScroll = () => {
-      const el = document.getElementById(id)
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }
-    }
-
-    if (location.pathname !== '/') {
-      navigate('/')
-      setTimeout(doScroll, 300)
-    } else {
-      doScroll()
-    }
-  }
-
   return (
     <footer className="py-8 bg-blue-900 rounded-t-3xl text-white ">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 ">
@@ -30,21 +11,15 @@ function Footer() {
           <div>
             <h3 className="text-lg font-semibold mb-4 uppercase tracking-wider">QUICK LINKS</h3>
             <ul className="space-y-3">
-              <button
-                type="button"
-                onClick={() => scrollToSection('about')}
-                className="text-left hover:text-blue-300 transition-colors duration-200"
-              >
+              <Link to="/customer/about" className="hover:text-blue-300 transition-colors duration-200">
                 About
-              </button><br />
-
-              <button
-                type="button"
-                onClick={() => scrollToSection('rooms')}
-                className="text-left hover:text-blue-300 transition-colors duration-200"
-              >
+              </Link><br />
+            
+             
+              <Link to="/customer/rooms" className="hover:text-blue-300 transition-colors duration-200">
                 Rooms
-              </button><br />
+              </Link><br />
+            
 
             </ul>
           </div>
@@ -53,24 +28,24 @@ function Footer() {
           <div>
             <h3 className="text-lg font-semibold mb-4 uppercase tracking-wider">CONTACT US</h3>
             <ul className="space-y-3">
-              <div className="flex items-start">
+              <Link className="flex items-start">
                 <span className="mr-3 mt-1">
                   <Phone />
                 </span>
                 <span>0906 231 4236</span>
-              </div>
-              <div className="flex items-start">
+              </Link>
+              <Link className="flex items-start">
                 <span className="mr-3 mt-1">
                   <MessageCircleHeart />
                 </span>
                 <span>demirenhotel@yahoo.com.ph</span>
-              </div>
-              <div className="flex items-start">
+              </Link>
+              <Link className="flex items-start">
                 <span className="mr-3 mt-1">
                   <PinIcon />
                 </span>
                 <span>Tiano Kalambaguhan Street, Brgy 14, Cagayan de Oro, Philippines </span>
-              </div>
+              </Link>
             </ul>
           </div>
 

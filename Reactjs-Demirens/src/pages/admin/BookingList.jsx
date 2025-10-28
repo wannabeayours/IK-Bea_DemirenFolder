@@ -291,7 +291,7 @@ function AdminBookingList() {
     // Apply sorting
     filtered.sort((a, b) => {
       let comparison = 0;
-      
+
       if (sortBy === 'booking_created_at' || sortBy === 'booking_checkin_dateandtime' || sortBy === 'booking_checkout_dateandtime') {
         // Date sorting
         const aValue = new Date(a[sortBy]);
@@ -308,7 +308,7 @@ function AdminBookingList() {
         const bValue = (b[sortBy] || '').toLowerCase();
         comparison = aValue.localeCompare(bValue);
       }
-      
+
       return sortOrder === 'asc' ? comparison : -comparison;
     });
 
@@ -402,12 +402,12 @@ function AdminBookingList() {
           const resp = await axios.post(APIConn, fd);
           let rows = resp?.data;
           if (typeof rows === 'string') {
-            try { rows = JSON.parse(rows); } catch {}
+            try { rows = JSON.parse(rows); } catch { }
           }
           const roomIds = Array.isArray(rows)
             ? rows
-                .map(r => Number(r?.roomnumber_id))
-                .filter(n => Number.isFinite(n) && n > 0)
+              .map(r => Number(r?.roomnumber_id))
+              .filter(n => Number.isFinite(n) && n > 0)
             : [];
           if (roomIds.length > 0) {
             jsonData.room_ids = roomIds;
@@ -463,7 +463,7 @@ function AdminBookingList() {
     setSelectedBooking(booking);
 
     // Check if booking status allows room changes
-    const allowedStatuses = ['Approved', 'Checked-In', 'Checked In', 'Confirmed'];
+    const allowedStatuses = ['Checked-In', 'Confirmed'];
     if (!allowedStatuses.includes(booking.booking_status)) {
       toast.error('Room changes are only allowed for bookings with "Approved" or "Checked-In" status');
       return;
@@ -479,7 +479,7 @@ function AdminBookingList() {
     setSelectedBooking(booking);
     setIsRoomDetailsExpanded(false); // Reset dropdown state when opening modal
     setShowCustomerDetails(true);
-    
+
     // Fetch invoice, billing data, and comprehensive charges total
     fetchInvoiceData(booking);
     fetchBillingData(booking);
@@ -813,7 +813,7 @@ function AdminBookingList() {
     if (!selectedBooking) return;
 
     const currentCheckout = new Date(selectedBooking.booking_checkout_dateandtime);
-    
+
     // Normalize dates to compare only the date part (ignore time)
     const currentDateOnly = new Date(currentCheckout.getFullYear(), currentCheckout.getMonth(), currentCheckout.getDate());
     const selectedDateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -859,11 +859,11 @@ function AdminBookingList() {
 
       // Validate that new checkout date is after current checkout date
       const currentCheckout = new Date(selectedBooking.booking_checkout_dateandtime);
-      
+
       // Normalize dates to compare only the date part (ignore time)
       const currentDateOnly = new Date(currentCheckout.getFullYear(), currentCheckout.getMonth(), currentCheckout.getDate());
       const newDateOnly = new Date(newCheckoutDate.getFullYear(), newCheckoutDate.getMonth(), newCheckoutDate.getDate());
-      
+
       console.log('Current Checkout:', currentCheckout);
       console.log('Current Date Only:', currentDateOnly);
       console.log('New Checkout:', newCheckoutDate);
@@ -996,15 +996,15 @@ function AdminBookingList() {
         const roomInfo = isMultiRoomBooking && selectedRoomsForExtension.length > 0
           ? ` for ${selectedRoomsForExtension.length} room(s): ${selectedRoomsForExtension.map(r => r.roomnumber_id).join(', ')}`
           : '';
-        
+
         console.log('Extension successful!', responseData);
-        
+
         // Show success message with new reference number
         let successMessage = `Booking extended successfully${roomInfo} for ${selectedBooking.reference_no}`;
         if (responseData.extension_reference_no) {
           successMessage += `\nNew Extension Reference: ${responseData.extension_reference_no}`;
         }
-        
+
         toast.success(successMessage);
         setShowExtendBooking(false);
         setSelectedBooking(null);
@@ -1016,7 +1016,7 @@ function AdminBookingList() {
         setPaymentAmount('0');
         setPaymentMethod('2');
         setExtendedRooms([]); // Clear extended rooms state
-        
+
         // Refresh bookings list
         await getBookings();
       } else {
@@ -1073,7 +1073,7 @@ function AdminBookingList() {
       // Customer is fully paid - check if they have a complete invoice
       console.log('Customer is fully paid, checking invoice status...');
       const hasCompleteInvoice = await checkInvoiceStatus(booking);
-      
+
       if (hasCompleteInvoice) {
         // Customer has complete invoice - proceed with check-out
         console.log('Customer has complete invoice, proceeding with check-out');
@@ -1316,7 +1316,7 @@ function AdminBookingList() {
       const res = await axios.post(APIConn, formData);
       let data = res.data;
       if (typeof data === 'string') {
-        try { data = JSON.parse(data); } catch {}
+        try { data = JSON.parse(data); } catch { }
       }
       if (data && (data.success || data.status === 'ok' || data.updated)) {
         toast.success('Booking dates updated.');
@@ -1512,11 +1512,11 @@ function AdminBookingList() {
             {sortBy && (
               <span className="text-sm font-normal text-blue-600 dark:text-blue-400 md:ml-auto flex items-center gap-1">
                 Sorted by: {sortBy === 'booking_created_at' ? 'Created Date' :
-                           sortBy === 'booking_checkin_dateandtime' ? 'Check-in Date' :
-                           sortBy === 'booking_checkout_dateandtime' ? 'Check-out Date' :
-                           sortBy === 'customer_name' ? 'Customer Name' :
-                           sortBy === 'reference_no' ? 'Reference No' :
-                           sortBy === 'total_amount' ? 'Balance' : sortBy}
+                  sortBy === 'booking_checkin_dateandtime' ? 'Check-in Date' :
+                    sortBy === 'booking_checkout_dateandtime' ? 'Check-out Date' :
+                      sortBy === 'customer_name' ? 'Customer Name' :
+                        sortBy === 'reference_no' ? 'Reference No' :
+                          sortBy === 'total_amount' ? 'Balance' : sortBy}
                 ({sortOrder === 'asc' ? (
                   <>
                     <ClockArrowUp className="w-3 h-3" />
@@ -1692,12 +1692,12 @@ function AdminBookingList() {
                     A comprehensive list of all hotel bookings
                     {sortBy && (
                       <span className="block mt-1 text-sm font-medium text-blue-600 dark:text-blue-400 flex items-center justify-center gap-1">
-                        📊 Currently sorted by: {sortBy === 'booking_created_at' ? 'Created Date' : 
-                                                 sortBy === 'booking_checkin_dateandtime' ? 'Check-in Date' :
-                                                 sortBy === 'booking_checkout_dateandtime' ? 'Check-out Date' :
-                                                 sortBy === 'customer_name' ? 'Customer Name' :
-                                                 sortBy === 'reference_no' ? 'Reference No' :
-                                                 sortBy === 'total_amount' ? 'Balance' : sortBy} 
+                        📊 Currently sorted by: {sortBy === 'booking_created_at' ? 'Created Date' :
+                          sortBy === 'booking_checkin_dateandtime' ? 'Check-in Date' :
+                            sortBy === 'booking_checkout_dateandtime' ? 'Check-out Date' :
+                              sortBy === 'customer_name' ? 'Customer Name' :
+                                sortBy === 'reference_no' ? 'Reference No' :
+                                  sortBy === 'total_amount' ? 'Balance' : sortBy}
                         ({sortOrder === 'asc' ? (
                           <>
                             <ClockArrowUp className="w-3 h-3" />
@@ -1813,13 +1813,12 @@ function AdminBookingList() {
                         </TableCell>
                         <TableCell className="text-gray-700 dark:text-gray-300 text-center py-3">
                           <div className="space-y-1">
-                            <div className={`font-semibold text-xs ${
-                              (() => {
+                            <div className={`font-semibold text-xs ${(() => {
                                 // ONLY use balance from database
                                 const balance = parseFloat(b.balance);
                                 return balance === 0 ? "text-green-600 dark:text-green-400" : "text-orange-600 dark:text-orange-400";
                               })()
-                            }`}>
+                              }`}>
                               {(() => {
                                 // ONLY use balance from database
                                 const balance = parseFloat(b.balance);
@@ -2160,7 +2159,7 @@ function AdminBookingList() {
                   {(() => {
                     const hasInvoice = invoiceData !== null;
                     const hasBills = billingData && billingData.length > 0;
-                    
+
                     if (hasInvoice) {
                       // Customer has an invoice
                       return (
@@ -2269,7 +2268,7 @@ function AdminBookingList() {
                       const finalTotal = sumBillingTotals + amenitiesTotal;
                       const totalPaidAmount = billingData.reduce((sum, bill) => sum + (parseFloat(bill.billing_downpayment) || 0), 0);
                       const totalBalance = Math.max(finalTotal - totalPaidAmount, 0);
-                      
+
                       return (
                         <div className="space-y-3">
                           <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
@@ -2293,7 +2292,7 @@ function AdminBookingList() {
                             <p className="text-xs text-orange-600 dark:text-orange-400 mb-3">
                               Customer has bills but no invoice has been generated yet.
                             </p>
-                            
+
                             {/* Bill Summary */}
                             <div className="bg-white dark:bg-gray-800 rounded border border-orange-200 dark:border-orange-700 p-3">
                               <div className="grid grid-cols-2 gap-4 text-sm mb-3">
@@ -2315,7 +2314,7 @@ function AdminBookingList() {
                                 </div>
                               </div>
                             </div>
-                            
+
                             {/* Individual Bills */}
                             <div className="mt-3">
                               <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -2524,11 +2523,11 @@ function AdminBookingList() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Check-in Date</label>
-                    <Input type="date" value={editCheckInDate || ''} onChange={(e)=>setEditCheckInDate(e.target.value)} />
+                    <Input type="date" value={editCheckInDate || ''} onChange={(e) => setEditCheckInDate(e.target.value)} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Check-out Date</label>
-                    <Input type="date" value={editCheckOutDate || ''} onChange={(e)=>setEditCheckOutDate(e.target.value)} />
+                    <Input type="date" value={editCheckOutDate || ''} onChange={(e) => setEditCheckOutDate(e.target.value)} />
                   </div>
                 </div>
 
@@ -2539,7 +2538,7 @@ function AdminBookingList() {
                 )}
 
                 <div className="flex justify-end gap-3 pt-2">
-                  <Button variant="outline" onClick={()=>setIsEditDatesOpen(false)}>Cancel</Button>
+                  <Button variant="outline" onClick={() => setIsEditDatesOpen(false)}>Cancel</Button>
                   <Button onClick={handleSaveDatesClick} className="bg-blue-600 hover:bg-blue-700">
                     <Settings className="w-4 h-4 mr-2" />
                     {(() => {
@@ -2631,8 +2630,8 @@ function AdminBookingList() {
                         {extendedRooms && extendedRooms.length > 0
                           ? `${extendedRooms[0].roomtype_name} • #${extendedRooms[0].roomnumber_id}`
                           : (selectedBooking.roomtype_name && selectedBooking.room_numbers
-                              ? `${selectedBooking.roomtype_name} • #${selectedBooking.room_numbers}`
-                              : 'N/A')}
+                            ? `${selectedBooking.roomtype_name} • #${selectedBooking.room_numbers}`
+                            : 'N/A')}
                       </span>
                     </p>
                     <p className="text-sm text-gray-900 dark:text-white">
@@ -2680,8 +2679,7 @@ function AdminBookingList() {
                                       }
                                     }}
                                     disabled={extendableRooms.length === 0}
-                                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                                      extendableRooms.length === 0
+                                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${extendableRooms.length === 0
                                         ? 'border-gray-300 bg-gray-100 cursor-not-allowed'
                                         : allSelected
                                           ? 'bg-blue-600 border-blue-600 text-white'
@@ -2722,8 +2720,7 @@ function AdminBookingList() {
                                     <div
                                       key={roomIndex}
                                       onClick={() => canExtend && toggleRoomSelection(roomInfo)}
-                                      className={`p-3 rounded border transition-all duration-200 ${
-                                        isExtended 
+                                      className={`p-3 rounded border transition-all duration-200 ${isExtended
                                           ? 'bg-gray-100 border-gray-400 cursor-not-allowed opacity-60 dark:bg-gray-700 dark:border-gray-500'
                                           : isSelected
                                             ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-200 cursor-pointer dark:bg-blue-900/20 dark:border-blue-400 dark:ring-blue-800'
@@ -2731,8 +2728,7 @@ function AdminBookingList() {
                                         }`}
                                     >
                                       <div className="flex items-center gap-3">
-                                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                                          isExtended
+                                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${isExtended
                                             ? 'border-gray-400 bg-gray-300 dark:border-gray-500 dark:bg-gray-600'
                                             : isSelected
                                               ? 'bg-blue-600 border-blue-600 text-white'
@@ -2750,8 +2746,7 @@ function AdminBookingList() {
                                           )}
                                         </div>
                                         <div className="flex-1">
-                                          <div className={`text-sm font-medium ${
-                                            isExtended
+                                          <div className={`text-sm font-medium ${isExtended
                                               ? 'text-gray-600 dark:text-gray-400'
                                               : isSelected
                                                 ? 'text-blue-700 dark:text-blue-300'
@@ -2759,8 +2754,7 @@ function AdminBookingList() {
                                             }`}>
                                             Room #{roomNum}
                                           </div>
-                                          <div className={`text-xs ${
-                                            isExtended
+                                          <div className={`text-xs ${isExtended
                                               ? 'text-red-600 dark:text-red-400'
                                               : isSelected
                                                 ? 'text-blue-600 dark:text-blue-400'

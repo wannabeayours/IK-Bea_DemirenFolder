@@ -116,6 +116,8 @@ function Login() {
                     localStorage.setItem("customerOnlineId", user.customers_online_id);
                     localStorage.setItem("fname", user.customers_fname);
                     localStorage.setItem("lname", user.customers_lname);
+                    localStorage.setItem("email", user.customers_email);
+                    localStorage.setItem("phone", user.customers_phone);
                     localStorage.setItem("userType", "customer");
                     setTimeout(() => {
                         navigateTo("/customer");

@@ -51,7 +51,7 @@ export const SelectedBooking = ({ selectedData }) => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <p><span className="font-semibold">Check-in:</span> {data?.booking_checkin_dateandtime}</p>
                             <p><span className="font-semibold">Check-out:</span> {data?.booking_checkout_dateandtime}</p>
-                            <p><span className="font-semibold">Guests:</span> {data?.guests_amnt}</p>
+                            {/* <p><span className="font-semibold">Guests:</span> {data?.guests_amnt}</p> */}
                             <p><span className="font-semibold">Payment Method:</span> {data?.payment_method_name}</p>
                             <p><span className="font-semibold">Total:</span> ₱{data?.booking_total}</p>
                         </div>

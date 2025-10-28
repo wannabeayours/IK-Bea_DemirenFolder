@@ -30,8 +30,6 @@ export const SuccessPayment = () => {
             navigateTo("/");
           }, 1500);
         } else {
-          // Flag the customer dashboard to auto-open the booking sheet
-          localStorage.setItem("openBookingWAccount", "1");
           setTimeout(() => {
             navigateTo("/customer");
           }, 1500);

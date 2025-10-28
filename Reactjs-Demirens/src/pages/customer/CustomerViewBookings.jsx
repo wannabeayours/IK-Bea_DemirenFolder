@@ -135,7 +135,6 @@ function CustomerViewBookings() {
 
       <main className="max-w-[1200px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <Card className="relative overflow-hidden bg-white/80 backdrop-blur rounded-xl border border-gray-100 shadow-sm">
-          <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-[#113f67] via-[#226597] to-[#2980b9]" />
           <div className="p-4 sm:p-6">
             <div className="mb-4 text-sm sm:text-base font-medium text-[#113f67]">View your bookings here</div>
 
@@ -149,8 +148,7 @@ function CustomerViewBookings() {
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 items-stretch w-full">
                 {viewBook.map((item, index) => (
                   <Card key={index} className="group relative overflow-hidden rounded-lg border border-gray-100 bg-white shadow-sm hover:shadow-md transition">
-                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#113f67] via-[#226597] to-[#2980b9]" />
-
+             
                     <div className="px-3 sm:px-4 pt-3 pb-2">
                       <div className="flex flex-wrap justify-between items-center w-full text-black">
                         <h2 className="text-base sm:text-lg font-bold text-[#113F67] break-words">Booking #{item.booking_id}</h2>

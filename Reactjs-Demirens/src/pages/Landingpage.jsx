@@ -75,15 +75,9 @@ function Landingpage() {
       const res = await axios.post(url, formData);
       console.log("res ni get feedbacks", res)
 
-      // Ensure feedback is always an array
-      let data = res.data;
-      try {
-        data = typeof data === 'string' ? JSON.parse(data) : data;
-      } catch (_) {
-        // keep original if not JSON
-      }
-      const list = Array.isArray(data) ? data : [];
-      setFeedback(list);
+      // Ensure rooms is always an array
+      // const data = Array.isArray(res.data) ? res.data : [];
+      setFeedback(res.data);
     } catch (error) {
       toast.error("Something went wrong");
       console.log(error);
@@ -666,7 +660,7 @@ function Landingpage() {
                 <div className="w-28 h-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 mx-auto rounded-full mt-3"></div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {(Array.isArray(feedback) ? feedback : []).map((item, index) => (
+                {feedback.map((item, index) => (
                   <Card key={index} className="bg-gradient-to-br from-white to-blue-50/50 border border-blue-100/70 shadow-lg hover:shadow-2xl transition-shadow rounded-2xl">
                     <CardContent className="p-5">
                       <div className="flex items-center justify-between mb-3">

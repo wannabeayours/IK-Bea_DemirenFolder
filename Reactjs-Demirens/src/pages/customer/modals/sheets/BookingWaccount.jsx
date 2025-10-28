@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import RoomsList from './RoomsList'
 import { toast } from 'sonner'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { BedDouble, Info, MinusIcon, Plus, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Info, MinusIcon, Plus, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
@@ -94,12 +94,8 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
       const extraGuests = Math.max(0, guests - capacity);
       return t + extraGuests * extraGuestPrice * numberOfNights;
     }, 0);
-    const bedCharges = selectedRooms.reduce((t, r) => {
-      const rk = r.selectionKey || r.room_type;
-      return t + ((bedCounts[rk] || 0) * bedPrice * numberOfNights);
-    }, 0);
     const displayedVat = subtotal - (subtotal / 1.12)
-    const totalWithExtras = subtotal + extraGuestCharges + bedCharges;
+    const totalWithExtras = subtotal + extraGuestCharges;
     const totalAmount = totalWithExtras.toFixed(2)
 
     const payType = form.getValues('payType');
@@ -125,7 +121,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
       console.log("selected rooms", selectedRooms)
       console.log("adultCounts", adultCounts)
       console.log("childrenCounts", childrenCounts)
-      console.log("bedCounts", bedCounts)
+      
 
       const roomDetails = selectedRooms.map((room) => {
         const rk = room.selectionKey || room.room_type;
@@ -137,7 +133,6 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
           guestCount: totalGuests,
           adultCount,
           childrenCount,
-          bedCount: bedCounts[rk] ?? 0,
           extraGuestCharges: extraGuestCharges === 0 ? 0 : 1,
         };
       });
@@ -179,12 +174,8 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
         const extraGuests = Math.max(0, guests - capacity);
         return t + extraGuests * extraGuestPrice * numberOfNights;
       }, 0);
-      const bedCharges = selectedRooms.reduce((t, r) => {
-        const rk = r.selectionKey || r.room_type;
-        return t + ((bedCounts[rk] || 0) * bedPrice * numberOfNights);
-      }, 0);
       const displayedVat = subtotal - (subtotal / 1.12)
-      const totalWithExtras = subtotal + extraGuestCharges + bedCharges;
+      const totalWithExtras = subtotal + extraGuestCharges;
       const totalAmount = totalWithExtras.toFixed(2);
       const payType = form.getValues('payType');
 
@@ -214,7 +205,6 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
           guestCount: totalGuests,
           adultCount,
           childrenCount,
-          bedCount: bedCounts[rk] ?? 0,
           extraGuestCharges: extraGuestCharges === 0 ? 0 : 1,
         };
       });
@@ -231,7 +221,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
       formData.append("hasAccount", 1);
       formData.append("name", fullName);
       formData.append("email", localStorage.getItem("email"));
-      formData.append("phone", localStorage.getItem("contactNumber"));
+      formData.append("phone", localStorage.getItem("phone"));
       localStorage.setItem("hasAccount", 1);
       console.log("jsonData", jsonData);
       const res = await axios.post(url, formData, {
@@ -268,12 +258,8 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
         const extraGuests = Math.max(0, guests - capacity);
         return t + extraGuests * extraGuestPrice * numberOfNights;
       }, 0);
-      const bedCharges = selectedRooms.reduce((t, r) => {
-        const rk = r.selectionKey || r.room_type;
-        return t + ((bedCounts[rk] || 0) * bedPrice * numberOfNights);
-      }, 0);
       const displayedVat = subtotal - (subtotal / 1.12)
-      const totalWithExtras = subtotal + extraGuestCharges + bedCharges;
+      const totalWithExtras = subtotal + extraGuestCharges;
       const downPayment = (totalWithExtras * 0.5).toFixed(2)
       const totalAmount = totalWithExtras.toFixed(2)
       const payType = form.getValues('payType');
@@ -294,14 +280,11 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
         const rk = room.selectionKey || room.room_type;
         const adultCount = adultCounts[rk] || 0;
         const childrenCount = childrenCounts[rk] || 0;
-        const bedCount = bedCounts[rk] || 0;
-        console.log(`Room ${room.roomtype_name}: adults=${adultCount}, children=${childrenCount}, beds=${bedCount}`)
         return {
           roomTypeId: room.room_type,
           guestCount: adultCount + childrenCount,
           adultCount: adultCount,
           childrenCount: childrenCount,
-          bedCount: bedCount,
         };
       });
       const jsonData = {
@@ -375,7 +358,6 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
   const [guestCounts, setGuestCounts] = useState({});
   const [adultCounts, setAdultCounts] = useState({});
   const [childrenCounts, setChildrenCounts] = useState({});
-  const [bedCounts, setBedCounts] = useState({});
 
 
   // recalc nights whenever dates change
@@ -432,7 +414,6 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
         setGuestCounts(g => ({ ...g, [selectionKey]: Math.min(guestNum, selected.roomtype_capacity || 1) }));
         setAdultCounts(a => ({ ...a, [selectionKey]: Math.min(storedAdult, selected.roomtype_capacity || Number.MAX_SAFE_INTEGER) }));
         setChildrenCounts(c => ({ ...c, [selectionKey]: Math.min(storedChildren, selected.roomtype_capacity || Number.MAX_SAFE_INTEGER) }));
-        setBedCounts(b => ({ ...b, [selectionKey]: 0 })); // Initialize with 0 beds
 
         return [...prev, selected];
       });
@@ -471,12 +452,6 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
         }));
       }
 
-      if (bedCounts[roomKey] === undefined) {
-        setBedCounts(prev => ({
-          ...prev,
-          [roomKey]: 0 // Initialize with 0 beds
-        }));
-      }
     });
     // intentionally depend only on selectedRooms (and counts as read) to avoid loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -561,7 +536,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
       setAdultCounts(prev => { const copy = { ...prev }; delete copy[roomToRemove.selectionKey || roomToRemove.room_type]; return copy; });
       setChildrenCounts(prev => { const copy = { ...prev }; delete copy[roomToRemove.selectionKey || roomToRemove.room_type]; return copy; });
       setGuestCounts(prev => { const copy = { ...prev }; delete copy[roomToRemove.selectionKey || roomToRemove.room_type]; return copy; });
-      setBedCounts(prev => { const copy = { ...prev }; delete copy[roomToRemove.selectionKey || roomToRemove.room_type]; return copy; });
+      
     }
 
     if (updated.length === 0) {
@@ -609,12 +584,8 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
       const extraGuests = Math.max(0, guests - capacity);
       return t + extraGuests * extraGuestPrice * numberOfNights;
     }, 0);
-    const bedCharges = selectedRooms.reduce((t, r) => {
-      const rk = r.selectionKey || r.room_type;
-      return t + ((bedCounts[rk] || 0) * bedPrice * numberOfNights);
-    }, 0);
     const vat = subtotal - (subtotal / 1.12);
-    const total = subtotal + extraGuestCharges + bedCharges;
+    const total = subtotal + extraGuestCharges;
     const down = total * 0.5;
 
     return (
@@ -665,17 +636,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
                     </div>
                   </>
                 )}
-                {selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0) > 0 && (
-                  <>
-                    <div className="flex justify-between items-center text-sm">
-                      <span>{selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0)} bed{selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0) !== 1 ? 's' : ''} × ₱{bedPrice}:</span>
-                      <span className='font-bold'>₱{(selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0) * bedPrice * numberOfNights).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span>× {numberOfNights} night{numberOfNights !== 1 ? 's' : ''}:</span>
-                    </div>
-                  </>
-                )}
+                {/* Bed charges removed */}
                 <Separator />
                 <div className="flex justify-between items-center font-semibold">
                   <span>Total Amount:</span>
@@ -777,7 +738,6 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
                                 </div>
                               </div>
                               <h1 className="flex items-center gap-2 font-semibold text-[#113F67]">
-                                <BedDouble size={20} />
                                 ₱{" "}
                                 {Number(room.roomtype_price).toLocaleString(
                                   "en-PH",
@@ -898,61 +858,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
                                 </div>
                               </div>
 
-                              {/* Beds selector */}
-                              <div className="mt-4">
-                                <div className="rounded-2xl border-none p-4">
-                                  <div className="flex items-center">
-                                    <Label className="mb-2">Add Beds{" (₱" + bedPrice + " each bed)"}</Label>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      className="rounded-full"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        const rk = room.selectionKey || room.room_type;
-                                        const current = bedCounts[rk] || 0;
-                                        preserveScroll(() => {
-                                          setBedCounts((prev) => ({
-                                            ...prev,
-                                            [rk]: Math.max(0, current - 1),
-                                          }));
-                                        });
-                                      }}
-                                      disabled={(bedCounts[room.selectionKey || room.room_type] || 0) <= 0}
-                                    >
-                                      <MinusIcon />
-                                    </Button>
-                                    {bedCounts[room.selectionKey || room.room_type] || 0}
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      className="rounded-full"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        const rk = room.selectionKey || room.room_type;
-                                        const current = bedCounts[rk] || 0;
-                                        const maxBeds = room.roomtype_maxbeds || 1;
-                                        if (current < maxBeds) {
-                                          preserveScroll(() => {
-                                            setBedCounts((prev) => ({
-                                              ...prev,
-                                              [rk]: current + 1,
-                                            }));
-                                          });
-                                        }
-                                      }}
-                                      disabled={(bedCounts[room.selectionKey || room.room_type] || 0) >= (room.roomtype_maxbeds || 1)}
-                                    >
-                                      <Plus />
-                                    </Button>
-                                  </div>
-                                  <div className="text-xs text-gray-500 mt-1">
-                                    Max beds: {room.roomtype_maxbeds || 1}
-                                  </div>
-                                </div>
-                              </div>
+                              {/* Beds selector removed */}
 
                               <div className="mt-3 text-sm text-gray-700">
                                 Total guests:{" "}
@@ -1005,15 +911,8 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
       return t + extraGuests * extraGuestPrice * numberOfNights;
     }, 0);
 
-    // ✅ Bed charges
-    const bedCharges = selectedRooms.reduce((t, r) => {
-      const key = r.selectionKey || r.room_type;
-      const bedCount = bedCounts[key] || 0;
-      return t + bedCount * bedPrice * numberOfNights;
-    }, 0);
-
     // ✅ Total (no VAT)
-    const total = subtotal + extraGuestCharges + bedCharges;
+    const total = subtotal + extraGuestCharges;
 
 
 
@@ -1076,7 +975,6 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
                           <div className="flex gap-4">
                             <span>Adults: {(adultCounts[room.selectionKey || room.room_type] || 0)}</span>
                             <span>Children: {(childrenCounts[room.selectionKey || room.room_type] || 0)}</span>
-                            <span>Extra Beds: {(bedCounts[room.selectionKey || room.room_type] || 0)}</span>
                           </div>
                           <div className="font-medium">
                             {numberOfNights} night{numberOfNights !== 1 ? 's' : ''} × ₱{room.roomtype_price.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = ₱{(numberOfNights * room.roomtype_price).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1157,17 +1055,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
                       </div>
                     </>
                   )}
-                  {selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0) > 0 && (
-                    <>
-                      <div className="flex justify-between items-center text-sm">
-                        <span>{selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0)} bed{selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0) !== 1 ? 's' : ''} × ₱{bedPrice}:</span>
-                        <span className='font-bold'>₱{(selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0) * bedPrice * numberOfNights).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm">
-                        <span>× {numberOfNights} night{numberOfNights !== 1 ? 's' : ''}:</span>
-                      </div>
-                    </>
-                  )}
+                  
                   <Separator />
                   <div className="flex justify-between items-center font-semibold">
                     <span>Total Amount:</span>

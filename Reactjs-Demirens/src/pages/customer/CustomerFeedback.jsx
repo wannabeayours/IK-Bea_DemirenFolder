@@ -27,7 +27,7 @@ const schema = z.object({
 
 function CustomerFeedback() {
   const [hasCheckedOut, setHasCheckedOut] = useState(false);
-  const [feedback, setFeedback] = useState(null);
+  const [feedback, setFeedback] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
   const [charCount, setCharCount] = useState(0);
@@ -41,19 +41,13 @@ function CustomerFeedback() {
       const url = localStorage.getItem('url') + "customer.php";
       const customerId = localStorage.getItem("userId");
       const jsonData = {
-        customerId: customerId,
-      };
+        "customerId": customerId,
+      }
       const formData = new FormData();
       formData.append("operation", "hasCustomerCheckOuted");
       formData.append("json", JSON.stringify(jsonData));
       const res = await axios.post(url, formData);
-      let value = res.data;
-      try {
-        value = typeof value === 'string' ? JSON.parse(value) : value;
-      } catch (_) {
-        // leave as-is if not JSON
-      }
-      setHasCheckedOut(Number(value) === 1);
+      setHasCheckedOut(res.data === 1);
       console.log("res ni hasCustomerCheckOuted", res);
     } catch (error) {
       toast.error("Something went wrong");
@@ -66,26 +60,14 @@ function CustomerFeedback() {
       const url = localStorage.getItem('url') + "customer.php";
       const customerId = localStorage.getItem("userId");
       const jsonData = {
-        customerId: customerId,
-      };
+        "customerId": customerId,
+      }
       const formData = new FormData();
       formData.append("operation", "getCustomerFeedback");
       formData.append("json", JSON.stringify(jsonData));
       const res = await axios.post(url, formData);
       console.log("res ni getCustomerFeedback", res);
-      let data = res.data;
-      try {
-        data = typeof data === 'string' ? JSON.parse(data) : data;
-      } catch (_) {
-        // keep original if not JSON
-      }
-      if (Array.isArray(data)) {
-        setFeedback(data[0] || null);
-      } else if (data && typeof data === 'object') {
-        setFeedback(data);
-      } else {
-        setFeedback(null);
-      }
+      setFeedback(res.data);
     } catch (error) {
       toast.error("Something went wrong");
       console.log(error);
@@ -106,26 +88,18 @@ function CustomerFeedback() {
       const url = localStorage.getItem('url') + "customer.php";
       const CustomerId = localStorage.getItem("userId");
       const jsonData = {
-        customers_id: CustomerId,
-        customersreviews: values.review,
-        rating: values.rating,
-      };
+        "customers_id": CustomerId,
+        "customersreviews": values.review,
+        "rating": values.rating,
+      }
       const formData = new FormData();
       formData.append("operation", "customerFeedBack");
       formData.append("json", JSON.stringify(jsonData));
       const res = await axios.post(url, formData);
       console.log("res ni onSubmit", res);
-      let value = res.data;
-      try {
-        value = typeof value === 'string' ? JSON.parse(value) : value;
-      } catch (_) {
-        // keep original if not JSON
-      }
-      if (Number(value) === 1 || (value && value.success)) {
+      if (res.data === 1) {
         toast.success("Feedback submitted successfully");
         navigateTo("/customer");
-      } else {
-        toast.error("Unable to submit feedback");
       }
     } catch (error) {
       toast.error("Something went wrong");
@@ -149,8 +123,8 @@ function CustomerFeedback() {
 
   const startEditing = () => {
     setIsEditing(true);
-    const currentComment = (feedback && feedback.customersreviews_comment) ? feedback.customersreviews_comment : '';
-    const currentRating = (feedback && feedback.customersreviews_rating) ? Number(feedback.customersreviews_rating) : 0;
+    const currentComment = feedback?.customersreviews_comment || '';
+    const currentRating = feedback?.customersreviews_rating || 0;
     form.reset({ review: currentComment, rating: currentRating });
     setCharCount(currentComment.length);
   }

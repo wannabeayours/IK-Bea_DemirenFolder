@@ -307,7 +307,8 @@ function InvoiceManagementSubpage({
         charge_name: newChargeForm.charge_name,
         charge_price: parseFloat(newChargeForm.charge_price),
         quantity: parseInt(newChargeForm.quantity),
-        category_id: newChargeForm.category_id
+        category_id: newChargeForm.category_id,
+        employee_id: getCurrentEmployeeId()
       }));
       
       console.log("Adding charge:", newChargeForm);

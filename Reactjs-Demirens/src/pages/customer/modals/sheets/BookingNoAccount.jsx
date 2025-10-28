@@ -827,24 +827,24 @@ function BookingNoaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber
                                     type="button"
                                     variant="outline"
                                     className="rounded-full"
-                                    onClick={() => {
-                                      const rk = room.selectionKey || room.room_type;
-                                      const capacity = room.roomtype_capacity || 0;
-                                      const currAdults = adultCounts[rk] || 0;
-                                      const currChildren = childrenCounts[rk] || 0;
-                                      const maxBeds = room.roomtype_maxbeds || 0;
-                                      const totalGuests = currAdults + currChildren;
-                                      const allowedGuests = capacity + maxBeds;
-                                      if (totalGuests < allowedGuests) {
-                                        preserveScroll(() => {
-                                          setAdultCounts((prev) => ({ ...prev, [rk]: currAdults + 1 }));
-                                        });
-                                      }
-                                    }}
-                                    disabled={
-                                      ((adultCounts[room.selectionKey || room.room_type] || 0) + (childrenCounts[room.selectionKey || room.room_type] || 0)) >=
-                                      ((room.roomtype_capacity || 0) + (room.roomtype_maxbeds || 0))
+                                  onClick={() => {
+                                    const rk = room.selectionKey || room.room_type;
+                                    const capacity = room.roomtype_capacity || 0;
+                                    const currAdults = adultCounts[rk] || 0;
+                                    const currChildren = childrenCounts[rk] || 0;
+                                    const maxBeds = room.roomtype_maxbeds || 0;
+                                    const totalGuests = currAdults + currChildren;
+                                    const allowedGuests = capacity + maxBeds;
+                                    if (totalGuests < allowedGuests) {
+                                      preserveScroll(() => {
+                                        setAdultCounts((prev) => ({ ...prev, [rk]: currAdults + 1 }));
+                                      });
                                     }
+                                  }}
+                                  disabled={
+                                    ((adultCounts[room.selectionKey || room.room_type] || 0) + (childrenCounts[room.selectionKey || room.room_type] || 0)) >=
+                                    ((room.roomtype_capacity || 0) + (room.roomtype_maxbeds || 0))
+                                  }
                                   >
                                     <Plus />
                                   </Button>
@@ -880,83 +880,27 @@ function BookingNoaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber
                                     type="button"
                                     variant="outline"
                                     className="rounded-full"
-                                    onClick={() => {
-                                      const rk = room.selectionKey || room.room_type;
-                                      const capacity = room.roomtype_capacity || 0;
-                                      const currAdults = adultCounts[rk] || 0;
-                                      const currChildren = childrenCounts[rk] || 0;
-                                      const maxBeds = room.roomtype_maxbeds || 0;
-                                      const totalGuests = currAdults + currChildren;
-                                      const allowedGuests = capacity + maxBeds;
-                                      if (totalGuests < allowedGuests) {
-                                        preserveScroll(() => {
-                                          setChildrenCounts((prev) => ({ ...prev, [rk]: currChildren + 1 }));
-                                        });
-                                      }
-                                    }}
-                                    disabled={
-                                      ((adultCounts[room.selectionKey || room.room_type] || 0) + (childrenCounts[room.selectionKey || room.room_type] || 0)) >=
-                                      ((room.roomtype_capacity || 0) + (room.roomtype_maxbeds || 0))
-                                    }
-                                  >
-                                    <Plus />
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Beds selector */}
-                            <div className="mt-4">
-                              <div className="rounded-2xl border-none p-4">
-                                <div className="flex items-center">
-                                  <Label className="mb-2">Add Beds{" (₱" + bedPrice + " each bed)"}</Label>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="rounded-full"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      const rk = room.selectionKey || room.room_type;
-                                      const current = bedCounts[rk] || 0;
+                                  onClick={() => {
+                                    const rk = room.selectionKey || room.room_type;
+                                    const capacity = room.roomtype_capacity || 0;
+                                    const currAdults = adultCounts[rk] || 0;
+                                    const currChildren = childrenCounts[rk] || 0;
+                                    const maxBeds = room.roomtype_maxbeds || 0;
+                                    const totalGuests = currAdults + currChildren;
+                                    const allowedGuests = capacity + maxBeds;
+                                    if (totalGuests < allowedGuests) {
                                       preserveScroll(() => {
-                                        setBedCounts((prev) => ({
-                                          ...prev,
-                                          [rk]: Math.max(0, current - 1),
-                                        }));
+                                        setChildrenCounts((prev) => ({ ...prev, [rk]: currChildren + 1 }));
                                       });
-                                    }}
-                                    disabled={(bedCounts[room.selectionKey || room.room_type] || 0) <= 0}
-                                  >
-                                    <MinusIcon />
-                                  </Button>
-                                  {bedCounts[room.selectionKey || room.room_type] || 0}
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="rounded-full"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      const rk = room.selectionKey || room.room_type;
-                                      const current = bedCounts[rk] || 0;
-                                      const maxBeds = room.roomtype_maxbeds || 1;
-                                      if (current < maxBeds) {
-                                        preserveScroll(() => {
-                                          setBedCounts((prev) => ({
-                                            ...prev,
-                                            [rk]: current + 1,
-                                          }));
-                                        });
-                                      }
-                                    }}
-                                    disabled={(bedCounts[room.selectionKey || room.room_type] || 0) >= (room.roomtype_maxbeds || 1)}
+                                    }
+                                  }}
+                                  disabled={
+                                    ((adultCounts[room.selectionKey || room.room_type] || 0) + (childrenCounts[room.selectionKey || room.room_type] || 0)) >=
+                                    ((room.roomtype_capacity || 0) + (room.roomtype_maxbeds || 0))
+                                  }
                                   >
                                     <Plus />
                                   </Button>
-                                </div>
-                                <div className="text-xs text-gray-500 mt-1">
-                                  Max beds: {room.roomtype_maxbeds || 1}
                                 </div>
                               </div>
                             </div>
