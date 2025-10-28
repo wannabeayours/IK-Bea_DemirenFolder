@@ -2,6 +2,7 @@
     "require": {
         "phpmailer/phpmailer": "^6.9",
         "firebase/php-jwt": "^6.11",
-        "bshaffer/oauth2-server-php": "^1.14"
+        "bshaffer/oauth2-server-php": "^1.14",
+        "guzzlehttp/guzzle": "^7.10"
     }
 }
