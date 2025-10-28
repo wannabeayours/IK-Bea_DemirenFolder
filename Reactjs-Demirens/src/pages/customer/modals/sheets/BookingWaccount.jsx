@@ -221,7 +221,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
       formData.append("hasAccount", 1);
       formData.append("name", fullName);
       formData.append("email", localStorage.getItem("email"));
-      formData.append("phone", localStorage.getItem("phone"));
+      formData.append("phone", localStorage.getItem("contactNumber"));
       localStorage.setItem("hasAccount", 1);
       console.log("jsonData", jsonData);
       const res = await axios.post(url, formData, {

@@ -110,68 +110,19 @@ function Login() {
                 console.log("=== LOGIN SUCCESS ===");
                 console.log("User Type:", userType);
                 console.log("User Data:", user);
+                toast.success("Successfully logged in as Customer");
+                localStorage.setItem("userId", user.customers_id);
+                localStorage.setItem("customerOnlineId", user.customers_online_id);
+                localStorage.setItem("fname", user.customers_fname);
+                localStorage.setItem("lname", user.customers_lname);
+                localStorage.setItem("email", user.customers_email);
+                localStorage.setItem("contactNumber", user.customers_phone);
+                localStorage.setItem("userType", "customer");
+                setTimeout(() => {
+                    navigateTo("/customer");
+                }, 1500);
 
-                if (userType === "customer") {
-                    toast.success("Successfully logged in as Customer");
-                    localStorage.setItem("userId", user.customers_id);
-                    localStorage.setItem("customerOnlineId", user.customers_online_id);
-                    localStorage.setItem("fname", user.customers_fname);
-                    localStorage.setItem("lname", user.customers_lname);
-                    localStorage.setItem("email", user.customers_email);
-                    localStorage.setItem("contactNumber", user.customers_phone);
-                    localStorage.setItem("userType", "customer");
-                    setTimeout(() => {
-                        navigateTo("/customer");
-                    }, 1500);
-                } else if (userType === "employee") {
-                    toast.success("Successfully logged in as Employee");
-                    console.log("=== EMPLOYEE LOGIN INFO ===");
-                    console.log("Employee ID:", user.employee_id);
-                    console.log("Employee Name:", user.employee_fname, user.employee_lname);
-                    console.log("Employee Username:", user.employee_username);
-                    console.log("Employee Email:", user.employee_email);
-                    console.log("Employee Phone:", user.employee_phone);
-                    console.log("Employee User Level:", user.userlevel_name);
-                    console.log("Employee Status:", user.employee_status);
-                    console.log("Employee Address:", user.employee_address);
-                    console.log("Employee Birthdate:", user.employee_birthdate);
-                    console.log("Employee Gender:", user.employee_gender);
-                    console.log("Employee Created At:", user.employee_created_at);
-                    console.log("Employee Updated At:", user.employee_updated_at);
 
-                    localStorage.setItem("userId", user.employee_id);
-                    localStorage.setItem("fname", user.employee_fname);
-                    localStorage.setItem("lname", user.employee_lname);
-                    localStorage.setItem("userType", "employee");
-                    localStorage.setItem("userLevel", user.userlevel_name);
-                    setTimeout(() => {
-                        navigateTo("/frontdesk/dashboard");
-                    }, 1500);
-                } else if (userType === "admin") {
-                    toast.success("Successfully logged in as Admin");
-                    console.log("=== ADMIN LOGIN INFO ===");
-                    console.log("Admin ID:", user.employee_id);
-                    console.log("Admin Name:", user.employee_fname, user.employee_lname);
-                    console.log("Admin Username:", user.employee_username);
-                    console.log("Admin Email:", user.employee_email);
-                    console.log("Admin Phone:", user.employee_phone);
-                    console.log("Admin User Level:", user.userlevel_name);
-                    console.log("Admin Status:", user.employee_status);
-                    console.log("Admin Address:", user.employee_address);
-                    console.log("Admin Birthdate:", user.employee_birthdate);
-                    console.log("Admin Gender:", user.employee_gender);
-                    console.log("Admin Created At:", user.employee_created_at);
-                    console.log("Admin Updated At:", user.employee_updated_at);
-
-                    localStorage.setItem("userId", user.employee_id);
-                    localStorage.setItem("fname", user.employee_fname);
-                    localStorage.setItem("lname", user.employee_lname);
-                    localStorage.setItem("userType", "admin");
-                    localStorage.setItem("userLevel", user.userlevel_name);
-                    setTimeout(() => {
-                        navigateTo("/admin/dashboard");
-                    }, 1500);
-                }
             }
             else {
                 console.log("=== LOGIN FAILED ===");
