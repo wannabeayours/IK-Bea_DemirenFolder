@@ -140,7 +140,7 @@ function ViewBookingSummary({ getBookingSummary, bookingData }) {
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger>
-        <Button className= "bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white">
+        <Button className= "bg-gradient-to-r from-[#113f67] to-[#226597] hover:from-[#0d2f4f] hover:to-[#1a4f7a]">
           <Eye className="mr-2 h-4 w-4" />
           View Details
         </Button>

@@ -173,7 +173,7 @@ function CustomerArchieve() {
               <p className="text-gray-400 text-xs sm:text-sm mt-1">Archived bookings will appear here</p>
             </div>
           ) : (
-            <DataTable columns={col} data={archivedBookings} itemsPerPage={10} />
+            <DataTable columns={col} data={archivedBookings} itemsPerPage={10} hideSearch />
           )}
 
         </div>

@@ -74,7 +74,6 @@ function CustomerBookingSummary() {
               {data.map((element, index) => (
                 <div key={index}>
                   <Card className="w-full h-full mt-4 sm:mt-6 shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 rounded-lg overflow-hidden hover:border-[#226597]/30 hover:scale-[1.01]">
-                    <div className="bg-gradient-to-r from-[#113f67] to-[#226597] h-2"></div>
                     <CardContent className="p-4 sm:p-5">
                       <CardTitle className="text-xl sm:text-2xl leading-tight break-words text-[#113f67]">Booking #{index + 1}</CardTitle>
                       <div className="space-y-3 mt-4">

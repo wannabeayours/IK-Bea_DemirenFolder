@@ -148,7 +148,7 @@ function CustomerViewBookings() {
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 items-stretch w-full">
                 {viewBook.map((item, index) => (
                   <Card key={index} className="group relative overflow-hidden rounded-lg border border-gray-100 bg-white shadow-sm hover:shadow-md transition">
-             
+
                     <div className="px-3 sm:px-4 pt-3 pb-2">
                       <div className="flex flex-wrap justify-between items-center w-full text-black">
                         <h2 className="text-base sm:text-lg font-bold text-[#113F67] break-words">Booking #{index + 1}</h2>
@@ -205,7 +205,7 @@ function CustomerViewBookings() {
 
                     <div className="px-3 sm:px-4 pb-3 mt-2">
                       <Button
-                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg"
+                        className="w-full bg-gradient-to-r from-[#113f67] to-[#226597] hover:from-[#0d2f4f] hover:to-[#1a4f7a] text-white font-semibold rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg"
                         onClick={() => handleShowAlert(item.booking_id)}
                       >
                         Cancel Booking

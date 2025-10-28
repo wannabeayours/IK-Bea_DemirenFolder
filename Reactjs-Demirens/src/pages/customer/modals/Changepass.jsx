@@ -66,7 +66,7 @@ function Changepass() {
     return (
         <Dialog>
             <DialogTrigger>
-                <Button>
+                <Button className="bg-gradient-to-r from-[#113f67] to-[#226597] hover:from-[#0d2f4f] hover:to-[#1a4f7a]">
                     Change Password
                 </Button>
             </DialogTrigger>

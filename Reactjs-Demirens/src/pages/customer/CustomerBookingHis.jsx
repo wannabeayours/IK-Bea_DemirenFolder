@@ -197,7 +197,7 @@ function CustomerBookingHis() {
               <p className="text-gray-400 text-xs sm:text-sm mt-1">Booking History will appear here</p>
             </div>
           ) : (
-            <DataTable columns={col} data={history} itemsPerPage={10} />
+            <DataTable columns={col} data={history} itemsPerPage={10} hideSearch />
           )}
 
         </div>

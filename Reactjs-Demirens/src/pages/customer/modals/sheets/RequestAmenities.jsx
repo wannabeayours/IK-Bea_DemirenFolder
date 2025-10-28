@@ -148,7 +148,7 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
     <>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
-          <Button>
+          <Button className="bg-gradient-to-r from-[#113f67] to-[#226597] hover:from-[#0d2f4f] hover:to-[#1a4f7a]">
             <Send className="mr-2" />
             Request Amenities
           </Button>
@@ -187,7 +187,7 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
                 onChange={(e) => setNotes(e.target.value)}
               />
 
-              <Button type="submit" className="w-full mt-4 font-semibold">
+              <Button type="submit" className="w-full mt-4 font-semibold bg-gradient-to-r from-[#113f67] to-[#226597] hover:from-[#0d2f4f] hover:to-[#1a4f7a]">
                 Next
               </Button>
             </form>
@@ -240,7 +240,7 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
           </div>
 
           <DialogFooter className="mt-4">
-            <Button onClick={handleConfirm}>Confirm</Button>
+            <Button className={"bg-gradient-to-r from-[#113f67] to-[#226597] hover:from-[#0d2f4f] hover:to-[#1a4f7a]"} onClick={handleConfirm}>Confirm</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
