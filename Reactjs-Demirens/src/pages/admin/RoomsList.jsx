@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { toast } from 'sonner'
-import { Search, Grid, List, SlidersHorizontal, Edit, X, ChevronLeft, ChevronRight, ArrowLeft, Bed, Users, Plus } from 'lucide-react'
+import { Search, Grid, List, SlidersHorizontal, Edit, X, ChevronLeft, ChevronRight, ArrowLeft, Bed, Users } from 'lucide-react'
 
 // Card Components
 import {
@@ -28,8 +28,9 @@ import { Textarea } from "@/components/ui/textarea"
 
 import AdminHeader from './components/AdminHeader'
 import AdvancedFiltersSheet from './SubPages/AdvancedFiltersSheet'
-import AddRoomNumberSheet from './SubPages/AddRoomNumberSheet'
 import AdminModal from './components/AdminModal'
+
+import { useNavigate } from 'react-router-dom'
 
 const getRoomStatusForDates = (room, startDate, endDate) => {
   if (room.bookings && room.bookings.length > 0) {
@@ -52,9 +53,10 @@ const getRoomStatusForDates = (room, startDate, endDate) => {
 function AdminRoomsList() {
   const APIConn = `${localStorage.url}admin.php`
   // Compute normalized role once to use for permissions
-  const userTypeRaw = (localStorage.getItem('userType') || '').toLowerCase().replace(/[\s_-]/g, '')
-  const userLevelRaw = (localStorage.getItem('userLevel') || '').toLowerCase().replace(/[\s_-]/g, '')
+  const userTypeRaw = (localStorage.getItem('userType') || '').toLowerCase().replace(/[,\s_-]/g, '')
+  const userLevelRaw = (localStorage.getItem('userLevel') || '').toLowerCase().replace(/[,\s_-]/g, '')
   const normalizedRole = userLevelRaw || userTypeRaw
+  const navigate = useNavigate()
 
   const [rooms, setRooms] = useState([])
   const [isLoading, setIsLoading] = useState(false)
@@ -96,9 +98,6 @@ function AdminRoomsList() {
   const [showRoomNumbersModal, setShowRoomNumbersModal] = useState(false)
   const [selectedRoomTypeForModal, setSelectedRoomTypeForModal] = useState(null)
   const [updatingRoomStatus, setUpdatingRoomStatus] = useState(null)
-
-  // Add room number sheet state
-  const [showAddRoomSheet, setShowAddRoomSheet] = useState(false)
 
   const getRooms = async () => {
     setIsLoading(true)
@@ -695,16 +694,6 @@ function AdminRoomsList() {
                   />
                 </div>
 
-                {/* Add Room Number Button */}
-                <Button
-                  variant="outline"
-                  className="flex items-center gap-2 bg-green-50 hover:bg-green-100 border-green-200 text-green-700 dark:bg-green-900/30 dark:hover:bg-green-900/50 dark:border-green-800 dark:text-green-400"
-                  onClick={() => setShowAddRoomSheet(true)}
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Room
-                </Button>
-
                 {/* Advanced Filters Button */}
                 <Button
                   variant="outline"
@@ -779,6 +768,16 @@ function AdminRoomsList() {
                     {!selectedRoomType ? roomTypes.length : selectedRoomType.rooms.length}
                   </span> {!selectedRoomType ? 'room types' : 'rooms'}
                 </div>
+
+                {normalizedRole === 'admin' && (
+                  <Button
+                    size="sm"
+                    className="ml-auto bg-[#34699a] hover:bg-[#2a5580] text-white"
+                    onClick={() => navigate('/admin/new-room-number')}
+                  >
+                    New Room Number
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -1226,16 +1225,6 @@ function AdminRoomsList() {
           </div>
         </div>
       )}
-
-      {/* Add Room Number Sheet */}
-      <AddRoomNumberSheet
-        isOpen={showAddRoomSheet}
-        onClose={() => setShowAddRoomSheet(false)}
-        onRoomAdded={() => {
-          getRooms(); // Refresh the rooms list
-          toast.success('Room list updated');
-        }}
-      />
     </div>
     </>
   )

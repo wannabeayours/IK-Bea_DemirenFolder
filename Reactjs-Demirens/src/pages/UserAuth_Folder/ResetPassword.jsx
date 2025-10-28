@@ -18,19 +18,6 @@ const ResetPassword = () => {
   const navigate = useNavigate();
   const email = location.state?.email;
 
-  // OTP session storage keys and validity must match ForgotPassword.jsx
-  const RESET_OTP_HASH_KEY = "reset_otp_hash";
-  const RESET_OTP_EMAIL_KEY = "reset_otp_email";
-  const RESET_OTP_EXPIRY_KEY = "reset_otp_expiry";
-
-  const sha256Hex = async (text) => {
-    const enc = new TextEncoder();
-    const data = enc.encode(text);
-    const hash = await crypto.subtle.digest("SHA-256", data);
-    const hashArray = Array.from(new Uint8Array(hash));
-    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-  };
-
   // Redirect if no email is provided
   React.useEffect(() => {
     if (!email) {
@@ -66,30 +53,6 @@ const ResetPassword = () => {
     
     if (!validateForm()) return;
     
-    // Verify OTP locally against encrypted value stored in session
-    const storedHash = sessionStorage.getItem(RESET_OTP_HASH_KEY);
-    const storedEmail = sessionStorage.getItem(RESET_OTP_EMAIL_KEY);
-    const expiryStr = sessionStorage.getItem(RESET_OTP_EXPIRY_KEY);
-    const expiry = expiryStr ? parseInt(expiryStr, 10) : 0;
-    if (!storedHash || !storedEmail || !expiry) {
-      toast.error("OTP session missing. Please request a new code.");
-      return;
-    }
-    if (Date.now() > expiry) {
-      toast.error("OTP expired. Please request a new code.");
-      return;
-    }
-    if ((storedEmail || "").trim().toLowerCase() !== (email || "").trim().toLowerCase()) {
-      toast.error("Email mismatch. Please restart the reset process.");
-      return;
-    }
-    const salt = (email || "").trim() + "|RESET_OTP_SALT_v1";
-    const inputHash = await sha256Hex(`${otp}|${salt}`);
-    if (inputHash !== storedHash) {
-      toast.error("Incorrect OTP. Please try again.");
-      return;
-    }
-
     setLoading(true);
     
     try {
@@ -110,10 +73,6 @@ const ResetPassword = () => {
       
       if (res.data?.success) {
         toast.success("Password reset successfully! You can now login with your new password.");
-        // Clear OTP session once used
-        sessionStorage.removeItem(RESET_OTP_HASH_KEY);
-        sessionStorage.removeItem(RESET_OTP_EMAIL_KEY);
-        sessionStorage.removeItem(RESET_OTP_EXPIRY_KEY);
         navigate("/login");
       } else {
         toast.error(res.data?.message || "Failed to reset password. Please check your OTP and try again.");
