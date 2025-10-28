@@ -56,7 +56,7 @@ function AdminRequestedAmenities() {
   const [selectedAmenitiesFromNavigation, setSelectedAmenitiesFromNavigation] = useState([]);
 
   const location = useLocation();
-  const APIConn = `${localStorage.url}admin.php`;
+  const APIConn = `${localStorage.getItem('url')}admin.php`;
 
   // Datetime parsing helper for 'YYYY-MM-DD HH:mm:ss' and ISO strings
   const parseDateTime = (val) => {
@@ -85,7 +85,12 @@ function AdminRequestedAmenities() {
       
       // Ensure we have an array and add default values for missing fields
       const requests = Array.isArray(response.data) ? response.data : [];
-      const processedRequests = requests.map(request => ({
+      // Show ALL amenities from tbl_booking_charges, including PENDING ones
+      const amenityOnly = requests.filter(request => {
+        const category = String(request?.charges_category_name || '').toLowerCase();
+        return category.includes('amenity');
+      });
+      const processedRequests = amenityOnly.map(request => ({
         ...request,
         request_status: request.request_status || 'pending',
         customer_name: request.customer_name || 'Unknown Customer',

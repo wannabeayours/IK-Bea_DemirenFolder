@@ -1092,47 +1092,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
 
           <ScrollArea className="h-[calc(100vh-350px)]">
 
-
-            {/* Payment Summary */}
-            <Card className="bg-white shadow-md border-2 border-blue-200">
-              <CardContent className="p-4">
-                <h3 className="text-lg font-semibold mb-4">Payment Summary</h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-sm">
-                    <span>Subtotals:</span>
-                    <span>₱{subtotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                  {selectedRooms.reduce((total, room) => { const rk = room.selectionKey || room.room_type; return total + Math.max(0, ((adultCounts[rk] || 0) + (childrenCounts[rk] || 0)) - (room.roomtype_capacity || 0)); }, 0) > 0 && (
-                    <>
-                      <div className="flex justify-between items-center text-sm">
-                        <span>{selectedRooms.reduce((total, room) => { const rk = room.selectionKey || room.room_type; return total + Math.max(0, ((adultCounts[rk] || 0) + (childrenCounts[rk] || 0)) - (room.roomtype_capacity || 0)); }, 0)} extra guest{selectedRooms.reduce((total, room) => { const rk = room.selectionKey || room.room_type; return total + Math.max(0, ((adultCounts[rk] || 0) + (childrenCounts[rk] || 0)) - (room.roomtype_capacity || 0)); }, 0) !== 1 ? 's' : ''} × ₱{extraGuestPrice}:</span>
-                        <span className='font-bold'>₱{(selectedRooms.reduce((total, room) => { const rk = room.selectionKey || room.room_type; return total + Math.max(0, ((adultCounts[rk] || 0) + (childrenCounts[rk] || 0)) - (room.roomtype_capacity || 0)); }, 0) * extraGuestPrice * numberOfNights).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm">
-                        <span>× {numberOfNights} night{numberOfNights !== 1 ? 's' : ''}:</span>
-                      </div>
-                    </>
-                  )}
-                  {selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0) > 0 && (
-                    <>
-                      <div className="flex justify-between items-center text-sm">
-                        <span>{selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0)} bed{selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0) !== 1 ? 's' : ''} × ₱{bedPrice}:</span>
-                        <span className='font-bold'>₱{(selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0) * bedPrice * numberOfNights).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm">
-                        <span>× {numberOfNights} night{numberOfNights !== 1 ? 's' : ''}:</span>
-                      </div>
-                    </>
-                  )}
-                  <Separator />
-                  <div className="flex justify-between items-center font-semibold">
-                    <span>Total Amount:</span>
-                    <span>₱{total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white shadow-md rounded-2xl overflow-hidden mt-3">
+            <Card className="bg-white shadow-md rounded-2xl overflow-hidden mb-3">
               <CardHeader className="bg-gray-50">
                 <CardTitle>Select Payment Method</CardTitle>
               </CardHeader>
@@ -1177,6 +1137,45 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
                 )}
               </CardFooter>
             </Card>
+            {/* Payment Summary */}
+            <Card className="bg-white shadow-md border-2 border-blue-200">
+              <CardContent className="p-4">
+                <h3 className="text-lg font-semibold mb-4">Payment Summary</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-sm">
+                    <span>Subtotals:</span>
+                    <span>₱{subtotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  {selectedRooms.reduce((total, room) => { const rk = room.selectionKey || room.room_type; return total + Math.max(0, ((adultCounts[rk] || 0) + (childrenCounts[rk] || 0)) - (room.roomtype_capacity || 0)); }, 0) > 0 && (
+                    <>
+                      <div className="flex justify-between items-center text-sm">
+                        <span>{selectedRooms.reduce((total, room) => { const rk = room.selectionKey || room.room_type; return total + Math.max(0, ((adultCounts[rk] || 0) + (childrenCounts[rk] || 0)) - (room.roomtype_capacity || 0)); }, 0)} extra guest{selectedRooms.reduce((total, room) => { const rk = room.selectionKey || room.room_type; return total + Math.max(0, ((adultCounts[rk] || 0) + (childrenCounts[rk] || 0)) - (room.roomtype_capacity || 0)); }, 0) !== 1 ? 's' : ''} × ₱{extraGuestPrice}:</span>
+                        <span className='font-bold'>₱{(selectedRooms.reduce((total, room) => { const rk = room.selectionKey || room.room_type; return total + Math.max(0, ((adultCounts[rk] || 0) + (childrenCounts[rk] || 0)) - (room.roomtype_capacity || 0)); }, 0) * extraGuestPrice * numberOfNights).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span>× {numberOfNights} night{numberOfNights !== 1 ? 's' : ''}:</span>
+                      </div>
+                    </>
+                  )}
+                  {selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0) > 0 && (
+                    <>
+                      <div className="flex justify-between items-center text-sm">
+                        <span>{selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0)} bed{selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0) !== 1 ? 's' : ''} × ₱{bedPrice}:</span>
+                        <span className='font-bold'>₱{(selectedRooms.reduce((sum, room) => { const rk = room.selectionKey || room.room_type; return sum + (bedCounts[rk] || 0); }, 0) * bedPrice * numberOfNights).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span>× {numberOfNights} night{numberOfNights !== 1 ? 's' : ''}:</span>
+                      </div>
+                    </>
+                  )}
+                  <Separator />
+                  <div className="flex justify-between items-center font-semibold">
+                    <span>Total Amount:</span>
+                    <span>₱{total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </ScrollArea>
         </div>
       </div>
@@ -1192,7 +1191,8 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button
-          className="w-full bg-gradient-to-r from-[#113f67] to-[#226597] hover:from-[#0d2f4f] hover:to-[#1a4f7a] text-white font-semibold py-3 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+          variant="outline"
+          className="bg-[#113F67] text-white hover:bg-[#0d2f4f] border-[#113F67]"
         >
           Book Now
         </Button>

@@ -124,6 +124,8 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
 
     // ✅ This is the JSON your PHP expects 
     console.log("Payload for PHP:", JSON.stringify(payload, null, 2));
+
+
     const url = localStorage.getItem('url') + 'customer.php';
     const formData = new FormData();
     formData.append("operation", "addBookingCharges");
@@ -146,7 +148,7 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
     <>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
-          <Button className="bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700">
+          <Button>
             <Send className="mr-2" />
             Request Amenities
           </Button>
@@ -185,7 +187,7 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
                 onChange={(e) => setNotes(e.target.value)}
               />
 
-              <Button type="submit" className=" w-full bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700">
+              <Button type="submit" className="w-full mt-4 font-semibold">
                 Next
               </Button>
             </form>

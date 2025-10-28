@@ -301,7 +301,7 @@ function CustomerRoomView() {
             </h3>
             <div className="flex items-center gap-2 text-gray-700">
               <Check size={16} className="text-blue-600" />
-              <span>From 2:00 PM to 12:00 PM</span>
+              <span>From 3:00 PM to 12:00 PM</span>
             </div>
           </div>
           <div className="bg-gray-50 rounded-lg p-6 border">
@@ -343,7 +343,7 @@ function CustomerRoomView() {
 
         {/* Back Button */}
         <div className="mt-8 mb-12 w-full max-w-5xl flex justify-start">
-          <Button className="px-8 py-3 rounded-lg bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-7000 text-white font-medium"  onClick={() => navigateTo("/")}>
+          <Button className="px-8 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium"  onClick={() => navigateTo("/")}>
             ← BACK TO ROOM
           </Button>
         </div>

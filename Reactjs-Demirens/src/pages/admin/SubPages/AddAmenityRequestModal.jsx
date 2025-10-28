@@ -72,7 +72,9 @@ function AddAmenityRequestModal({
   );
 
   const navigate = useNavigate();
-  const APIConn = `${localStorage.url}admin.php`;
+  // Harden API base URL resolution for different setups
+  const baseUrl = (localStorage.getItem('url') || localStorage.url || '').toString();
+  const APIConn = baseUrl.endsWith('/') ? `${baseUrl}admin.php` : `${baseUrl}/admin.php`;
 
   // NEW: Navigate to AmenitySelection with current room selection
   const handleNavigateToAmenitySelection = () => {
@@ -198,14 +200,17 @@ function AddAmenityRequestModal({
     setLoadingAddAmenity(true);
     try {
       const makeRequest = async (booking_room_id) => {
+        // Sanitize payload values to ensure numeric types and valid IDs
         const requestData = {
-          booking_room_id,
-          amenities: amenitiesList.map(amenity => ({
-            charges_master_id: amenity.charges_master_id,
-            booking_charges_price: parseFloat(amenity.booking_charges_price) || 0,
-            booking_charges_quantity: parseInt(amenity.booking_charges_quantity) || 1
-          })),
-          booking_charge_status: booking_charge_status
+          booking_room_id: parseInt(booking_room_id) || 0,
+          amenities: amenitiesList
+            .filter(a => a && a.charges_master_id)
+            .map(amenity => ({
+              charges_master_id: parseInt(amenity.charges_master_id) || 0,
+              booking_charges_price: Number(parseFloat(amenity.booking_charges_price) || 0),
+              booking_charges_quantity: parseInt(amenity.booking_charges_quantity) || 1
+            })),
+          booking_charge_status: parseInt(booking_charge_status) || 2
         };
 
         const formData = new FormData();
@@ -218,6 +223,10 @@ function AddAmenityRequestModal({
         console.log('📡 Response status:', response.status);
 
         if (typeof response.data === 'object' && response.data !== null) {
+          if (response.data.success === false) {
+            const msg = response.data.message || 'Unknown server error';
+            console.error('❌ Server reported failure:', msg);
+          }
           return response.data.success !== false;
         }
         try {

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
-export default function CreditCard({ onSubmit, totalAmount, isRoomAvailable, handlePaymentMethodChange }) {
+export default function CreditCard({ onSubmit, totalAmount, isRoomAvailable }) {
   const paypal = useRef();
   useEffect(() => {
     try {
@@ -16,7 +16,6 @@ export default function CreditCard({ onSubmit, totalAmount, isRoomAvailable, han
 
         // Validate availability before creating the PayPal order
         createOrder: async (data, actions) => {
-          // await handlePaymentMethodChange('bank');
           try {
             if (typeof isRoomAvailable === 'function') {
               const result = await isRoomAvailable();
@@ -51,7 +50,7 @@ export default function CreditCard({ onSubmit, totalAmount, isRoomAvailable, han
     } catch (error) {
       toast.error("No Internet Connection")
     }
-  }, [isRoomAvailable, onSubmit, totalAmount]);
+  }, []);
 
 
   return (

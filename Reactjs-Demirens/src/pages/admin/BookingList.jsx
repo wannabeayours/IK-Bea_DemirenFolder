@@ -76,26 +76,6 @@ function AdminBookingList() {
     return () => clearTimeout(h);
   }, [searchTerm]);
 
-  useEffect(() => {
-    console.log('AdminBookingList mounted', { APIConn });
-  }, []);
-
-  useEffect(() => {
-    console.log('Bookings updated:', bookings);
-  }, [bookings]);
-
-  useEffect(() => {
-    console.log('Filtered bookings updated:', filteredBookings);
-  }, [filteredBookings]);
-
-  useEffect(() => {
-    console.log('Selected booking changed:', selectedBooking);
-  }, [selectedBooking]);
-
-  useEffect(() => {
-    console.log('Status list updated:', status);
-  }, [status]);
-
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
   const totalPages = Math.max(1, Math.ceil(filteredBookings.length / PAGE_SIZE));
@@ -604,11 +584,25 @@ function AdminBookingList() {
       if (res.data?.success) {
         const charges = Array.isArray(res.data.charges) ? res.data.charges : [];
         const totalAll = charges.reduce((sum, charge) => sum + (parseFloat(charge.total_amount) || 0), 0);
-        const amenitiesTotal = charges
+        // Base amenities: approved charges from transactions.php
+        const approvedAmenitiesTotal = charges
           .filter(c => String(c.category).toLowerCase().includes("amenity"))
           .reduce((sum, c) => sum + (parseFloat(c.total_amount) || 0), 0);
+
+        // Also include pending amenity requests from admin.php
+        const adminUrl = localStorage.getItem("url") + "admin.php";
+        const fd2 = new FormData();
+        fd2.append('method', 'get_amenity_requests');
+        const res2 = await axios.post(adminUrl, fd2);
+        const reqs = Array.isArray(res2.data) ? res2.data : [];
+        const pendingAmenitiesTotal = reqs
+          .filter(r => r?.booking_id === bookingId)
+          .filter(r => String(r?.charges_category_name || '').toLowerCase().includes('amenity'))
+          .filter(r => (r?.request_status || '').toLowerCase() === 'pending')
+          .reduce((sum, r) => sum + (parseFloat(r?.request_total) || 0), 0);
+
         setBookingChargesTotal(totalAll);
-        setBookingAmenitiesTotal(amenitiesTotal);
+        setBookingAmenitiesTotal(approvedAmenitiesTotal + pendingAmenitiesTotal);
       } else {
         setBookingChargesTotal(null);
         setBookingAmenitiesTotal(null);
@@ -1838,7 +1832,13 @@ function AdminBookingList() {
                           </div>
                         </TableCell>
                         <TableCell className="text-center py-3">
-                          {getStatusBadge(b.booking_status)}
+                          {(() => {
+                            const invStatusId = parseInt(b?.invoice_status_id, 10);
+                            if (invStatusId === 1 || b.booking_status === 'Checked-Out') {
+                              return getStatusBadge('Checked-Out');
+                            }
+                            return getStatusBadge(b.booking_status);
+                          })()}
                         </TableCell>
                         <TableCell className="text-center py-3">
                           {b.booking_status === 'Checked-In' ? (
@@ -1930,7 +1930,13 @@ function AdminBookingList() {
                   <div className="relative flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-3 mb-2">
-                        {getStatusBadge(selectedBooking.booking_status)}
+                        {(() => {
+                          const invStatusId = parseInt(selectedBooking?.invoice_status_id, 10);
+                          if (invStatusId === 1 || selectedBooking.booking_status === 'Checked-Out') {
+                            return getStatusBadge('Checked-Out');
+                          }
+                          return getStatusBadge(selectedBooking.booking_status);
+                        })()}
                         <span className="text-sm text-gray-600 dark:text-gray-400">Booking Status</span>
                       </div>
                       <h2 className="text-xl font-bold text-gray-900 dark:text-white">{selectedBooking.customer_name}</h2>
@@ -2447,7 +2453,13 @@ function AdminBookingList() {
                 <p className="text-sm text-gray-900 dark:text-white">
                   <span className="font-medium">Current Status:</span>
                   <span className="ml-2">
-                    {getStatusBadge(selectedBooking.booking_status)}
+                    {(() => {
+                      const invStatusId = parseInt(selectedBooking?.invoice_status_id, 10);
+                      if (invStatusId === 1 || selectedBooking.booking_status === 'Checked-Out') {
+                        return getStatusBadge('Checked-Out');
+                      }
+                      return getStatusBadge(selectedBooking.booking_status);
+                    })()}
                   </span>
                 </p>
               </div>

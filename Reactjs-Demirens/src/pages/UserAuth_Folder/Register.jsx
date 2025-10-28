@@ -70,7 +70,7 @@ const Register = () => {
   const handleChange = (name, value) => {
     // Apply input restrictions based on field type
     let processedValue = value;
-    
+
     switch (name) {
       case 'firstName':
       case 'lastName':
@@ -92,7 +92,7 @@ const Register = () => {
       default:
         processedValue = value;
     }
-    
+
     setFormData({
       ...formData,
       [name]: processedValue,
@@ -184,7 +184,7 @@ const Register = () => {
     const today = new Date();
     const age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
-    
+
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
       // Haven't had birthday this year yet
       const actualAge = age - 1;
@@ -206,7 +206,7 @@ const Register = () => {
         return false;
       }
     }
-    
+
     // Check if date is in the future
     if (birthDate > today) {
       toast.error("Date of birth cannot be in the future");
@@ -284,10 +284,10 @@ const Register = () => {
     try {
       // Generate 6-digit OTP
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      
+
       // Encrypt OTP (simple encryption for demo - use proper encryption in production)
       const encryptedOTP = btoa(otp + formData.email);
-      
+
       // Store encrypted OTP in sessionStorage
       sessionStorage.setItem('registrationOTP', encryptedOTP);
       sessionStorage.setItem('registrationEmail', formData.email);
@@ -296,9 +296,10 @@ const Register = () => {
       const url = localStorage.getItem("url") + "customer.php";
       const otpForm = new FormData();
       otpForm.append("operation", "checkAndSendOTP");
-      otpForm.append("json", JSON.stringify({ 
+      otpForm.append("json", JSON.stringify({
+        username: formData.username,
         guest_email: formData.email,
-        otp_code: otp 
+        otp_code: otp
       }));
 
       const res = await axios.post(url, otpForm);
@@ -332,13 +333,13 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-indigo-700 to-purple-800 flex items-center justify-center p-3 sm:p-4 lg:p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-indigo-700 to-indigo-800 flex items-center justify-center p-3 sm:p-4 lg:p-6 relative overflow-hidden">
       {/* Enhanced Background Elements */}
       <div className="absolute inset-0 overflow-hidden">
         {/* Animated gradient orbs - responsive sizes */}
-        <div className="absolute top-1/4 left-1/4 w-32 h-32 sm:w-48 sm:h-48 lg:w-64 lg:h-64 bg-gradient-to-r from-blue-400/20 to-indigo-500/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-40 h-40 sm:w-60 sm:h-60 lg:w-80 lg:h-80 bg-gradient-to-r from-indigo-400/15 to-purple-500/15 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-72 sm:h-72 lg:w-96 lg:h-96 bg-gradient-to-r from-purple-400/10 to-blue-500/10 rounded-full blur-3xl animate-pulse delay-2000"></div>
+        <div className="absolute top-1/4 left-1/4 w-32 h-32 sm:w-48 sm:h-48 lg:w-64 lg:h-64 bg-gradient-to-r from-indigo-400/20 to-indigo-600/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-40 h-40 sm:w-60 sm:h-60 lg:w-80 lg:h-80 bg-gradient-to-r from-indigo-400/15 to-indigo-600/15 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-72 sm:h-72 lg:w-96 lg:h-96 bg-gradient-to-r from-indigo-400/10 to-indigo-600/10 rounded-full blur-3xl animate-pulse delay-2000"></div>
 
         {/* Geometric patterns - responsive sizes */}
         <div className="absolute top-4 right-4 sm:top-6 sm:right-6 lg:top-10 lg:right-10 w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 border border-white/10 rotate-45 animate-spin-slow"></div>
@@ -347,7 +348,7 @@ const Register = () => {
       </div>
 
       {/* Main Registration Card - responsive sizing */}
-      <Card className="w-full max-w-xs sm:max-w-sm md:max-w-md bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl relative z-10 mx-auto">
+      <Card className="w-full max-w-xs sm:max-w-sm md:max-w-md bg-white/100 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl relative z-10 mx-auto">
         <CardHeader className="text-center pb-3 sm:pb-4 pt-4 sm:pt-6 px-4 sm:px-6">
           {/* Logo/Icon - responsive sizing */}
           <div className="mx-auto mb-2 sm:mb-3 w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg">
@@ -356,8 +357,9 @@ const Register = () => {
             </svg>
           </div>
 
-          <CardTitle className="text-xl sm:text-2xl font-bold text-white mb-1">Create Account</CardTitle>
-          <CardDescription className="text-blue-100/80 text-xs sm:text-sm">
+          <CardTitle className="text-xl sm:text-2xl font-bold text-blue-900 mb-1">Create Account</CardTitle>
+          <div className="w-12 h-0.5 bg-gradient-to-r from-blue-400 to-indigo-500 mx-auto mt-2 rounded-full"></div>
+          <CardDescription className="text-blue-600 text-xs sm:text-sm">
             Join us today and get started
           </CardDescription>
         </CardHeader>
@@ -368,7 +370,7 @@ const Register = () => {
             {/* Name Fields Row */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="firstName" className="text-sm font-medium text-white/90">
+                <Label htmlFor="firstName" className="text-sm font-medium text-black/90">
                   First Name
                 </Label>
                 <Input
@@ -376,11 +378,11 @@ const Register = () => {
                   placeholder="First name"
                   value={formData.firstName}
                   onChange={(e) => handleChange("firstName", e.target.value)}
-                  className="h-9 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-blue-400 focus:ring-blue-400/20 rounded-lg transition-all duration-300"
+                  className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-black/20 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-black placeholder:text-black/60"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="lastName" className="text-sm font-medium text-white/90">
+                <Label htmlFor="lastName" className="text-sm font-medium text-black/90">
                   Last Name
                 </Label>
                 <Input
@@ -388,14 +390,14 @@ const Register = () => {
                   placeholder="Last name"
                   value={formData.lastName}
                   onChange={(e) => handleChange("lastName", e.target.value)}
-                  className="h-9 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-blue-400 focus:ring-blue-400/20 rounded-lg transition-all duration-300"
+                  className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-black/20 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-black placeholder:text-black/60"
                 />
               </div>
             </div>
 
             {/* Email Field */}
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-sm font-medium text-white/90">
+              <Label htmlFor="email" className="text-sm font-medium text-black/90">
                 Email Address
               </Label>
               <Input
@@ -403,13 +405,13 @@ const Register = () => {
                 placeholder="you@example.com"
                 value={formData.email}
                 onChange={(e) => handleChange("email", e.target.value)}
-                className="h-9 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-blue-400 focus:ring-blue-400/20 rounded-lg transition-all duration-300"
+                className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-black/20 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-black placeholder:text-black/60"
               />
             </div>
 
             {/* Username Field */}
             <div className="space-y-1.5">
-              <Label htmlFor="username" className="text-sm font-medium text-white/90">
+              <Label htmlFor="username" className="text-sm font-medium text-black/90">
                 Username
               </Label>
               <Input
@@ -417,21 +419,21 @@ const Register = () => {
                 placeholder="Username"
                 value={formData.username}
                 onChange={(e) => handleChange("username", e.target.value)}
-                className="h-9 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-blue-400 focus:ring-blue-400/20 rounded-lg transition-all duration-300"
+                className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-black/20 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-black placeholder:text-black/60"
               />
             </div>
 
             {/* Nationality and DOB Row */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="nationality" className="text-sm font-medium text-white/90">
+                <Label htmlFor="nationality" className="text-sm font-medium text-black/90">
                   Nationality
                 </Label>
                 <select
                   id="nationality"
                   value={formData.nationality}
                   onChange={(e) => handleChange("nationality", e.target.value)}
-                  className="w-full h-9 px-2 py-1 text-sm bg-white/10 border border-white/20 text-white rounded-lg focus:border-blue-400 focus:ring-blue-400/20 transition-all duration-300"
+                  className="w-full h-9 px-2 py-1 text-sm bg-white/10 border-2 border-black/20 text-black rounded-lg focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300"
                   required
                 >
                   <option value="" className="text-gray-900">Select Nationality</option>
@@ -447,7 +449,7 @@ const Register = () => {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="dob" className="text-sm font-medium text-white/90">
+                <Label htmlFor="dob" className="text-sm font-medium text-black/90">
                   Date of Birth
                 </Label>
                 <Input
@@ -455,14 +457,14 @@ const Register = () => {
                   type="date"
                   value={formData.dob}
                   onChange={(e) => handleChange("dob", e.target.value)}
-                  className="h-9 text-sm bg-white/10 border-white/20 text-white focus:border-blue-400 focus:ring-blue-400/20 rounded-lg transition-all duration-300"
+                  className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-black/20 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-black"
                 />
               </div>
             </div>
 
             {/* Phone Number */}
             <div className="space-y-1.5">
-              <Label htmlFor="phone" className="text-sm font-medium text-white/90">
+              <Label htmlFor="phone" className="text-sm font-medium text-black/90">
                 Phone Number
               </Label>
               <Input
@@ -470,14 +472,14 @@ const Register = () => {
                 placeholder="Enter phone number"
                 value={formData.phone}
                 onChange={(e) =>
-                  handleChange("phone", e.target.value.replace(/\D/g, "")) // ✅ only digits
+                  handleChange("phone", e.target.value.replace(/\D/g, ""))
                 }
                 maxLength={15}
-                className="h-9 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-blue-400 focus:ring-blue-400/20 rounded-lg transition-all duration-300"
+                className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-black/20 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-black placeholder:text-black/60"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-sm font-medium text-white/90">
+              <Label htmlFor="password" className="text-sm font-medium text-black/90">
                 Password
               </Label>
               <div className="relative">
@@ -487,12 +489,11 @@ const Register = () => {
                   placeholder="Password"
                   value={formData.password}
                   onChange={(e) => handleChange("password", e.target.value)}
-                  className="h-9 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/50 
-        focus:border-blue-400 focus:ring-blue-400/20 rounded-lg transition-all duration-300 pr-8"
+                  className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-black/20 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-black placeholder:text-black/60 pr-8"
                 />
                 <button
                   type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-white/60 hover:text-white/80 transition-colors"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-black/60 hover:text-black/80 transition-colors"
                   onClick={() => setShowPassword((prev) => !prev)}
                   tabIndex={-1}
                 >
@@ -507,7 +508,7 @@ const Register = () => {
                 return (
                   <div className="space-y-2 mt-2">
                     <Progress value={percent} className="h-2 bg-white/20" />
-                    <ul className="text-xs space-y-1 text-white/80">
+                    <ul className="text-xs space-y-1 text-black/80">
                       <li className={rules.length ? "text-green-400" : "text-red-400"}>
                         {rules.length ? "✔" : "✘"} 8–12 characters
                       </li>
@@ -538,7 +539,7 @@ const Register = () => {
 
             {/* Confirm Password Field */}
             <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword" className="text-sm font-medium text-white/90">
+              <Label htmlFor="confirmPassword" className="text-sm font-medium text-black/90">
                 Confirm Password
               </Label>
               <div className="relative">
@@ -550,11 +551,11 @@ const Register = () => {
                   onChange={(e) =>
                     handleChange("confirmPassword", e.target.value)
                   }
-                  className="h-9 text-sm bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-blue-400 focus:ring-blue-400/20 rounded-lg transition-all duration-300 pr-8"
+                  className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-black/20 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-black placeholder:text-black/60 pr-8"
                 />
                 <button
                   type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-white/60 hover:text-white/80 transition-colors"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-black/60 hover:text-black/80 transition-colors"
                   onClick={() => setShowConfirmPassword((prev) => !prev)}
                   tabIndex={-1}
                 >
@@ -566,7 +567,7 @@ const Register = () => {
             {/* Register Button */}
             <Button
               type="submit"
-              className="w-full mt-5 text-sm py-2 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full mt-5 text-sm py-2 h-10 bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
               disabled={loading}
             >
               <span className="flex items-center justify-center gap-2">
@@ -578,10 +579,10 @@ const Register = () => {
             </Button>
 
             {/* Sign in section */}
-            <div className="text-center mt-4 pt-4 border-t border-white/20">
-              <p className="text-sm text-blue-100/80">
+            <div className="text-center mt-4 pt-4 border-t border-black/10">
+              <p className="text-sm text-black/70">
                 Already have an account?{" "}
-                <Button variant="link" asChild className="h-auto p-0 text-sm text-blue-300 hover:text-blue-200 font-semibold transition-colors underline">
+                <Button variant="link" asChild className="h-auto p-0 text-sm text-indigo-600 hover:text-blue-900 font-semibold transition-colors underline">
                   <Link to="/login">Sign in here</Link>
                 </Button>
               </p>

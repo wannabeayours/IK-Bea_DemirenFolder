@@ -31,7 +31,7 @@ function CustomerMain() {
     <CustomerSettings />,
     <CustomerArchieve />,
     // <CustomerActivityLogs />,
-    // <CustomerFeedback />
+    <CustomerFeedback />
   ];
 
   const handleViewChange = (index) => {

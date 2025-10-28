@@ -85,7 +85,7 @@ function Authentication() {
         <Dialog>
 
             <DialogTrigger>
-                <Button className="bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700" >
+                <Button >
                     Two-Factor Authentication
                 </Button>
             </DialogTrigger>
