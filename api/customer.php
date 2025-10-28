@@ -1990,7 +1990,7 @@ class Demiren_customer
             // Columns: charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity,
             // booking_charges_total, booking_charge_status (default 1), booking_charge_date (defaults NOW())
             $sqlInsert = "INSERT INTO tbl_booking_charges 
-                (charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, booking_charges_total, booking_charge_status, booking_charge_date)
+                (charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, booking_charges_total, booking_charge_status, booking_charge_datetime)
                 VALUES (:charges_master_id, :booking_room_id, :booking_charges_price, :booking_charges_quantity, :booking_charges_total, 1, NOW())";
             $stmtInsert = $conn->prepare($sqlInsert);
 
@@ -2084,7 +2084,7 @@ class Demiren_customer
         $data = json_decode($json, true);
 
         // 🔹 Step 1: Get the request date/time (use actual schema column)
-        $sql = "SELECT booking_charge_date 
+        $sql = "SELECT booking_charge_datetime
             FROM tbl_booking_charges 
             WHERE booking_charges_id = :bookingChargesId";
         $stmt = $conn->prepare($sql);
@@ -2098,7 +2098,7 @@ class Demiren_customer
 
         // 🔹 Step 2: Check if more than 10 minutes have passed
         // MySQL DATETIME/TIMESTAMP is timezone-less by default; treat stored value as local server time
-        $requestTime = new DateTime($charge["booking_charge_date"]);
+        $requestTime = new DateTime($charge["booking_charge_datetime"]);
         $currentTime = new DateTime('now');
         $minutesDiff = ($currentTime->getTimestamp() - $requestTime->getTimestamp()) / 60;
 
