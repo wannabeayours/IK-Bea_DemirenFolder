@@ -74,8 +74,11 @@ function CustomerDashboard() {
       checkOut: format(nextDay),
     };
   };
-
+  const navigateTo = useNavigate();
   React.useEffect(() => {
+    if (!localStorage.getItem("userId")) {
+      navigateTo("/login");
+    }
     const { checkIn, checkOut } = getTomorrowAndNextDay();
 
     // set form values
@@ -124,7 +127,7 @@ function CustomerDashboard() {
       console.error(error);
     }
   }
-   const [extraGuestPrice, setExtraGuestPrice] = useState(0);
+  const [extraGuestPrice, setExtraGuestPrice] = useState(0);
   const [bedPrice, setBedPrice] = useState(0);
   const getExtraGuestAndBedPrice = async () => {
     try {
@@ -132,7 +135,7 @@ function CustomerDashboard() {
       const formData = new FormData();
       formData.append("operation", "getExtraGuestAndBedPrice");
       const res = await axios.post(url, formData);
-      console.log("res ni guestihbuhbhub",res.data);
+      console.log("res ni guestihbuhbhub", res.data);
       setExtraGuestPrice(res.data.extraGuestPrice);
       setBedPrice(res.data.bedPrice);
     } catch (error) {
@@ -208,7 +211,6 @@ function CustomerDashboard() {
       {/* Enhanced Search Form */}
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
         <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm rounded-2xl overflow-hidden">
-          <div className="bg-gradient-to-r from-[#113f67] via-[#226597] to-[#2980b9] h-1"></div>
           <CardContent className="p-6 sm:p-8">
             <div className="mb-6">
               <h2 className="text-lg sm:text-xl font-bold text-[#113f67] mb-2">Search Available Rooms</h2>

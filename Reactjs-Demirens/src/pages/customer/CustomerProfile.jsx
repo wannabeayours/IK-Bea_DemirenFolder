@@ -86,28 +86,13 @@ function CustomerProfile() {
           {/* Main Profile Card */}
           <Card className="w-full shadow-2xl border-0 bg-white overflow-hidden">
             {/* Gradient Header */}
-            <div className="bg-gradient-to-r from-[#113f67] via-[#226597] to-[#2980b9] h-2"></div>
-            
+           
             <CardContent className="p-6 sm:p-8 lg:p-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
                 
                 {/* Avatar Section */}
                 <div className="lg:col-span-4 xl:col-span-3">
                   <div className="flex flex-col items-center lg:items-start space-y-6">
-                    {/* Avatar with decorative elements */}
-                    <div className="relative group">
-                      <div className="absolute -inset-1 bg-gradient-to-r from-[#113f67] via-[#226597] to-[#2980b9] rounded-full blur opacity-25 group-hover:opacity-40 transition duration-300"></div>
-                      <div className="relative">
-                        <Avatar className="w-32 h-32 sm:w-40 sm:h-40 border-4 border-white shadow-2xl">
-                          <AvatarImage src="https://github.com/shadcn.png" alt="profile" className="object-cover" />
-                          <AvatarFallback className="bg-gradient-to-br from-[#113f67] to-[#226597] text-white text-2xl font-bold">
-                            {userData.customers_fname?.charAt(0)}{userData.customers_lname?.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
-                    
-                      </div>
-                    </div>
-
                     {/* Username and Update Button */}
                     <div className="w-full text-center lg:text-left space-y-4">
                       <div className="space-y-2">

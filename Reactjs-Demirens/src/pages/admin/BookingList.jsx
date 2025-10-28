@@ -76,6 +76,26 @@ function AdminBookingList() {
     return () => clearTimeout(h);
   }, [searchTerm]);
 
+  useEffect(() => {
+    console.log('AdminBookingList mounted', { APIConn });
+  }, []);
+
+  useEffect(() => {
+    console.log('Bookings updated:', bookings);
+  }, [bookings]);
+
+  useEffect(() => {
+    console.log('Filtered bookings updated:', filteredBookings);
+  }, [filteredBookings]);
+
+  useEffect(() => {
+    console.log('Selected booking changed:', selectedBooking);
+  }, [selectedBooking]);
+
+  useEffect(() => {
+    console.log('Status list updated:', status);
+  }, [status]);
+
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
   const totalPages = Math.max(1, Math.ceil(filteredBookings.length / PAGE_SIZE));
@@ -86,6 +106,13 @@ function AdminBookingList() {
   const [billingData, setBillingData] = useState([]);
   const [bookingChargesTotal, setBookingChargesTotal] = useState(null);
   const [bookingAmenitiesTotal, setBookingAmenitiesTotal] = useState(null);
+  const finalTotalAmount = useMemo(() => {
+    const sumBillingTotals = Array.isArray(billingData) && billingData.length > 0
+      ? billingData.reduce((sum, bill) => sum + (parseFloat(bill.billing_total_amount) || 0), 0)
+      : 0;
+    const amenitiesTotal = (bookingAmenitiesTotal != null) ? bookingAmenitiesTotal : 0;
+    return sumBillingTotals + amenitiesTotal;
+  }, [billingData, bookingAmenitiesTotal]);
   // Image viewer state
   const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
   const [imageViewerSrc, setImageViewerSrc] = useState('');
@@ -436,50 +463,15 @@ function AdminBookingList() {
     setSelectedBooking(booking);
 
     // Check if booking status allows room changes
-    const allowedStatuses = ['Checked-In'];
+    const allowedStatuses = ['Approved', 'Checked-In', 'Checked In', 'Confirmed'];
     if (!allowedStatuses.includes(booking.booking_status)) {
-      toast.error('Room changes are only allowed for bookings with "Checked-In" status');
+      toast.error('Room changes are only allowed for bookings with "Approved" or "Checked-In" status');
       return;
     }
 
     // Fetch available rooms and show room change sheet
     fetchAvailableRooms();
     setShowRoomChange(true);
-  };
-
-  // New function to fetch booking total and balance
-  const fetchBookingTotalAndBalance = async (bookingId) => {
-    try {
-      const formData = new FormData();
-      formData.append('method', 'calculateBookingTotalAndBalance');
-      formData.append('json', JSON.stringify({ booking_id: bookingId }));
-
-      const res = await axios.post(APIConn, formData);
-      let data = res?.data;
-      // Some PHP endpoints return JSON as a string; parse if needed
-      if (typeof data === 'string') {
-        try { data = JSON.parse(data); } catch (e) { /* keep original */ }
-      }
-
-      if (data && data.success) {
-        console.log('Booking total and balance:', data);
-        // Store the calculated values in state for display (ensure numbers)
-        setSelectedBooking(prevBooking => ({
-          ...prevBooking,
-          calculatedTotalAmount: parseFloat(data.total_amount_due) || 0,
-          calculatedRemainingBalance: parseFloat(data.remaining_balance) || 0,
-          billingTotal: parseFloat(data.billing_total) || 0,
-          billingVat: parseFloat(data.billing_vat) || 0,
-          chargesTotal: parseFloat(data.charges_total) || 0,
-          totalPayments: parseFloat(data.total_payments) || 0,
-        }));
-      } else {
-        const msg = (data && (data.message || data.error)) || 'Unknown error';
-        console.error('Failed to fetch booking total and balance:', msg);
-      }
-    } catch (err) {
-      console.error('Error fetching booking total and balance:', err);
-    }
   };
 
   const handleViewCustomerDetails = (booking) => {
@@ -492,9 +484,6 @@ function AdminBookingList() {
     fetchInvoiceData(booking);
     fetchBillingData(booking);
     fetchBookingChargesTotal(booking.booking_id);
-    
-    // Fetch the new calculated total and balance
-    fetchBookingTotalAndBalance(booking.booking_id);
   };
 
   const handleRoomChangeSuccess = () => {
@@ -507,8 +496,8 @@ function AdminBookingList() {
     setSelectedBooking(booking);
 
     // Check if booking status allows extension
-    if (booking.booking_status !== 'Checked-In') {
-      toast.error('Booking extensions are only allowed for bookings with "Checked-In" status');
+    if (booking.booking_status !== 'Confirmed' && booking.booking_status !== 'Checked-In') {
+      toast.error('Booking extensions are only allowed for bookings with "Confirmed" or "Checked-In" status');
       return;
     }
 
@@ -1849,14 +1838,7 @@ function AdminBookingList() {
                           </div>
                         </TableCell>
                         <TableCell className="text-center py-3">
-                          {(() => {
-                            // ONLY use balance from database - auto-checkout if balance is 0
-                            const balance = parseFloat(b.balance);
-                            if (balance === 0) {
-                              return getStatusBadge('Checked-Out');
-                            }
-                            return getStatusBadge(b.booking_status);
-                          })()}
+                          {getStatusBadge(b.booking_status)}
                         </TableCell>
                         <TableCell className="text-center py-3">
                           {b.booking_status === 'Checked-In' ? (
@@ -1879,6 +1861,7 @@ function AdminBookingList() {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => handleExtendBooking(b)}
+                                  disabled={b.booking_status === 'Pending'}
                                   className="disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <CalendarPlus className="w-3 h-3 mr-2 text-green-600" />
@@ -1886,6 +1869,7 @@ function AdminBookingList() {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => handleChangeRoom(b)}
+                                  disabled={b.booking_status === 'Pending'}
                                   className="disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <ArrowRightLeft className="w-3 h-3 mr-2 text-[#34699a]" />
@@ -1900,8 +1884,9 @@ function AdminBookingList() {
                               className="text-xs h-6 sm:h-7 px-2 sm:px-3"
                               onClick={() => handleViewCustomerDetails(b)}
                             >
-                              <Eye className="w-3 h-3 mr-2 text-purple-600" />
-                              <span>View</span>
+                              <span className="hidden sm:inline">View Booking</span>
+                              <span className="sm:hidden">👁️</span>
+                              <Eye className="w-2 h-2 sm:w-3 sm:h-3 ml-1" />
                             </Button>
                           )}
                         </TableCell>
@@ -1945,14 +1930,7 @@ function AdminBookingList() {
                   <div className="relative flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-3 mb-2">
-                        {(() => {
-                          // ONLY use balance from database - auto-checkout if balance is 0
-                          const balance = parseFloat(selectedBooking.balance);
-                          if (balance === 0) {
-                            return getStatusBadge('Checked-Out');
-                          }
-                          return getStatusBadge(selectedBooking.booking_status);
-                        })()}
+                        {getStatusBadge(selectedBooking.booking_status)}
                         <span className="text-sm text-gray-600 dark:text-gray-400">Booking Status</span>
                       </div>
                       <h2 className="text-xl font-bold text-gray-900 dark:text-white">{selectedBooking.customer_name}</h2>
@@ -1960,19 +1938,17 @@ function AdminBookingList() {
                     </div>
                     <div className="text-right">
                       {(() => {
-                        // Prefer comprehensive totals from API breakdowns to match Invoice Management
-                        const apiCharges = parseFloat(selectedBooking?.chargesTotal) || 0; // sum of all charges
-                        const apiTotalDue = parseFloat(selectedBooking?.calculatedTotalAmount) || 0; // total amount due
-                        const chargesSum = (bookingChargesTotal != null) ? parseFloat(bookingChargesTotal) : 0; // fallback to locally computed charges
-                        const n = apiCharges > 0
-                          ? apiCharges
-                          : (apiTotalDue > 0 ? apiTotalDue : chargesSum);
+                        const billingTotal = Array.isArray(billingData) && billingData.length > 0
+                          ? billingData.reduce((sum, bill) => sum + (parseFloat(bill.billing_total_amount) || 0), 0)
+                          : 0;
+                        const amenities = (bookingAmenitiesTotal != null) ? bookingAmenitiesTotal : 0;
+                        const total = billingTotal + amenities;
                         return (
                           <>
                             <div className="text-2xl font-bold text-[#34699a] dark:text-[#34699a]">
-                              {NumberFormatter.formatCurrency(n)}
+                              {NumberFormatter.formatCurrency(total)}
                             </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">Total Amount</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">Total Amount {amenities > 0 ? '(includes amenities)' : ''}</div>
                           </>
                         );
                       })()}
@@ -2041,94 +2017,38 @@ function AdminBookingList() {
                     <div className="md:col-span-2">
                       <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Remaining Balance</label>
                       {(() => {
-                        // Use the calculated values from the API if available
-                        if (selectedBooking.calculatedTotalAmount !== undefined && selectedBooking.calculatedRemainingBalance !== undefined) {
-                          const totalAmount = parseFloat(selectedBooking.calculatedTotalAmount) || 0;
-                          const remainingBalance = parseFloat(selectedBooking.calculatedRemainingBalance) || 0;
-                          const totalPayments = parseFloat(selectedBooking.totalPayments) || 0;
-                          
-                          return (
-                            <div className="mt-1 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 p-3">
-                              <div className="grid grid-cols-2 text-sm mb-1">
-                                <span className="text-gray-600 dark:text-gray-400">Billing Total</span>
-                                <span className="text-right text-gray-900 dark:text-white font-medium">
-                                  {NumberFormatter.formatCurrency(parseFloat(selectedBooking.billingTotal) || 0)}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 text-sm mb-1">
-                                <span className="text-gray-600 dark:text-gray-400">VAT</span>
-                                <span className="text-right text-gray-900 dark:text-white font-medium">
-                                  {NumberFormatter.formatCurrency(parseFloat(selectedBooking.billingVat) || 0)}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 text-sm mb-1">
-                                <span className="text-gray-600 dark:text-gray-400">Booking Charges</span>
-                                <span className="text-right text-gray-900 dark:text-white font-medium">
-                                  {NumberFormatter.formatCurrency(parseFloat(selectedBooking.chargesTotal) || 0)}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 text-sm mb-1 font-semibold">
-                                <span className="text-gray-700 dark:text-gray-300">Total Amount Due</span>
-                                <span className="text-right text-gray-900 dark:text-white">{NumberFormatter.formatCurrency(totalAmount)}</span>
-                              </div>
-                              <div className="grid grid-cols-2 text-sm">
-                                <span className="text-gray-600 dark:text-gray-400">Payments</span>
-                                <span className="text-right text-red-600 dark:text-red-400 font-medium">- {NumberFormatter.formatCurrency(totalPayments)}</span>
-                              </div>
-                              <div className="border-t border-gray-200 dark:border-gray-700 my-2" />
-                              <div className="grid grid-cols-2 text-sm">
-                                <span className="font-semibold text-gray-700 dark:text-gray-300">Remaining Balance</span>
-                                <span className="text-right font-bold text-orange-600 dark:text-orange-400">{NumberFormatter.formatCurrency(remainingBalance)}</span>
-                              </div>
+                        const checkInDate = new Date(selectedBooking.booking_checkin_dateandtime);
+                        const checkOutDate = new Date(selectedBooking.booking_checkout_dateandtime);
+                        const msPerDay = 1000 * 60 * 60 * 24;
+                        const nights = Math.max(0, Math.ceil((checkOutDate - checkInDate) / msPerDay));
+                        const roomPrice = parseFloat(selectedBooking.roomtype_price) || 0;
+                        const roomTotal = roomPrice * nights; // room type price × nights only
+                        const totalPaidAmount = Array.isArray(billingData) && billingData.length > 0
+                          ? billingData.reduce((sum, bill) => sum + (parseFloat(bill.billing_downpayment) || 0), 0)
+                          : (parseFloat(selectedBooking.downpayment) || 0);
+                        const balance = Math.max(roomTotal - totalPaidAmount, 0);
+                        return (
+                          <div className="mt-1 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 p-3">
+                            <div className="grid grid-cols-2 text-sm mb-1">
+                              <span className="text-gray-600 dark:text-gray-400">Total Amount</span>
+                              <span className="text-right text-gray-900 dark:text-white font-medium">{NumberFormatter.formatCurrency(roomTotal)}</span>
                             </div>
-                          );
-                        } else {
-                          // Fallback to old calculation if API data is not available
-                          const checkInDate = new Date(selectedBooking.booking_checkin_dateandtime);
-                          const checkOutDate = new Date(selectedBooking.booking_checkout_dateandtime);
-                          const msPerDay = 1000 * 60 * 60 * 24;
-                          const nights = Math.max(0, Math.ceil((checkOutDate - checkInDate) / msPerDay));
-                          const roomPrice = parseFloat(selectedBooking.roomtype_price) || 0;
-                          const roomTotal = roomPrice * nights; // room type price × nights only
-                          const totalPaidAmount = Array.isArray(billingData) && billingData.length > 0
-                            ? billingData.reduce((sum, bill) => sum + (parseFloat(bill.billing_downpayment) || 0), 0)
-                            : (parseFloat(selectedBooking.downpayment) || 0);
-                          const balance = Math.max(roomTotal - totalPaidAmount, 0);
-                          return (
-                            <div className="mt-1 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 p-3">
-                              <div className="grid grid-cols-2 text-sm mb-1">
-                                <span className="text-gray-600 dark:text-gray-400">Total Amount</span>
-                                <span className="text-right text-gray-900 dark:text-white font-medium">
-                                  {NumberFormatter.formatCurrency((() => {
-                                    const apiCharges = parseFloat(selectedBooking?.chargesTotal) || 0;
-                                    const apiTotalDue = parseFloat(selectedBooking?.calculatedTotalAmount) || 0;
-                                    const chargesSum = (bookingChargesTotal != null) ? parseFloat(bookingChargesTotal) : 0;
-                                    return apiCharges > 0 ? apiCharges : (apiTotalDue > 0 ? apiTotalDue : (chargesSum || roomTotal));
-                                  })())}
-                                </span>
-                              </div>
-                              <div className="grid grid-cols-2 text-sm">
-                                <span className="text-gray-600 dark:text-gray-400">Payment</span>
-                                <span className="text-right text-red-600 dark:text-red-400 font-medium">- {NumberFormatter.formatCurrency(totalPaidAmount)}</span>
-                              </div>
-                              <div className="border-t border-gray-200 dark:border-gray-700 my-2" />
-                              <div className="grid grid-cols-2 text-sm">
-                                <span className="font-semibold text-gray-700 dark:text-gray-300">Remaining Balance</span>
-                                <span className="text-right font-bold text-orange-600 dark:text-orange-400">
-                                  {NumberFormatter.formatCurrency((() => {
-                                    const apiCharges = parseFloat(selectedBooking?.chargesTotal) || 0;
-                                    const apiTotalDue = parseFloat(selectedBooking?.calculatedTotalAmount) || 0;
-                                    const chargesSum = (bookingChargesTotal != null) ? parseFloat(bookingChargesTotal) : 0;
-                                    const displayTotal = apiCharges > 0 ? apiCharges : (apiTotalDue > 0 ? apiTotalDue : (chargesSum || roomTotal));
-                                    const paid = parseFloat(totalPaidAmount) || 0;
-                                    return Math.max(displayTotal - paid, 0);
-                                  })())}
-                                </span>
-                              </div>
+                            <div className="grid grid-cols-2 text-sm">
+                              <span className="text-gray-600 dark:text-gray-400">Payment</span>
+                              <span className="text-right text-red-600 dark:text-red-400 font-medium">- {NumberFormatter.formatCurrency(totalPaidAmount)}</span>
                             </div>
-                          );
-                        }
+                            <div className="border-t border-gray-200 dark:border-gray-700 my-2" />
+                            <div className="grid grid-cols-2 text-sm">
+                              <span className="font-semibold text-gray-700 dark:text-gray-300">Remaining Balance</span>
+                              <span className="text-right font-bold text-orange-600 dark:text-orange-400">{NumberFormatter.formatCurrency(balance)}</span>
+                            </div>
+                          </div>
+                        );
                       })()}
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Payment Method</label>
+                      <p className="text-gray-900 dark:text-white">{selectedBooking.booking_paymentMethod || 'N/A'}</p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Room Details</label>
@@ -2527,13 +2447,7 @@ function AdminBookingList() {
                 <p className="text-sm text-gray-900 dark:text-white">
                   <span className="font-medium">Current Status:</span>
                   <span className="ml-2">
-                    {(() => {
-                      const balance = parseFloat(selectedBooking.balance);
-                      if (balance === 0) {
-                        return getStatusBadge('Checked-Out');
-                      }
-                      return getStatusBadge(selectedBooking.booking_status);
-                    })()}
+                    {getStatusBadge(selectedBooking.booking_status)}
                   </span>
                 </p>
               </div>

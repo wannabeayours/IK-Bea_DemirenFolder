@@ -150,13 +150,12 @@ function Sidebar({ onCollapse }) {
     { path: "/admin/bookinglist", icon: <File className="w-4 h-4" />, label: "Bookings List" },
     { path: "/admin/transactionhistory", icon: <HistoryIcon className="w-4 h-4" />, label: "Transaction History" },
     { path: "/admin/requestedamenities", icon: <PillBottleIcon className="w-4 h-4" />, label: "Amenity Requests" },
-    { path: "/admin/calendar", icon: <Calendar1Icon className="w-4 h-4" />, label: "Calendar" },
+    { path: "/admin/choose-rooms", icon: <NotebookPen className="w-4 h-4" />, label: "Add Walk In" },
     { path: "/admin/visitorslog", icon: <User2Icon className="w-4 h-4" />, label: "Visitors" },
   ]
 
   const bookingLinks = [
     { path: "/admin/choose-rooms", icon: <NotebookPen className="w-4 h-4" />, label: "Add Walk In" },
-    { path: "/admin/online", icon: <Laptop className="w-4 h-4" />, label: "Add Online" },
   ]
 
   const paymentLinks = [
@@ -169,7 +168,7 @@ function Sidebar({ onCollapse }) {
   const adminOnlyLinks = [
     { path: "/admin/employeelist", icon: <User className="w-4 h-4" />, label: "Employee List" },
     { path: "/admin/reviews", icon: <StarIcon className="w-4 h-4" />, label: "Reviews" },
-    { path: "/admin/guestprofile", icon: <User className="w-4 h-4" />, label: "Guest Profiles" },
+    { path: "/admin/guestprofile", icon: <User className="w-4 h-4" />, label: "Customers List" },
   ];
 
   const masterLinks = [
@@ -213,51 +212,13 @@ function Sidebar({ onCollapse }) {
         ))
       )}
 
-      {/* Collapsible: Bookings */}
-      <Collapsible open={openBookings} onOpenChange={(open) => {
-        // Save current scroll position before state change
-        saveScrollPosition()
-        setOpenBookings(open)
-        // Restore scroll position after DOM update
-        setTimeout(() => {
-          const savedPosition = localStorage.getItem('sidebar-scroll-position')
-          const savedMobilePosition = localStorage.getItem('sidebar-mobile-scroll-position')
-
-          if (desktopScrollRef.current && savedPosition) {
-            const viewport = desktopScrollRef.current.querySelector('[data-radix-scroll-area-viewport]')
-            if (viewport) {
-              viewport.scrollTop = parseInt(savedPosition)
-            }
-          }
-
-          if (mobileScrollRef.current && savedMobilePosition) {
-            const viewport = mobileScrollRef.current.querySelector('[data-radix-scroll-area-viewport]')
-            if (viewport) {
-              viewport.scrollTop = parseInt(savedMobilePosition)
-            }
-          }
-        }, 50)
-      }}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="w-full justify-between items-center text-white hover:bg-white/10 hover:text-white">
-            <span className="flex items-center gap-2">
-              <CreditCard className="w-4 h-4" />
-              Bookings
-            </span>
-            <ChevronDown className={`h-4 w-4 transition-transform ${openBookings ? "rotate-180" : ""}`} />
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="pl-4 space-y-2 mt-1">
-          {bookingLinks.map((item, index) => (
-            <Link to={item.path} key={index} className="block w-full" onClick={saveScrollPosition}>
-              <Button variant="ghost" className="w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white">
-                {item.icon}
-                {item.label}
-              </Button>
-            </Link>
-          ))}
-        </CollapsibleContent>
-      </Collapsible>
+      {/* Add Walk-In */}
+      <Link to="/admin/choose-rooms" className="block w-full" onClick={saveScrollPosition}>
+        <Button variant="ghost" className="w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white">
+          <NotebookPen className="w-4 h-4" />
+          Add Walk In
+        </Button>
+      </Link>
 
       {/* Collapsible: Payments */}
       <Collapsible open={openPayments} onOpenChange={(open) => {

@@ -52,6 +52,7 @@ function InvoiceManagementSubpage({
   const [emailTo, setEmailTo] = useState('');
   const [submittingInvoice, setSubmittingInvoice] = useState(false);
   const [lastPdfUrl, setLastPdfUrl] = useState(null);
+  const [discounts, setDiscounts] = useState([]);
 
   // Fetch billing amounts when Booking Information modal opens
   useEffect(() => {
@@ -62,8 +63,39 @@ function InvoiceManagementSubpage({
 
   // Sync default email with selected booking
   useEffect(() => {
-    setEmailTo(selectedBooking?.customers_email || selectedBooking?.email || '');
+    const resolvedEmail = selectedBooking?.customer_email || selectedBooking?.customers_email || selectedBooking?.email || '';
+    console.log('[InvoiceManagement] selectedBooking changed:', {
+      booking_id: selectedBooking?.booking_id,
+      reference_no: selectedBooking?.reference_no,
+      customer_email: selectedBooking?.customer_email,
+      customers_email: selectedBooking?.customers_email,
+      email: selectedBooking?.email,
+      resolvedEmail,
+    });
+    setEmailTo(resolvedEmail);
   }, [selectedBooking]);
+
+  // Fetch discounts when component mounts
+  useEffect(() => {
+    fetchDiscounts();
+  }, []);
+
+  const fetchDiscounts = async () => {
+    try {
+      const url = localStorage.getItem("url") + "admin.php";
+      const formData = new FormData();
+      formData.append("method", "getEnabledDiscounts");
+      
+      const res = await axios.post(url, formData);
+      if (res.data?.success) {
+        setDiscounts(res.data.data || []);
+      } else {
+        console.error("Failed to fetch discounts:", res.data?.error);
+      }
+    } catch (error) {
+      console.error("Error fetching discounts:", error);
+    }
+  };
 
   // Helper: get current logged-in employee ID from localStorage
   const getCurrentEmployeeId = () => {
@@ -1132,16 +1164,36 @@ function InvoiceManagementSubpage({
                 <Label htmlFor="payment_method">Payment Method</Label>
                 <Select 
                   value={invoiceForm.payment_method_id.toString()} 
-                  onValueChange={(value) => setInvoiceForm({...invoiceForm, payment_method_id: parseInt(value)})}
+                  onValueChange={(value) => setInvoiceForm({...invoiceForm, payment_method_id: parseInt(value, 10)})}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select payment method" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="1">GCash</SelectItem>
-                    <SelectItem value="2">Cash</SelectItem>
-                    <SelectItem value="3">Paymaya</SelectItem>
+                    <SelectItem value="2">Paypal</SelectItem>
+                    <SelectItem value="3">Cash</SelectItem>
                     <SelectItem value="4">Check</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="discount">Discount (Optional)</Label>
+                <Select 
+                  value={invoiceForm.discount_id !== null ? invoiceForm.discount_id.toString() : "none"} 
+                  onValueChange={(value) => setInvoiceForm({...invoiceForm, discount_id: value === "none" ? null : parseInt(value, 10)})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select discount (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Discount</SelectItem>
+                    {discounts.map((discount) => (
+                      <SelectItem key={discount.discount_id} value={String(discount.discount_id)}>
+                        {discount.discount_name} - {discount.discount_percentage ? `${discount.discount_percentage}%` : `₱${discount.discount_amount}`}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1181,16 +1233,30 @@ function InvoiceManagementSubpage({
                 <div className="absolute inset-0 bg-black/50" onClick={() => setShowDeliveryModal(false)} />
                 <div className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-lg p-6">
                   <h3 className="text-lg font-semibold mb-2">Choose where to submit the customer's invoice</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">Select a delivery option. For email, confirm the recipient address below.</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">Select a delivery option. Email will use the customer's saved address.</p>
                   <div className="space-y-3 mb-4">
-                    <Label htmlFor="email_to">Email recipient</Label>
-                    <Input id="email_to" type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="customer@example.com" />
-                    <p className="text-xs text-muted-foreground">If left blank, the customer's saved email will be used.</p>
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Email recipient</p>
+                    <div className="text-sm text-gray-900 dark:text-white">
+                      {emailTo || selectedBooking?.customer_email || selectedBooking?.customers_email || selectedBooking?.email || 'No email on file'}
+                    </div>
+                    <p className="text-xs text-muted-foreground">This uses the customer's saved email.</p>
                   </div>
+
+                  {/* Allow admin/employee to type a different recipient email */}
+                  <div className="space-y-2 mb-4">
+                    <Label htmlFor="customEmail" className="text-sm font-medium">Send to a different email (optional)</Label>
+                    <Input
+                      id="customEmail"
+                      type="email"
+                      value={emailTo}
+                      onChange={(e) => setEmailTo(e.target.value)}
+                      placeholder="Enter recipient email"
+                    />
+                    <p className="text-xs text-muted-foreground">If the customer has multiple emails, type one here to override.</p>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 justify-items-center">
-                    <Button className="w-full" variant="secondary" onClick={() => { setDeliveryMode('pdf'); performCreateInvoiceWithDelivery(); }} disabled={submittingInvoice}>
-                      Download Invoice
-                    </Button>
+
                     <Button className="w-full bg-[#34699a] hover:bg-[#2c5b86]" onClick={() => { setDeliveryMode('both'); performCreateInvoiceWithDelivery(); }} disabled={submittingInvoice || !(emailTo && emailTo.trim())}>
                       Email and Print Invoice
                     </Button>

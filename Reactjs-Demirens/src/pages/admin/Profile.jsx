@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/select"
 import { Eye, EyeOff, Edit, Save, X } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
-import { Shield, KeyRound, History as HistoryIcon } from "lucide-react"
+import { Shield, KeyRound } from "lucide-react"
 
 function AdminProfile() {
   const [adminData, setAdminData] = useState(null);
@@ -71,6 +71,16 @@ function AdminProfile() {
     new_password: '',
     confirm_password: '',
     strength: ''
+  });
+
+  // OTP verification state
+  const [otpInput, setOtpInput] = useState('');
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpEnabled, setOtpEnabled] = useState(() => {
+    // Load OTP toggle state from localStorage, default to false
+    const saved = localStorage.getItem('admin_otp_enabled');
+    return saved === 'true';
   });
 
   useEffect(() => {
@@ -125,11 +135,126 @@ function AdminProfile() {
   }, [passwordData.current_password, passwordData.new_password, passwordData.confirm_password]);
 
   const APIConn = localStorage.getItem('url') + "admin.php";
+  const OTP_HASH_KEY = 'admin_otp_hash';
+  const OTP_EMAIL_KEY = 'admin_otp_email';
+  const OTP_EXPIRY_KEY = 'admin_otp_expiry';
+  const OTP_VALIDITY_MS = 5 * 60 * 1000; // 5 minutes
+
+  const getAdminEmail = () => {
+    return (adminData?.employee_email || editData.employee_email || localStorage.getItem('email') || '').trim();
+  };
+
+  const sha256Hex = async (text) => {
+    const enc = new TextEncoder();
+    const data = enc.encode(text);
+    const hash = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hash));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  const sendOTP = async () => {
+    if (otpSending) return;
+    const email = getAdminEmail();
+    if (!email || !email.includes('@')) {
+      toast.error('Valid email is required to send OTP');
+      return;
+    }
+
+    // Generate a secure 6-character OTP (alphanumeric)
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // avoid ambiguous chars
+    const buf = new Uint32Array(6);
+    crypto.getRandomValues(buf);
+    let otp = '';
+    for (let i = 0; i < buf.length; i++) otp += chars[buf[i] % chars.length];
+
+    const salt = (localStorage.getItem('userId') || '') + '|DEMIREN_OTP_SALT_v1';
+    const hash = await sha256Hex(`${otp}|${email}|${salt}`);
+
+    // Store encrypted OTP (hash) and expiry (Admin scheme)
+    sessionStorage.setItem(OTP_HASH_KEY, hash);
+    sessionStorage.setItem(OTP_EMAIL_KEY, email);
+    sessionStorage.setItem(OTP_EXPIRY_KEY, String(Date.now() + OTP_VALIDITY_MS));
+
+    // Also store using Customer scheme for compatibility
+    sessionStorage.setItem('registrationEmail', email);
+    sessionStorage.setItem('registrationOTP', btoa(otp + email));
+    sessionStorage.setItem('otpExpiry', Date.now() + OTP_VALIDITY_MS);
+
+    // Send email via backend (admin route)
+    try {
+      setOtpSending(true);
+      const url = (localStorage.getItem('url') || '') + 'admin.php';
+      const form = new FormData();
+      form.append('method', 'sendAdminOTP');
+      form.append('json', JSON.stringify({ email, otp_code: otp }));
+      const res = await axios.post(url, form);
+      if (res?.data?.success) {
+        toast.success('OTP sent to your email');
+        setOtpSent(true);
+      } else {
+        toast.error(res?.data?.message || 'Failed to send OTP');
+      }
+    } catch (e) {
+      console.error('Send OTP error:', e);
+      toast.error('Error sending OTP');
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const verifyOTPBeforeChange = async () => {
+    // First try Admin scheme
+    const storedHash = sessionStorage.getItem(OTP_HASH_KEY);
+    const storedEmail = sessionStorage.getItem(OTP_EMAIL_KEY);
+    const expiryStr = sessionStorage.getItem(OTP_EXPIRY_KEY);
+    if (storedHash && storedEmail && expiryStr) {
+      const expiry = parseInt(expiryStr, 10);
+      if (Date.now() > expiry) {
+        toast.error('OTP expired. Please send a new code');
+        return false;
+      }
+      const salt = (localStorage.getItem('userId') || '') + '|DEMIREN_OTP_SALT_v1';
+      const inputHash = await sha256Hex(`${otpInput}|${storedEmail}|${salt}`);
+      if (inputHash !== storedHash) {
+        toast.error('Incorrect OTP');
+        return false;
+      }
+      return true;
+    }
+
+    // Fallback: Customer scheme (registrationOTP + registrationEmail)
+    const regOTP = sessionStorage.getItem('registrationOTP');
+    const regEmail = sessionStorage.getItem('registrationEmail');
+    const regExpiryStr = sessionStorage.getItem('otpExpiry');
+    if (!regOTP || !regEmail || !regExpiryStr) {
+      toast.error('Please click "Send OTP" and enter the code');
+      return false;
+    }
+    const regExpiry = parseInt(regExpiryStr, 10);
+    if (Date.now() > regExpiry) {
+      toast.error('OTP expired. Please send a new code');
+      return false;
+    }
+    try {
+      const decrypted = atob(regOTP);
+      const originalOTP = decrypted.substring(0, 6);
+      if (otpInput !== originalOTP) {
+        toast.error('Incorrect OTP');
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('OTP decode error:', e);
+      toast.error('Invalid OTP session. Please resend the code');
+      return false;
+    }
+  };
 
   // Fetch admin data
   const fetchAdminData = async () => {
     try {
       setLoading(true);
+
       const userId = localStorage.getItem('userId');
       const rawType = (localStorage.getItem('userType') || '').toLowerCase().replace(/[\s_-]/g, '');
       const rawLevel = (localStorage.getItem('userLevel') || '').toLowerCase().replace(/[\s_-]/g, '');
@@ -164,6 +289,8 @@ function AdminProfile() {
           employee_birthdate: data.data.employee_birthdate || '',
           employee_gender: data.data.employee_gender || ''
         });
+        // Sync 2FA toggle with server value if available
+        setOtpEnabled(((data.data.employee_online_authentication_status ?? 0) === 1));
       } else {
         toast.error(data?.message || 'Failed to fetch admin data');
       }
@@ -178,6 +305,10 @@ function AdminProfile() {
   // Update admin profile (without password)
   const updateProfile = async () => {
     try {
+      const otpOk = await verifyOTPBeforeChange();
+      if (!otpOk) {
+        return;
+      }
       const userId = localStorage.getItem('userId');
       const userType = (localStorage.getItem('userType') || '').toLowerCase().replace(/[\s_-]/g, '')
       const userLevel = (localStorage.getItem('userLevel') || '').toLowerCase().replace(/[\s_-]/g, '')
@@ -259,6 +390,16 @@ function AdminProfile() {
         return;
       }
 
+      // If OTP feature is enabled, require a code and verify it
+      if (otpEnabled) {
+        if (!otpInput) {
+          toast.error('OTP Code is Needed, Please Try again');
+          return;
+        }
+        const ok = await verifyOTPBeforeChange();
+        if (!ok) return;
+      }
+
       const userId = localStorage.getItem('userId');
       const userType = (localStorage.getItem('userType') || '').toLowerCase().replace(/[\s_-]/g, '')
       const userLevel = (localStorage.getItem('userLevel') || '').toLowerCase().replace(/[\s_-]/g, '')
@@ -293,6 +434,12 @@ function AdminProfile() {
         setShowPassword(false);
         setShowNewPassword(false);
         setShowConfirmPassword(false);
+        // Clear OTP session after success
+        sessionStorage.removeItem(OTP_HASH_KEY);
+        sessionStorage.removeItem(OTP_EMAIL_KEY);
+        sessionStorage.removeItem(OTP_EXPIRY_KEY);
+        setOtpInput('');
+        setOtpSent(false);
       } else {
         toast.error(data?.message || 'Failed to change password');
       }
@@ -301,6 +448,54 @@ function AdminProfile() {
       toast.error('Error changing password');
     }
   };
+
+  // ... existing code ...
+
+  // Persist 2FA toggle to backend: employee_online_authentication_status (1/0)
+  const handleToggle2FA = async (next) => {
+    // Optimistically update UI
+    setOtpEnabled(next);
+    try {
+      const userId = localStorage.getItem('userId');
+      const userType = (localStorage.getItem('userType') || '').toLowerCase().replace(/[\s_-]/g, '')
+      const userLevel = (localStorage.getItem('userLevel') || '').toLowerCase().replace(/[\s_-]/g, '')
+      const typeAllowed = ['admin','employee','frontdesk'].includes(userType)
+      const levelAllowed = ['admin','frontdesk'].includes(userLevel)
+
+      if (!userId || (!typeAllowed && !levelAllowed)) {
+        toast.error('Employee or Admin access required');
+        setOtpEnabled(!next);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('method', 'updateAdminProfile');
+      formData.append('json', JSON.stringify({
+        employee_id: userId,
+        employee_online_authentication_status: next ? 1 : 0,
+      }));
+
+      const response = await axios.post(APIConn, formData);
+      const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+
+      if (data?.status === 'success' || data?.success === true) {
+        toast.success(next ? 'Two-Factor Authentication activated' : 'Two-Factor Authentication deactivated');
+        setAdminData((prev) => prev ? { ...prev, employee_online_authentication_status: next ? 1 : 0 } : prev);
+      } else {
+        toast.error(data?.message || 'Failed to update 2FA setting');
+        setOtpEnabled(!next); // revert on failure
+      }
+    } catch (error) {
+      console.error('Update 2FA setting error:', error);
+      toast.error('Error updating 2FA setting');
+      setOtpEnabled(!next); // revert on error
+    }
+  };
+
+  // Save OTP toggle state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('admin_otp_enabled', otpEnabled.toString());
+  }, [otpEnabled]);
 
   useEffect(() => {
     fetchAdminData();
@@ -352,12 +547,7 @@ function AdminProfile() {
               </span>
             </div>
             <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-[#34699a] hover:bg-[#2a5580] text-white">
-                  <Edit className="w-4 h-4 mr-2" />
-                  Edit Profile
-                </Button>
-              </DialogTrigger>
+              {/* Trigger removed: Edit button exists in profile hero card */}
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Edit Admin Profile</DialogTitle>
@@ -466,9 +656,9 @@ function AdminProfile() {
                     Save Changes
                   </Button>
                 </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
+                </DialogContent>
+                </Dialog>
+                </div>
 
           {/* Password Change Modal */}
           <Dialog open={isPasswordModalOpen} onOpenChange={setIsPasswordModalOpen}>
@@ -481,6 +671,7 @@ function AdminProfile() {
               </DialogHeader>
               
               <div className="space-y-4">
+
                 <div>
                   <Label htmlFor="current_password_modal">Current Password</Label>
                   <div className="relative">
@@ -560,6 +751,28 @@ function AdminProfile() {
                 </div>
               </div>
 
+              {/* OTP Verification - only when enabled */}
+              {otpEnabled && (
+                <div>
+                  <Label htmlFor="otp_code_modal">OTP Code (optional)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="otp_code_modal"
+                      type="text"
+                      inputMode="text"
+                      pattern="[A-Za-z0-9]*"
+                      placeholder="Enter 6-character OTP"
+                      value={otpInput}
+                      onChange={(e) => setOtpInput(e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 6))}
+                    />
+                    <Button type="button" variant="outline" onClick={sendOTP} disabled={otpSending}>
+                      {otpSending ? 'Sending...' : 'Send OTP'}
+                    </Button>
+                  </div>
+                  <p className="text-xs mt-1 text-muted-foreground">A 6-digit code will be sent to your email and expires in 5 minutes.</p>
+                </div>
+              )}
+
               <DialogFooter>
                 <Button variant="outline" onClick={() => {
                   setIsPasswordModalOpen(false);
@@ -567,6 +780,12 @@ function AdminProfile() {
                   setShowPassword(false);
                   setShowNewPassword(false);
                   setShowConfirmPassword(false);
+                  // Clear OTP session
+                  sessionStorage.removeItem(OTP_HASH_KEY);
+                  sessionStorage.removeItem(OTP_EMAIL_KEY);
+                  sessionStorage.removeItem(OTP_EXPIRY_KEY);
+                  setOtpInput('');
+                  setOtpSent(false);
                 }}>
                   <X className="w-4 h-4 mr-2" />
                   Cancel
@@ -599,17 +818,16 @@ function AdminProfile() {
                   </div>
                   <Button size="sm" variant="outline" onClick={() => setIsPasswordModalOpen(true)}>Manage</Button>
                 </div>
-                {/* Login History */}
+
+                {/* Require OTP row */}
                 <div className="flex items-center justify-between py-2">
-                  <div className="flex items-center gap-3">
-                    <HistoryIcon className="w-4 h-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm font-medium">Login History</p>
-                      <p className="text-xs text-muted-foreground">Log of all login attempts, including successful and failed.</p>
-                    </div>
+                  <div>
+                    <p className="text-sm font-medium">Activate 2 Factor Authentication</p>
+                    <p className="text-xs text-muted-foreground">Toggle to require an emai  l OTP before changing password.</p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => toast.info('Login history view coming soon')}>View</Button>
+                  <Switch checked={otpEnabled} onCheckedChange={handleToggle2FA} />
                 </div>
+
               </CardContent>
             </Card>
 

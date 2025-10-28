@@ -412,16 +412,16 @@ function AdminDashboard() {
     },
   }
 
-  const fetchPendingBookings = async () => {
+  const fetchConfirmedBookings = async () => {
     try {
       const formData = new FormData();
       formData.append('method', 'viewBookingsEnhanced');
       const res = await axios.post(APIConn, formData);
       const list = Array.isArray(res.data) ? res.data : [];
-      const pending = list.filter(b => String(b.booking_status).trim() === 'Pending').length;
-      setPendingBookingsCount(pending);
+      const confirmed = list.filter(b => String(b.booking_status).trim() === 'Confirmed').length;
+      setPendingBookingsCount(confirmed);
     } catch (error) {
-      console.error('Failed to fetch pending bookings:', error);
+      console.error('Failed to fetch confirmed bookings:', error);
       setPendingBookingsCount(0);
     }
   }
@@ -431,7 +431,7 @@ function AdminDashboard() {
     fetchActiveBookings();
     fetchRoomStatusDistribution();
     fetchOnlinePendingCount();
-    fetchPendingBookings();
+    fetchConfirmedBookings();
 
     const fetchMostBookedRoomsLocal = async (scope) => {
       try {
@@ -473,7 +473,7 @@ function AdminDashboard() {
       fetchActiveBookings();
       fetchRoomStatusDistribution();
       fetchOnlinePendingCount();
-      fetchPendingBookings();
+      fetchConfirmedBookings();
       fetchMostBookedRoomsLocal(mostBookedScope);
     }, 30000);
 
@@ -588,7 +588,7 @@ function AdminDashboard() {
                     <div className="flex items-center justify-between">
                       <CardTitle className={`${pendingCardClasses.title} flex items-center gap-2`}>
                         <AlertTriangle className="h-5 w-5" />
-                        Pending Bookings
+                        Confirmed Requests
                       </CardTitle>
                       <Badge variant="secondary" className={pendingCardClasses.badge}>Live</Badge>
                     </div>
@@ -599,7 +599,7 @@ function AdminDashboard() {
                       <div className={`text-3xl font-bold ${pendingCardClasses.number} mb-1`}>
                         {NumberFormatter.formatCount(pendingBookingsCount || 0)}
                       </div>
-                      <div className={`text-xs ${pendingCardClasses.label}`}>Pending Bookings</div>
+                      <div className={`text-xs ${pendingCardClasses.label}`}>Confirmed Bookings</div>
                     </div>
                   </CardContent>
                 </Card>

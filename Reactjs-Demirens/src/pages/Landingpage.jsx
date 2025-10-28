@@ -56,6 +56,7 @@ const contactSchema = z.object({
 });
 
 
+
 function Landingpage() {
   const [rooms, setRooms] = useState([]);
   const [adultNumber, setAdultNumber] = useState(1);
@@ -64,7 +65,31 @@ function Landingpage() {
 
   const navigateTo = useNavigate();
 
+  const [feedback, setFeedback] = useState([]);
+  const getFeedbacks = async () => {
+    try {
+      const url = localStorage.getItem('url') + "customer.php";
+      console.log("url ni get roomssss", url)
+      const formData = new FormData();
+      formData.append("operation", "getFeedbacks");
+      const res = await axios.post(url, formData);
+      console.log("res ni get feedbacks", res)
 
+      // Ensure feedback is always an array
+      let data = res.data;
+      try {
+        data = typeof data === 'string' ? JSON.parse(data) : data;
+      } catch (_) {
+        // keep original if not JSON
+      }
+      const list = Array.isArray(data) ? data : [];
+      setFeedback(list);
+    } catch (error) {
+      toast.error("Something went wrong");
+      console.log(error);
+      setFeedback([]); // fallback
+    }
+  }
 
 
   const handleNextPage = (roomDetails) => {
@@ -169,11 +194,15 @@ function Landingpage() {
 
 
   useEffect(() => {
+    if (localStorage.getItem("userId")) {
+      navigateTo("/customer");
+    }
     if (localStorage.getItem("url") !== "http://localhost/demirenAPI/api/") {
       localStorage.setItem("url", "http://localhost/demirenAPI/api/");
     }
+    getFeedbacks();
     getRooms();
-  }, []);
+  }, [navigateTo]);
 
 
 
@@ -365,9 +394,9 @@ function Landingpage() {
                           </div>
 
                           <div className="flex items-end animate-fadeIn" style={{ animationDelay: '300ms' }}>
-                            <Button className="w-full h-14 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-lg rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 border-0">
+                            <Button className="w-full h-14 bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-lg rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 border-0">
                               <span className="flex items-center gap-2">
-                                🔍 Search Rooms
+                                Search Rooms
                               </span>
                             </Button>
                           </div>
@@ -441,7 +470,7 @@ function Landingpage() {
                 {/* Right Column */}
                 <div className="flex flex-col space-y-8 animate-slideInRight" style={{ animationDelay: '200ms' }}>
                   {/* Enhanced Text block */}
-                  <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-700 p-8 rounded-3xl shadow-xl text-white transform hover:shadow-2xl transition-all duration-500 relative overflow-hidden group">
+                  <div className="bg-gradient-to-br from-blue-900 via-indigo-700 to-blue-900 p-8 rounded-3xl shadow-xl text-white transform hover:shadow-2xl transition-all duration-500 relative overflow-hidden group">
                     <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                     <div className="absolute top-4 right-4 w-20 h-20 bg-gradient-to-br from-white/10 to-transparent rounded-full blur-xl"></div>
                     <div className="relative z-10">
@@ -493,8 +522,8 @@ function Landingpage() {
 
 
           {/* Section 3 - Enhanced Room Types Section */}
-          <section className="py-20 px-6 bg-gradient-to-b from-indigo-50/50 via-white to-blue-50/30 min-h-screen">
-            <div className="max-w-7xl mx-auto">
+          <section id="rooms" className="py-20 px-6 bg-gradient-to-b from-indigo-50/50 via-white to-blue-50/30 min-h-screen">
+            <div className="max-w-7xl mx-auto mt-20">
               <div className="text-center mb-16 animate-fadeIn">
                 <h2 className="text-6xl font-playfair mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-800 via-indigo-700 to-blue-900 drop-shadow-sm">ROOM TYPES</h2>
                 <div className="w-32 h-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 mx-auto rounded-full shadow-lg"></div>
@@ -536,14 +565,14 @@ function Landingpage() {
 
                           {/* Enhanced Status Badge */}
                           <div className="absolute top-4 right-4 z-20">
-                            <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold px-4 py-2 shadow-lg backdrop-blur-sm border border-green-400/30 rounded-full">
-                              ✨ Available
+                            <Badge className="bg-green-600">
+                              Available
                             </Badge>
                           </div>
 
                           {/* Price Badge */}
                           <div className="absolute top-4 left-4 z-20">
-                            <div className="bg-gradient-to-r from-blue-600/90 to-indigo-600/90 backdrop-blur-sm rounded-full px-4 py-2 border border-blue-400/30">
+                            <div className="bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white backdrop-blur-sm rounded-full px-4 py-2 border border-blue-400/30">
                               <span className="text-white font-bold text-lg">
                                 ₱{Number(room.roomtype_price).toLocaleString("en-PH", { minimumFractionDigits: 0 })}
                               </span>
@@ -615,7 +644,7 @@ function Landingpage() {
                           {/* Enhanced Action Button */}
                           <div className="mt-auto">
                             <Button
-                              className="w-full h-12 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:via-indigo-700 hover:to-blue-800 text-white font-semibold text-lg rounded-2xl transition-all duration-500 transform hover:scale-105 shadow-lg hover:shadow-xl group relative overflow-hidden"
+                              className="w-full h-12 bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white transform hover:scale-105 shadow-lg hover:shadow-xl group relative overflow-hidden"
                               onClick={() => handleNextPage(room)}
                             >
                               <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -629,6 +658,36 @@ function Landingpage() {
                       </Card>
                     ))
                 )}
+              </div>
+            </div>
+            <div className="mt-12">
+              <div className="text-center mb-8">
+                <h3 className="text-3xl md:text-4xl font-playfair font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-800 via-indigo-700 to-blue-900">What Guests Say</h3>
+                <div className="w-28 h-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 mx-auto rounded-full mt-3"></div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {(Array.isArray(feedback) ? feedback : []).map((item, index) => (
+                  <Card key={index} className="bg-gradient-to-br from-white to-blue-50/50 border border-blue-100/70 shadow-lg hover:shadow-2xl transition-shadow rounded-2xl">
+                    <CardContent className="p-5">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center font-semibold shadow-md">
+                            {(item.customer_fullname || 'G').charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-blue-900 font-semibold leading-tight">{item.customer_fullname}</p>
+                            <div className="flex items-center gap-1 mt-1" aria-label={`Rating: ${item.customersreviews_rating} out of 5`}>
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <span key={i} className={`${i < (Number(item.customersreviews_rating) || 0) ? 'text-yellow-500' : 'text-gray-300'}`}>★</span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-gray-700">{item.customersreviews_comment}</p>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             </div>
           </section>
@@ -713,7 +772,7 @@ function Landingpage() {
                         />
                         <Button
                           type="submit"
-                          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg group"
+                          className="w-full bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg group"
                         >
                           <span className="group-hover:mr-2 transition-all duration-300">Send Message</span>
                           <span className="group-hover:translate-x-1 transition-transform duration-300">→</span>
@@ -725,7 +784,7 @@ function Landingpage() {
 
                 {/* Right Column - Image and Text */}
                 <div className="flex flex-col space-y-8 animate-slideInRight" style={{ animationDelay: '200ms' }}>
-                  <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-3xl shadow-lg text-white transform hover:shadow-xl transition-all duration-300">
+                  <div className="bg-gradient-to-br from-blue-900 via-indigo-700 to-blue-900 p-8 rounded-3xl shadow-lg text-white transform hover:shadow-xl transition-all duration-300">
                     <h3 className="text-3xl font-playfair mb-6">Get In Touch</h3>
                     <p className="text-lg leading-relaxed">
                       Find everything you need to know about your stay at Demiren Hotel & Restaurant.

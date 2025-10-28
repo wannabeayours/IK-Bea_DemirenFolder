@@ -61,7 +61,9 @@ function CustomerBookingSummary() {
         </div>
       </div>
       <Card className={"p-4 sm:p-6 md:p-8 mt-6 sm:mt-10 md:mt-12 w-full bg-white rounded-lg border border-gray-100 shadow-md hover:shadow-lg transition-all duration-300"}>
+
         <div className="overflow-x-auto py-2 sm:py-4">
+
           <div className="mb-4 text-xl sm:text-2xl font-semibold text-[#113f67]">Booking Summary</div>
           {data.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
@@ -73,8 +75,7 @@ function CustomerBookingSummary() {
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
               {data.map((element, index) => (
                 <div key={index}>
-                  <Card className="w-full h-full mt-4 sm:mt-6 shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 rounded-lg overflow-hidden hover:border-[#226597]/30 hover:scale-[1.01]">
-                    <div className="bg-gradient-to-r from-[#113f67] to-[#226597] h-2"></div>
+                  <Card className="w-full h-full mt-4 sm:mt-6 shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 rounded-lg overflow-hidden hover:border-[#226597]/30 hover:scale-[1.01] ">
                     <CardContent className="p-4 sm:p-5">
                       <CardTitle className="text-xl sm:text-2xl leading-tight break-words text-[#113f67]">Booking #{index + 1}</CardTitle>
                       <div className="space-y-3 mt-4">

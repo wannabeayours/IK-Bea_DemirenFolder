@@ -66,7 +66,7 @@ function Changepass() {
     return (
         <Dialog>
             <DialogTrigger>
-                <Button>
+                <Button className="bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700">
                     Change Password
                 </Button>
             </DialogTrigger>
@@ -125,7 +125,7 @@ function Changepass() {
                         <div>
                             <div className="flex justify-end">
 
-                                <Button type="submit">
+                                <Button type="submit" className="bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700">
                                     Change Password
                                 </Button>
                             </div>

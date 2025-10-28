@@ -9,13 +9,15 @@ import AdminDashboard from './pages/admin/Dashboard';
 import AdminProfile from './pages/admin/Profile';
 import AdminBookingList from './pages/admin/BookingList';
 import AdminCalendar from './pages/admin/Calendar';
-import AdminGuestProfile from './pages/admin/GuestProfile';
+import AdminGuestProfile from './pages/admin/CustomerList';
 import AdminPayments from './pages/admin/Payments';
-import AdminRequestedAmenities from './pages/admin/RequestedAmenities';
-import AdminBookingRoomSelection from './pages/admin/SubPages/BookingRoomSelection';
+import AdminRequestedAmenities from './pages/admin/Amenity Pages/RequestedAmenities';
+import AdminBookingRoomSelection from './pages/admin/Amenity Pages/BookingRoomSelection';
+import AmenitySelection from './pages/admin/Amenity Pages/AmenitySelection';
+import ChooseBookForVisitor from './pages/admin/Visitor Pages/ChooseBookForVisitor';
 import AdminReviews from './pages/admin/Reviews';
 import AdminTransactionHis from './pages/admin/TransactionHis';
-import AdminVisitorsLog from './pages/admin/VisitorsLog';
+import AdminVisitorsLog from './pages/admin/Visitor Pages/VisitorsLog';
 import AdminAmenityMaster from './pages/admin/Master_Files/AmenityMaster';
 import AdminChargesCategory from './pages/admin/Master_Files/ChargesCategory';
 import AdminChargeMaster from './pages/admin/Master_Files/ChargeMaster';
@@ -26,7 +28,7 @@ import Landingpage from './pages/Landingpage';
 import Billings from './pages/admin/Billings';
 import CreateInvoice from './pages/admin/Invoice';
 import EmployeeList from './pages/admin/EmployeeList';
-import ChooseBookForVisitor from './pages/admin/SubPages/ChooseBookForVisitor';
+import NewRoomNumber from './pages/admin/SubPages/NewRoomNumber';
 
 // Online
 import OnlineReqList from './pages/admin/Online_Folder/OnlineReqList';
@@ -63,6 +65,7 @@ import { Toaster } from 'sonner';
 import { CheckCircle2Icon, XCircleIcon } from 'lucide-react';
 import { SuccessPayment } from './pages/customer/modals/sheets/pages/SuccessPayment';
 import { CancelledPayment } from './pages/customer/modals/sheets/pages/CancelledPayment';
+import CustomerFeedback from './pages/customer/CustomerFeedback';
 
 
 function App() {
@@ -131,6 +134,19 @@ function App() {
                     <AdminRoomsList />
                   </AdminRouteGuard>
                 } />
+
+                <Route path="/admin/amenityselection" element={
+                  <AdminRouteGuard>
+                    <AmenitySelection />
+                  </AdminRouteGuard>
+                } />
+
+                <Route path="/admin/employee" element={
+                  <AdminRouteGuard>
+                    <NewRoomNumber />
+                  </AdminRouteGuard>
+                } />
+
                 <Route path="/admin/bookinglist" element={
                   <AdminRouteGuard>
                     <AdminBookingList />
@@ -281,7 +297,7 @@ function App() {
                 <Route path="/customer/restaurant" element={<CustomerRestaurant />} />
                 <Route path="/customer" element={<CustomerMain />} />
                 <Route path="/payment-success" element={<SuccessPayment />} />
-                <Route path="/payment-cancelled" element={<CancelledPayment />} />
+                <Route path="/feedback" element={<CustomerFeedback />} />
 
 
               </Routes>

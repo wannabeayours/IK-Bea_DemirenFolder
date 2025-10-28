@@ -535,7 +535,7 @@ class Demiren_customer
                     LEFT JOIN tbl_rooms d ON d.roomnumber_id = b.roomnumber_id
                     LEFT JOIN tbl_booking_history e ON e.booking_id = a.booking_id
                     INNER JOIN tbl_payment_method f ON f.payment_method_id = a.booking_paymentMethod
-                    WHERE (a.customers_id = :bookingCustomerId OR a.customers_walk_in_id = :bookingCustomerId)
+                    WHERE a.customers_id = :bookingCustomerId
                     AND e.status_id = 2
                     ORDER BY a.booking_created_at DESC
                 ";
@@ -1676,7 +1676,7 @@ class Demiren_customer
             LEFT JOIN tbl_charges_category h ON h.charges_category_id = g.charges_category_id
             LEFT JOIN tbl_charges_status i ON i.charges_status_id = f.booking_charge_status
             LEFT JOIN tbl_booking_history j ON j.booking_id = a.booking_id
-            WHERE (a.customers_id = :bookingCustomerId OR a.customers_walk_in_id = :bookingCustomerId)
+            WHERE a.customers_id = :bookingCustomerId
             AND j.status_id = 5
             ORDER BY a.booking_created_at DESC";
 
@@ -1758,7 +1758,8 @@ class Demiren_customer
                         "booking_charges_id" => $c['booking_charges_id'],
                         "booking_charges_quantity" => $c['qty'],
                         "booking_charges_price" => $c['price'],
-                        "total" => $c['price'] * $c['qty']
+                        // If amenity is cancelled (status_id == 3), do not count towards total
+                        "total" => ($c['status_id'] == 3) ? 0 : ($c['price'] * $c['qty'])
                     ];
                 }, $room['charges_raw']);
                 unset($room['charges_raw']);
@@ -1969,9 +1970,9 @@ class Demiren_customer
 
     function addBookingCharges($json)
     {
-        // {"bookingId": 41, 
+        // {"bookingId": 41,
         //  "charges": [
-        //    {"booking_room_id":32, "charges_master_id":1, "charges_quantity":2, "booking_charges_price": 200}, 
+        //    {"booking_room_id":32, "charges_master_id":1, "charges_quantity":2, "booking_charges_price": 200},
         //    {"booking_room_id":32, "charges_master_id":2, "charges_quantity":1, "booking_charges_price": 400}
         //  ]
         // }
@@ -1981,34 +1982,36 @@ class Demiren_customer
 
         $charges = $data["charges"];
         $bookingId = $data["bookingId"];
-        $notes = $data["notes"];
+        $notes = $data["notes"]; // currently not persisted due to schema
 
         try {
             $conn->beginTransaction();
-
-            $sql = "INSERT INTO tbl_booking_charges_notes(booking_c_notes)
-                    VALUES (:booking_c_notes)";
-            $stmt = $conn->prepare($sql);
-            $stmt->bindParam(":booking_c_notes", $notes);
-            $stmt->execute();
-            $lastInsertId = $conn->lastInsertId();
-            $now = date('Y-m-d H:i:s');
+            // Match current DB schema: tbl_booking_charges
+            // Columns: charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity,
+            // booking_charges_total, booking_charge_status (default 1), booking_charge_date (defaults NOW())
             $sqlInsert = "INSERT INTO tbl_booking_charges 
-            (booking_room_id, charges_master_id, booking_charges_quantity, booking_charges_price, booking_charges_notes_id, booking_charge_datetime)
-            VALUES 
-            (:booking_room_id, :charges_master_id, :charges_quantity, :booking_charges_price, :booking_c_notes_id, :now)";
+                (charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, booking_charges_total, booking_charge_status, booking_charge_date)
+                VALUES (:charges_master_id, :booking_room_id, :booking_charges_price, :booking_charges_quantity, :booking_charges_total, 1, NOW())";
             $stmtInsert = $conn->prepare($sqlInsert);
 
             $totalPrice = 0;
             foreach ($charges as $charge) {
-                $stmtInsert->bindParam(":booking_room_id", $charge["booking_room_id"]);
-                $stmtInsert->bindParam(":now", $now);
-                $stmtInsert->bindParam(":charges_master_id", $charge["charges_master_id"]);
-                $stmtInsert->bindParam(":charges_quantity", $charge["charges_quantity"]);
-                $stmtInsert->bindParam(":booking_charges_price", $charge["booking_charges_price"]);
-                $stmtInsert->bindParam(":booking_c_notes_id", $lastInsertId);
+                $booking_room_id = intval($charge["booking_room_id"] ?? 0);
+                $charges_master_id = intval($charge["charges_master_id"] ?? 0);
+                $charges_quantity = intval($charge["charges_quantity"] ?? 1);
+                $booking_charges_price = floatval($charge["booking_charges_price"] ?? 0);
+
+                // In current payload, booking_charges_price already contains total (price * qty)
+                // Persist same value to booking_charges_total; keep price equal for compatibility
+                $booking_charges_total = $booking_charges_price;
+
+                $stmtInsert->bindParam(":charges_master_id", $charges_master_id);
+                $stmtInsert->bindParam(":booking_room_id", $booking_room_id);
+                $stmtInsert->bindParam(":booking_charges_price", $booking_charges_price);
+                $stmtInsert->bindParam(":booking_charges_quantity", $charges_quantity);
+                $stmtInsert->bindParam(":booking_charges_total", $booking_charges_total);
                 $stmtInsert->execute();
-                $totalPrice += $charge["booking_charges_price"];
+                $totalPrice += $booking_charges_total;
             }
  
             // $sqlSelect = "SELECT booking_totalAmount FROM tbl_booking WHERE booking_id = :bookingId";
@@ -2078,11 +2081,10 @@ class Demiren_customer
     function cancelReqAmenities($json)
     {
         include "connection.php";
-        date_default_timezone_set('Asia/Manila');
         $data = json_decode($json, true);
 
-        // 🔹 Step 1: Get the request date/time
-        $sql = "SELECT booking_charge_datetime 
+        // 🔹 Step 1: Get the request date/time (use actual schema column)
+        $sql = "SELECT booking_charge_date 
             FROM tbl_booking_charges 
             WHERE booking_charges_id = :bookingChargesId";
         $stmt = $conn->prepare($sql);
@@ -2095,11 +2097,9 @@ class Demiren_customer
         }
 
         // 🔹 Step 2: Check if more than 10 minutes have passed
-        $requestTime = new DateTime($charge["booking_charge_datetime"], new DateTimeZone('UTC'));
-        $requestTime->setTimezone(new DateTimeZone('Asia/Manila'));
-
-        $currentTime = new DateTime('now', new DateTimeZone('Asia/Manila'));
-
+        // MySQL DATETIME/TIMESTAMP is timezone-less by default; treat stored value as local server time
+        $requestTime = new DateTime($charge["booking_charge_date"]);
+        $currentTime = new DateTime('now');
         $minutesDiff = ($currentTime->getTimestamp() - $requestTime->getTimestamp()) / 60;
 
 
@@ -2110,7 +2110,7 @@ class Demiren_customer
 
         // 🔹 Step 3: Proceed with cancellation
         $sql = "UPDATE tbl_booking_charges 
-            SET booking_charge_status = 3 
+            SET booking_charge_status = 3, modified_date = NOW() 
             WHERE booking_charges_id = :bookingChargesId";
         $stmt = $conn->prepare($sql);
         $stmt->bindParam(":bookingChargesId", $data["bookingChargesId"]);

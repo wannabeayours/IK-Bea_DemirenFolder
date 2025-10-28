@@ -108,12 +108,15 @@ function ViewBookingSummary({ getBookingSummary, bookingData }) {
       formData.append("json", JSON.stringify(jsonData));
       formData.append("operation", "cancelReqAmenities");
       const res = await axios.post(url, formData);
-      console.log("res", res)
-      if (res.data === -1) {
+      console.log("res cancelReqAmenities", res)
+      const code = Number(res.data);
+      if (code === -1) {
         toast.error("Cancellation period has expired. Please contact the front desk for assistance.");
-      } else if (res.data === 1) {
+      } else if (code === 1) {
         getBookingSummary();
         toast.success("Request cancelled successfully");
+      } else {
+        toast.error("Failed to cancel request");
       }
     } catch (error) {
       toast.error("Error cancelling request");
@@ -137,7 +140,7 @@ function ViewBookingSummary({ getBookingSummary, bookingData }) {
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+        <Button className= "bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white">
           <Eye className="mr-2 h-4 w-4" />
           View Details
         </Button>

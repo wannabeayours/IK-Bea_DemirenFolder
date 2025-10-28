@@ -138,7 +138,7 @@ function UpdateProfile({ data, getProfile }) {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger>
-                <Button className="mr-2 ">
+                <Button className="mr-2 bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white ">
                     <LucideEdit className="w-4 h-4 mr-2 " />
                     <h1 >Edit Profile</h1>
                 </Button>

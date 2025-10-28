@@ -17,7 +17,7 @@ const ChooseRooms = () => {
   const APIConn = `${baseUrl}admin.php`;
   const navigate = useNavigate();
 
-  const { walkInData, setWalkInData } = useWalkIn();
+  const { walkInData, setWalkInData, resetWalkIn } = useWalkIn();
 
   const [rooms, setRooms] = useState([]);
   const [roomTypes, setRoomTypes] = useState([]);
@@ -806,12 +806,19 @@ const ChooseRooms = () => {
 
         {/* Confirm button - Only show when room types are selected */}
         {selectedRoomTypes.length > 0 && (
-          <div className="mt-6 text-center">
+          <div className="mt-6 flex justify-between items-center">
+            <button
+              type="button"
+              onClick={() => { resetWalkIn(); navigate('/admin/dashboard'); }}
+              className="px-4 py-2 rounded bg-gray-500 text-white hover:bg-gray-600"
+            >
+              ← Back: Dashboard
+            </button>
             <button
               onClick={handleConfirm}
               className="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700"
             >
-              Continue to Customer Info
+              Next: Customer
             </button>
           </div>
         )}

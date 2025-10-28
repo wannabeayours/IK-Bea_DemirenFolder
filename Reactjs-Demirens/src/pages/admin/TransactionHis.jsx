@@ -454,7 +454,7 @@ function AdminTransactionHis() {
       case 'payment':
         return { icon: CreditCard, color: 'bg-purple-500', label: 'Payment' }
       case 'billing':
-        return { icon: DollarSign, color: 'bg-indigo-500', label: 'Billing' }
+        return { icon: DollarSignIcon, color: 'bg-indigo-500', label: 'Billing' }
       default:
         return { icon: Activity, color: 'bg-gray-500', label: 'Transaction' }
     }

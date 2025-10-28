@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWalkIn } from './WalkInContext';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -9,10 +9,31 @@ import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 export default function Confirmation() {
   const APIConn = `${localStorage.url}customer.php`;
   const navigate = useNavigate();
-  const { walkInData } = useWalkIn();
+  const { walkInData, resetWalkIn } = useWalkIn();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [confirmStatus, setConfirmStatus] = useState(null); // 'success', 'error', or null
+
+  // Step guard: do not allow direct access if previous steps incomplete
+  useEffect(() => {
+    const hasRooms = Array.isArray(walkInData.selectedRooms) && walkInData.selectedRooms.length > 0;
+    const hasDates = !!walkInData.checkIn && !!walkInData.checkOut;
+    const hasCustomer = !!walkInData.customers_fname && !!walkInData.customers_lname && !!walkInData.customers_phone_number && !!walkInData.customers_address && !!walkInData.customers_date_of_birth;
+    const hasPayment = !!(walkInData.payment && walkInData.payment.method && walkInData.payment.amountPaid);
+
+    if (!hasRooms || !hasDates) {
+      navigate('/admin/choose-rooms', { replace: true });
+      return;
+    }
+    if (!hasCustomer) {
+      navigate('/admin/add-walk-in', { replace: true });
+      return;
+    }
+    if (!hasPayment) {
+      navigate('/admin/payment-method', { replace: true });
+      return;
+    }
+  }, [navigate, walkInData]);
 
   const handleConfirm = async () => {
     // Validate payment fields
@@ -163,7 +184,8 @@ export default function Confirmation() {
         bedCount: 0
       }));
 
-      const paymentMethodId = (walkInData.payment?.method || '').toLowerCase() === 'cash' ? 1 : 2;
+      const method = (walkInData.payment?.method || '').toLowerCase();
+      const paymentMethodId = method === 'gcash' ? 1 : method === 'paypal' ? 2 : method === 'cash' ? 3 : method === 'check' ? 4 : 1;
       const numericAmountPaid = Number(walkInData.payment?.amountPaid || 0);
       const bookingDetails = {
         checkIn: cleanedData.checkIn,
@@ -211,6 +233,8 @@ export default function Confirmation() {
       const isSuccess = responseData === 1 || responseData?.success === true;
       if (isSuccess) {
         setConfirmStatus('success');
+        // Clear persisted Walk-In flow state on successful submission
+        resetWalkIn();
         setTimeout(() => {
           navigate('/admin/choose-rooms');
         }, 2000);
@@ -247,8 +271,9 @@ export default function Confirmation() {
   };
 
   const amountPaid = Number(walkInData.payment?.amountPaid) || 0;
-  const total = walkInData.billing?.total || 0;
-  const change = Number.isFinite(amountPaid) ? amountPaid - total : 0;
+  const total = Number(walkInData.billing?.total || 0);
+  const methodLower = (walkInData.payment?.method || '').toLowerCase();
+  const change = methodLower === 'cash' ? Math.max(0, amountPaid - total) : 0;
 
   return (
     <div className="lg:ml-72 max-w-3xl mx-auto p-6 space-y-8 bg-white dark:bg-gray-900 rounded-md">

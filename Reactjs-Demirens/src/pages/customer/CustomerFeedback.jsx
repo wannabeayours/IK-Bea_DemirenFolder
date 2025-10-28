@@ -14,10 +14,11 @@ import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Star, Loader2, Info, RefreshCcw } from 'lucide-react';
+import { Star, Loader2, Info, RefreshCcw, ArrowLeft } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 const schema = z.object({
   review: z.string().min(1, { message: "This field is required" }),
@@ -26,7 +27,7 @@ const schema = z.object({
 
 function CustomerFeedback() {
   const [hasCheckedOut, setHasCheckedOut] = useState(false);
-  const [feedback, setFeedback] = useState(0);
+  const [feedback, setFeedback] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hoverRating, setHoverRating] = useState(0);
   const [charCount, setCharCount] = useState(0);
@@ -40,13 +41,19 @@ function CustomerFeedback() {
       const url = localStorage.getItem('url') + "customer.php";
       const customerId = localStorage.getItem("userId");
       const jsonData = {
-        "customerId": customerId,
-      }
+        customerId: customerId,
+      };
       const formData = new FormData();
       formData.append("operation", "hasCustomerCheckOuted");
       formData.append("json", JSON.stringify(jsonData));
       const res = await axios.post(url, formData);
-      setHasCheckedOut(res.data === 1);
+      let value = res.data;
+      try {
+        value = typeof value === 'string' ? JSON.parse(value) : value;
+      } catch (_) {
+        // leave as-is if not JSON
+      }
+      setHasCheckedOut(Number(value) === 1);
       console.log("res ni hasCustomerCheckOuted", res);
     } catch (error) {
       toast.error("Something went wrong");
@@ -59,14 +66,26 @@ function CustomerFeedback() {
       const url = localStorage.getItem('url') + "customer.php";
       const customerId = localStorage.getItem("userId");
       const jsonData = {
-        "customerId": customerId,
-      }
+        customerId: customerId,
+      };
       const formData = new FormData();
       formData.append("operation", "getCustomerFeedback");
       formData.append("json", JSON.stringify(jsonData));
       const res = await axios.post(url, formData);
       console.log("res ni getCustomerFeedback", res);
-      setFeedback(res.data);
+      let data = res.data;
+      try {
+        data = typeof data === 'string' ? JSON.parse(data) : data;
+      } catch (_) {
+        // keep original if not JSON
+      }
+      if (Array.isArray(data)) {
+        setFeedback(data[0] || null);
+      } else if (data && typeof data === 'object') {
+        setFeedback(data);
+      } else {
+        setFeedback(null);
+      }
     } catch (error) {
       toast.error("Something went wrong");
       console.log(error);
@@ -80,25 +99,33 @@ function CustomerFeedback() {
       rating: 0,
     },
   })
-
+  const navigateTo = useNavigate();
   const onSubmit = async (values) => {
     try {
       setIsSubmitting(true);
       const url = localStorage.getItem('url') + "customer.php";
       const CustomerId = localStorage.getItem("userId");
       const jsonData = {
-        "customers_id": CustomerId,
-        "customersreviews": values.review,
-        "rating": values.rating,
-      }
+        customers_id: CustomerId,
+        customersreviews: values.review,
+        rating: values.rating,
+      };
       const formData = new FormData();
       formData.append("operation", "customerFeedBack");
       formData.append("json", JSON.stringify(jsonData));
       const res = await axios.post(url, formData);
       console.log("res ni onSubmit", res);
-      if (res.data === 1) {
+      let value = res.data;
+      try {
+        value = typeof value === 'string' ? JSON.parse(value) : value;
+      } catch (_) {
+        // keep original if not JSON
+      }
+      if (Number(value) === 1 || (value && value.success)) {
         toast.success("Feedback submitted successfully");
-        await getCustomerFeedback();
+        navigateTo("/customer");
+      } else {
+        toast.error("Unable to submit feedback");
       }
     } catch (error) {
       toast.error("Something went wrong");
@@ -108,251 +135,118 @@ function CustomerFeedback() {
     }
   }
 
-  const onUpdate = async (values) => {
-    try {
-      setIsUpdating(true);
-      const url = localStorage.getItem('url') + "customer.php";
-      const CustomerId = localStorage.getItem("userId");
-      const jsonData = {
-        "customers_id": CustomerId,
-        "customersreviews": values.review,
-        "rating": values.rating,
-      }
-      const formData = new FormData();
-      formData.append("operation", "updateCustomerFeedback");
-      formData.append("json", JSON.stringify(jsonData));
-      const res = await axios.post(url, formData);
-      console.log("res ni onUpdate", res);
-      if (res.data === 1) {
-        toast.success("Feedback updated successfully");
-        await getCustomerFeedback();
-        setIsEditing(false);
-      }
-    } catch (error) {
-      toast.error("Something went wrong");
-      console.error(error);
-    } finally {
-      setIsUpdating(false);
-    }
-  }
-
   useEffect(() => {
-    const fetchAll = async () => {
-      await Promise.allSettled([getCustomerFeedback(), hasCustomerCheckOuted()]);
-      setIsLoading(false);
-    };
-    fetchAll();
-  }, []);
+    if (localStorage.getItem("userId")) {
+      const fetchAll = async () => {
+        await Promise.allSettled([getCustomerFeedback(), hasCustomerCheckOuted()]);
+        setIsLoading(false);
+      };
+      fetchAll();
+    } else {
+      navigateTo("/login");
+    }
+  }, [navigateTo])
 
   const startEditing = () => {
     setIsEditing(true);
-    const currentComment = feedback?.customersreviews_comment || '';
-    const currentRating = feedback?.customersreviews_rating || 0;
+    const currentComment = (feedback && feedback.customersreviews_comment) ? feedback.customersreviews_comment : '';
+    const currentRating = (feedback && feedback.customersreviews_rating) ? Number(feedback.customersreviews_rating) : 0;
     form.reset({ review: currentComment, rating: currentRating });
     setCharCount(currentComment.length);
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      {/* Header */}
-      <div className="w-full bg-white/80 backdrop-blur-sm border-b border-gray-200/60 sticky top-0 z-10">
-        <div className="flex items-center justify-between w-full max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-r from-[#113f67] to-[#226597] rounded-xl shadow-lg">
-              <Star className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-[#113f67]">Share Your Experience</h1>
-              <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">Your feedback helps us improve</p>
-            </div>
+    <div className="flex items-center justify-center flex-col ">
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={() => navigateTo('/customer')}
+        className="mt-6 flex items-center gap-2 text-indigo-700 hover:text-indigo-800 hover:bg-indigo-50"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back
+      </Button>
+      <Card className={"px-10 mt-20 w-full md:w-1/2 bg-white border rounded-xl shadow-sm"}>
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold">Share Your Experience</CardTitle>
+          <p className="text-sm text-gray-600 mt-1">Your feedback helps us improve our service.</p>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+          <div className="flex items-center text-gray-600 text-sm">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading...
           </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
-        <Card className={"shadow-xl border-0 bg-white/90 backdrop-blur-sm rounded-2xl overflow-hidden w-full"}>
-          <div className="bg-gradient-to-r from-[#113f67] via-[#226597] to-[#2980b9] h-1"></div>
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold text-[#113f67]">Share Your Experience</CardTitle>
-            <p className="text-sm text-gray-600 mt-1">Your feedback helps us improve our service.</p>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-4 animate-pulse">
-                <div className="h-6 bg-gray-200 rounded w-1/3" />
-                <div className="h-24 bg-gray-200 rounded" />
-                <div className="h-6 bg-gray-200 rounded w-1/4" />
-                <div className="h-10 bg-gray-200 rounded w-24" />
-              </div>
-            ) : (
-              hasCheckedOut ?
-              <>
-                {feedback === 0 && !isEditing ? (
-                  <div>
-                    <Form {...form}>
-                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <FormField
-                          control={form.control}
-                          name="review"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Your Review</FormLabel>
-                              <FormControl>
-                                <div>
-                                  <Textarea rows={6} maxLength={500} placeholder="Tell us about your stay..." {...field}
-                                    onChange={(e) => { setCharCount(e.target.value.length); field.onChange(e); }} />
-                                  <div className="mt-1 text-xs text-gray-500 flex justify-end">{charCount}/500</div>
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="rating"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Rating</FormLabel>
-                              <FormControl>
-                                <div className='w-full'>
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex space-x-1" aria-label="Star rating">
-                                      {[1, 2, 3, 4, 5].map((starValue) => (
-                                        <Star
-                                          key={starValue}
-                                          className={cn(
-                                            "h-8 w-8 cursor-pointer transition-colors",
-                                            (hoverRating || field.value) >= starValue ? "fill-yellow-400 stroke-yellow-400" : "stroke-gray-300"
-                                          )}
-                                          onMouseEnter={() => setHoverRating(starValue)}
-                                          onMouseLeave={() => setHoverRating(0)}
-                                          onClick={() => field.onChange(starValue)}
-                                        />
-                                      ))}
-                                    </div>
-                                    <span className="ml-2 text-sm text-gray-600 min-w-28">
-                                      {field.value > 0 ? `${field.value}/5 · ${ratingLabels[field.value - 1]}` : 'Select a rating'}
-                                    </span>
-                                  </div>
-                                  <p className="text-xs text-gray-500 mt-1">5 = Excellent</p>
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Separator />
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs text-gray-500">Thank you for taking the time to share feedback.</p>
-                          <Button type="submit" disabled={isSubmitting || form.getValues('rating') === 0}>
-                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Submit
-                          </Button>
-                        </div>
-
-                      </form>
-                    </Form>
-                  </div>
-                ) : (
-                  <>
-                    {!isEditing ? (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold text-[#113f67]">Thank you for your feedback</h3>
-                          <Button variant="outline" size="sm" onClick={startEditing} className="flex items-center gap-1">
-                            <RefreshCcw className="h-4 w-4" /> Update
-                          </Button>
-                        </div>
-                        <Separator />
-                        <div className="flex items-center gap-2">
-                          {[1,2,3,4,5].map((i) => (
-                            <Star key={i} className={cn("h-5 w-5", feedback.customersreviews_rating >= i ? "fill-yellow-400 stroke-yellow-400" : "stroke-gray-300")} />
-                          ))}
-                          <span className="text-sm text-gray-600">{feedback.customersreviews_rating}/5 · {ratingLabels[(feedback.customersreviews_rating || 1) - 1]}</span>
-                        </div>
-                        <p className="text-gray-800 whitespace-pre-line leading-relaxed">{feedback.customersreviews_comment}</p>
-                      </div>
-                    ) : (
+          ) : !hasCheckedOut ? (
+          <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+            <Info className="h-4 w-4" />
+            <span>You have to check out first before giving feedback.</span>
+          </div>
+          ) : (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="review"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Your Review</FormLabel>
+                    <FormControl>
                       <div>
-                        <Form {...form}>
-                          <form onSubmit={form.handleSubmit(onUpdate)} className="space-y-4">
-                            <FormField
-                              control={form.control}
-                              name="review"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Update Your Review</FormLabel>
-                                  <FormControl>
-                                    <div>
-                                      <Textarea rows={6} maxLength={500} placeholder="Update your experience..." {...field}
-                                        onChange={(e) => { setCharCount(e.target.value.length); field.onChange(e); }} />
-                                      <div className="mt-1 text-xs text-gray-500 flex justify-end">{charCount}/500</div>
-                                    </div>
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={form.control}
-                              name="rating"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Update Rating</FormLabel>
-                                  <FormControl>
-                                    <div className='w-full'>
-                                      <div className="flex items-center gap-2">
-                                        <div className="flex space-x-1" aria-label="Star rating">
-                                          {[1, 2, 3, 4, 5].map((starValue) => (
-                                            <Star
-                                              key={starValue}
-                                              className={cn(
-                                                "h-8 w-8 cursor-pointer transition-colors",
-                                                (hoverRating || field.value) >= starValue ? "fill-yellow-400 stroke-yellow-400" : "stroke-gray-300"
-                                              )}
-                                              onMouseEnter={() => setHoverRating(starValue)}
-                                              onMouseLeave={() => setHoverRating(0)}
-                                              onClick={() => field.onChange(starValue)}
-                                            />
-                                          ))}
-                                        </div>
-                                        <span className="ml-2 text-sm text-gray-600 min-w-28">
-                                          {field.value > 0 ? `${field.value}/5 · ${ratingLabels[field.value - 1]}` : 'Select a rating'}
-                                        </span>
-                                      </div>
-                                      <p className="text-xs text-gray-500 mt-1">5 = Excellent</p>
-                                    </div>
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <Separator />
-                            <div className="flex items-center justify-between">
-                              <Button variant="ghost" type="button" onClick={() => setIsEditing(false)}>Cancel</Button>
-                              <Button type="submit" disabled={isUpdating || form.getValues('rating') === 0}>
-                                {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Update
-                              </Button>
-                            </div>
-                          </form>
-                        </Form>
+                        <Textarea rows={6} maxLength={500} placeholder="Tell us about your stay..." {...field}
+                          onChange={(e) => { setCharCount(e.target.value.length); field.onChange(e); }} />
+                        <div className="mt-1 text-xs text-gray-500 flex justify-end">{charCount}/500</div>
                       </div>
-                    )}
-                  </>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </>
-              :
-              <>
-                <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-                  <Info className="h-4 w-4" />
-                  <span>You have to check out first before giving feedback.</span>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              />
+              <FormField
+                control={form.control}
+                name="rating"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Rating</FormLabel>
+                    <FormControl>
+                      <div className='w-full'>
+                        <div className="flex items-center gap-2">
+                          <div className="flex space-x-1" aria-label="Star rating">
+                            {[1, 2, 3, 4, 5].map((starValue) => (
+                              <Star
+                                key={starValue}
+                                className={cn(
+                                  "h-8 w-8 cursor-pointer transition-colors",
+                                  (hoverRating || field.value) >= starValue ? "fill-yellow-400 stroke-yellow-400" : "stroke-gray-300"
+                                )}
+                                onMouseEnter={() => setHoverRating(starValue)}
+                                onMouseLeave={() => setHoverRating(0)}
+                                onClick={() => field.onChange(starValue)}
+                              />
+                            ))}
+                          </div>
+                          <span className="ml-2 text-sm text-gray-600 min-w-28">
+                            {field.value > 0 ? `${field.value}/5 · ${ratingLabels[field.value - 1]}` : 'Select a rating'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">5 = Excellent</p>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Separator />
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500">Thank you for taking the time to share feedback.</p>
+                <Button type="submit" disabled={isSubmitting || form.getValues('rating') === 0}>
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Submit
+                </Button>
+              </div>
+            </form>
+          </Form>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

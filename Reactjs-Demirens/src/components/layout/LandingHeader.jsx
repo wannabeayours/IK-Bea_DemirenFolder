@@ -29,9 +29,9 @@ function LandingHeader() {
 
         <div className="hidden md:block bg-black/70 text-white  rounded-full px-6 py-2 ">
           <nav className="flex gap-x-8">
-            <a href="#home" className="hover:text-black">Home</a>
-            <a href="#about" className="hover:text-black">About</a>
-            <a href="#contact" className="hover:text-black">Contact</a>
+            <a href="#home" className="hover:text-blue-600">Home</a>
+            <a href="#about" className="hover:text-blue-600">About</a>
+            <a href="#contact" className="hover:text-blue-600">Contact</a>
           </nav>
         </div>
 
@@ -39,7 +39,7 @@ function LandingHeader() {
 
         {/* Right - Login Button */}
         <div >
-          <Button onClick={() => window.location.href = '/login'} className="bg-black/70 text-white rounded-full px-6 py-2 hover:bg-black/80 md:px-10 md:py-4 md:text-sm">
+          <Button onClick={() => window.location.href = '/login'} className="bg-black/70 text-white rounded-full px-6 py-2  hover:indigo-700 md:px-10 md:py-4 md:text-sm">
             Log In
           </Button>
         </div>

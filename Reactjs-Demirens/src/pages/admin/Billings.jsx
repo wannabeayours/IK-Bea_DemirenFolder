@@ -156,12 +156,16 @@ const Billings = () => {
   {
    header: 'Actions',
    accessor: (row) => (
-    <button
-     onClick={() => handleAddBilling(row)}
-     className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white text-xs px-3 py-1 rounded-md transition-colors font-medium"
-    >
-     Add Billing
-    </button>
+    String(row.booking_status) === 'Checked-In' ? (
+     <button
+      onClick={() => handleAddBilling(row)}
+      className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white text-xs px-3 py-1 rounded-md transition-colors font-medium"
+     >
+      Add Billing
+     </button>
+    ) : (
+     <span className="text-xs text-muted-foreground">Available when Checked-In</span>
+    )
    ),
   }
  ]

@@ -1092,7 +1092,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
 
           <ScrollArea className="h-[calc(100vh-350px)]">
 
-        
+
             {/* Payment Summary */}
             <Card className="bg-white shadow-md border-2 border-blue-200">
               <CardContent className="p-4">
@@ -1132,7 +1132,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
                 </div>
               </CardContent>
             </Card>
-                <Card className="bg-white shadow-md rounded-2xl overflow-hidden mt-3">
+            <Card className="bg-white shadow-md rounded-2xl overflow-hidden mt-3">
               <CardHeader className="bg-gray-50">
                 <CardTitle>Select Payment Method</CardTitle>
               </CardHeader>
@@ -1192,8 +1192,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button
-          variant="outline"
-          className="bg-[#113F67] text-white hover:bg-[#0d2f4f] border-[#113F67]"
+          className="w-full bg-gradient-to-r from-[#113f67] to-[#226597] hover:from-[#0d2f4f] hover:to-[#1a4f7a] text-white font-semibold py-3 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
         >
           Book Now
         </Button>
