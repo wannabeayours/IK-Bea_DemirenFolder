@@ -61,6 +61,8 @@ function RoomSearch() {
 
   const form = useForm({
     resolver: zodResolver(schema),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
     defaultValues: {
       checkIn: localStorage.getItem("checkIn") || "",
       checkOut: localStorage.getItem("checkOut") || "",
@@ -130,6 +132,43 @@ function RoomSearch() {
     await getRooms(data);
     setIsSearched(true);
   };
+
+  // Sync guest counts to localStorage whenever they change
+  useEffect(() => {
+    const finalAdultNumber = adultNumber < 1 ? 1 : adultNumber;
+    localStorage.setItem("adult", String(finalAdultNumber));
+    localStorage.setItem("children", String(childrenNumber));
+    localStorage.setItem(
+      "guestNumber",
+      String(Number(finalAdultNumber) + Number(childrenNumber))
+    );
+  }, [adultNumber, childrenNumber]);
+
+  // Persist date changes to localStorage and refresh rooms automatically
+  const watchedCheckIn = form.watch("checkIn");
+  const watchedCheckOut = form.watch("checkOut");
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        if (watchedCheckIn) localStorage.setItem("checkIn", watchedCheckIn);
+        if (watchedCheckOut) localStorage.setItem("checkOut", watchedCheckOut);
+      } catch {}
+
+      // Trigger form validation on change so errors appear immediately
+      await form.trigger(["checkIn", "checkOut"]);
+
+      // Only refresh rooms when both dates are present and valid
+      if (watchedCheckIn && watchedCheckOut) {
+        const isValid = form.formState?.isValid ?? false;
+        if (isValid) {
+          getRooms({ checkIn: watchedCheckIn, checkOut: watchedCheckOut });
+          setIsSearched(true);
+        }
+      }
+    };
+    run();
+  }, [watchedCheckIn, watchedCheckOut, getRooms, form]);
 
   // Update form values when localStorage changes
   useEffect(() => {

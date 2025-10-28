@@ -1073,10 +1073,20 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
   // ---------------------- Small helper for input min attr ----------------------
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(0, 0, 0, 0);
   const tomorrowStr = formatYMD(tomorrow);
+  const handleClose = () => {
+    console.log('handleClose called');
+    setOpen(false);
+    setSelectedRooms([]);
+    setAdultCounts({});
+    setChildrenCounts({});
+  }
 
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen);
+      if (!isOpen) handleClose();
+    }}>
       <SheetTrigger asChild>
         <Button
           variant="outline"

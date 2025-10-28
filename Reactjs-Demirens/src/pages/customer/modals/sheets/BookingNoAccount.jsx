@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Sheet, SheetContent, SheetFooter, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetClose, SheetContent, SheetFooter, SheetTrigger } from '@/components/ui/sheet'
 import React, { useEffect, useRef, useState } from 'react'
 import RoomsList from './RoomsList'
 import { toast } from 'sonner'
@@ -402,6 +402,8 @@ function BookingNoaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber
   const [adultCounts, setAdultCounts] = useState({});
   const [childrenCounts, setChildrenCounts] = useState({});
   const [bedCounts, setBedCounts] = useState({});
+
+
 
 
   // recalc nights whenever dates change
@@ -827,24 +829,24 @@ function BookingNoaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber
                                     type="button"
                                     variant="outline"
                                     className="rounded-full"
-                                  onClick={() => {
-                                    const rk = room.selectionKey || room.room_type;
-                                    const capacity = room.roomtype_capacity || 0;
-                                    const currAdults = adultCounts[rk] || 0;
-                                    const currChildren = childrenCounts[rk] || 0;
-                                    const maxBeds = room.roomtype_maxbeds || 0;
-                                    const totalGuests = currAdults + currChildren;
-                                    const allowedGuests = capacity + maxBeds;
-                                    if (totalGuests < allowedGuests) {
-                                      preserveScroll(() => {
-                                        setAdultCounts((prev) => ({ ...prev, [rk]: currAdults + 1 }));
-                                      });
+                                    onClick={() => {
+                                      const rk = room.selectionKey || room.room_type;
+                                      const capacity = room.roomtype_capacity || 0;
+                                      const currAdults = adultCounts[rk] || 0;
+                                      const currChildren = childrenCounts[rk] || 0;
+                                      const maxBeds = room.roomtype_maxbeds || 0;
+                                      const totalGuests = currAdults + currChildren;
+                                      const allowedGuests = capacity + maxBeds;
+                                      if (totalGuests < allowedGuests) {
+                                        preserveScroll(() => {
+                                          setAdultCounts((prev) => ({ ...prev, [rk]: currAdults + 1 }));
+                                        });
+                                      }
+                                    }}
+                                    disabled={
+                                      ((adultCounts[room.selectionKey || room.room_type] || 0) + (childrenCounts[room.selectionKey || room.room_type] || 0)) >=
+                                      ((room.roomtype_capacity || 0) + (room.roomtype_maxbeds || 0))
                                     }
-                                  }}
-                                  disabled={
-                                    ((adultCounts[room.selectionKey || room.room_type] || 0) + (childrenCounts[room.selectionKey || room.room_type] || 0)) >=
-                                    ((room.roomtype_capacity || 0) + (room.roomtype_maxbeds || 0))
-                                  }
                                   >
                                     <Plus />
                                   </Button>
@@ -880,24 +882,24 @@ function BookingNoaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber
                                     type="button"
                                     variant="outline"
                                     className="rounded-full"
-                                  onClick={() => {
-                                    const rk = room.selectionKey || room.room_type;
-                                    const capacity = room.roomtype_capacity || 0;
-                                    const currAdults = adultCounts[rk] || 0;
-                                    const currChildren = childrenCounts[rk] || 0;
-                                    const maxBeds = room.roomtype_maxbeds || 0;
-                                    const totalGuests = currAdults + currChildren;
-                                    const allowedGuests = capacity + maxBeds;
-                                    if (totalGuests < allowedGuests) {
-                                      preserveScroll(() => {
-                                        setChildrenCounts((prev) => ({ ...prev, [rk]: currChildren + 1 }));
-                                      });
+                                    onClick={() => {
+                                      const rk = room.selectionKey || room.room_type;
+                                      const capacity = room.roomtype_capacity || 0;
+                                      const currAdults = adultCounts[rk] || 0;
+                                      const currChildren = childrenCounts[rk] || 0;
+                                      const maxBeds = room.roomtype_maxbeds || 0;
+                                      const totalGuests = currAdults + currChildren;
+                                      const allowedGuests = capacity + maxBeds;
+                                      if (totalGuests < allowedGuests) {
+                                        preserveScroll(() => {
+                                          setChildrenCounts((prev) => ({ ...prev, [rk]: currChildren + 1 }));
+                                        });
+                                      }
+                                    }}
+                                    disabled={
+                                      ((adultCounts[room.selectionKey || room.room_type] || 0) + (childrenCounts[room.selectionKey || room.room_type] || 0)) >=
+                                      ((room.roomtype_capacity || 0) + (room.roomtype_maxbeds || 0))
                                     }
-                                  }}
-                                  disabled={
-                                    ((adultCounts[room.selectionKey || room.room_type] || 0) + (childrenCounts[room.selectionKey || room.room_type] || 0)) >=
-                                    ((room.roomtype_capacity || 0) + (room.roomtype_maxbeds || 0))
-                                  }
                                   >
                                     <Plus />
                                   </Button>
@@ -1252,9 +1254,21 @@ function BookingNoaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(0, 0, 0, 0);
   const tomorrowStr = formatYMD(tomorrow);
 
+  const handleClose = () => {
+    console.log('handleClose called');
+    setOpen(false);
+    setSelectedRooms([]);
+    setAdultCounts({});
+    setChildrenCounts({});
+    setBedCounts({});
+  }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen);
+      if (!isOpen) handleClose();
+    }}>
+
       <SheetTrigger asChild>
         <Button
           variant="outline"

@@ -99,6 +99,8 @@ function CustomerDashboard() {
 
   const form = useForm({
     resolver: zodResolver(schema),
+    mode: "onChange",
+    reValidateMode: "onChange",
     defaultValues: {
       checkIn: "",
       checkOut: "",
@@ -143,14 +145,52 @@ function CustomerDashboard() {
 
   // Auto-refresh rooms when adult/children counts change, if dates are set
   useEffect(() => {
-    getExtraGuestAndBedPrice();
-    const checkIn = form.getValues("checkIn") || localStorage.getItem("checkIn");
-    const checkOut = form.getValues("checkOut") || localStorage.getItem("checkOut");
-    if (checkIn && checkOut) {
-      getRooms({ checkIn, checkOut });
-      setIsSearched(true);
-    }
+    const refreshOnGuestChange = async () => {
+      getExtraGuestAndBedPrice();
+      const checkIn = form.getValues("checkIn") || localStorage.getItem("checkIn");
+      const checkOut = form.getValues("checkOut") || localStorage.getItem("checkOut");
+
+      if (checkIn && checkOut) {
+        const isValidDates = await form.trigger(["checkIn", "checkOut"]);
+        if (isValidDates) {
+          getRooms({ checkIn, checkOut });
+          setIsSearched(true);
+        }
+      }
+    };
+    refreshOnGuestChange();
   }, [adultNumber, childrenNumber]);
+
+  // Persist counters to localStorage so BookingWaccount reads latest values
+  useEffect(() => {
+    try {
+      localStorage.setItem("adult", String(adultNumber));
+      localStorage.setItem("children", String(childrenNumber));
+      localStorage.setItem("guestNumber", String(Number(adultNumber) + Number(childrenNumber)));
+    } catch {}
+  }, [adultNumber, childrenNumber]);
+
+  // Persist date changes to localStorage and refresh rooms automatically
+  const watchedCheckIn = form.watch("checkIn");
+  const watchedCheckOut = form.watch("checkOut");
+
+  useEffect(() => {
+    const syncDatesAndValidate = async () => {
+      // Write latest date selections to localStorage so BookingWaccount picks them up
+      try {
+        if (watchedCheckIn) localStorage.setItem("checkIn", watchedCheckIn);
+        if (watchedCheckOut) localStorage.setItem("checkOut", watchedCheckOut);
+      } catch {}
+
+      // Validate dates on change; only refresh rooms when valid
+      const isValidDates = await form.trigger(["checkIn", "checkOut"]);
+      if (watchedCheckIn && watchedCheckOut && isValidDates) {
+        getRooms({ checkIn: watchedCheckIn, checkOut: watchedCheckOut });
+        setIsSearched(true);
+      }
+    };
+    syncDatesAndValidate();
+  }, [watchedCheckIn, watchedCheckOut]);
 
   const handleClearData = () => {
     form.reset({ checkIn: "", checkOut: "" })
