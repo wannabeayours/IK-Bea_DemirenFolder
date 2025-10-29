@@ -26,6 +26,12 @@ function Login() {
     const [userInput, setUserInput] = useState("");
     const navigateTo = useNavigate();
 
+    // OTP verification states
+    const [showOTPModal, setShowOTPModal] = useState(false);
+    const [otpInput, setOtpInput] = useState("");
+    const [pendingUser, setPendingUser] = useState(null);
+    const [pendingOTPCode, setPendingOTPCode] = useState("");
+
     const getRandomColor = () => {
         const colors = ["red", "blue", "green", "yellow", "purple", "orange"];
         return colors[Math.floor(Math.random() * colors.length)];
@@ -46,11 +52,8 @@ function Login() {
     }, []);
 
     useEffect(() => {
-        if (localStorage.getItem("userId")) {
-            navigateTo("/customer");
-        }
         generateCaptchaCharacters();
-    }, [generateCaptchaCharacters, navigateTo]);
+    }, [generateCaptchaCharacters]);
 
     const handleInputChange = (e) => {
         setUserInput(e.target.value);
@@ -94,7 +97,9 @@ function Login() {
             formData.append("operation", "login");
             formData.append("json", JSON.stringify(jsonData));
             const res = await axios.post(url, formData);
-            console.log("res ni login", res)
+            console.log("Full API Response:", res);
+            console.log("Response Data (raw):", res.data);
+            console.log("Response Status:", res.status);
 
             // Parse the JSON string response
             const responseData = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
@@ -110,6 +115,20 @@ function Login() {
                 console.log("=== LOGIN SUCCESS ===");
                 console.log("User Type:", userType);
                 console.log("User Data:", user);
+                console.log("Requires OTP:", responseData.requires_otp);
+
+                // Check if OTP is required
+                if (responseData.requires_otp && responseData.otp_code) {
+                    console.log("2FA enabled, requiring OTP verification");
+                    setPendingOTPCode(responseData.otp_code);
+                    setPendingUser({ user, userType });
+                    setShowOTPModal(true);
+                    return;
+                }
+
+                console.log("=== LOGIN SUCCESS ===");
+                console.log("User Type:", userType);
+                console.log("User Data:", user);
                 toast.success("Successfully logged in as Customer");
                 localStorage.setItem("userId", user.customers_id);
                 localStorage.setItem("customerOnlineId", user.customers_online_id);
@@ -121,8 +140,6 @@ function Login() {
                 setTimeout(() => {
                     navigateTo("/customer");
                 }, 1500);
-
-
             }
             else {
                 console.log("=== LOGIN FAILED ===");
@@ -142,15 +159,38 @@ function Login() {
         }
     }
 
+    // Handle OTP verification for 2FA
+    const handleOTPVerification = () => {
+        if (otpInput !== pendingOTPCode) {
+            toast.error("Incorrect OTP code");
+            return;
+        }
+
+        // OTP verified, complete login
+        if (pendingUser && pendingUser.userType === "customer") {
+            const user = pendingUser.user;
+            toast.success("Successfully logged in as Customer");
+            localStorage.setItem("userId", user.customers_id);
+            localStorage.setItem("customerOnlineId", user.customers_online_id);
+            localStorage.setItem("fname", user.customers_fname);
+            localStorage.setItem("lname", user.customers_lname);
+            localStorage.setItem("userType", "customer");
+            setShowOTPModal(false);
+            setOtpInput("");
+            setPendingUser(null);
+            setPendingOTPCode("");
+            navigateTo("/customer");
+        }
+    };
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-indigo-700 to-indigo-800 flex items-center justify-center p-3 sm:p-4 lg:p-6 relative overflow-hidden">
             {/* Enhanced Background Elements */}
             <div className="absolute inset-0 overflow-hidden">
                 {/* Animated gradient orbs - responsive sizes */}
-                <div className="absolute top-1/4 left-1/4 w-32 h-32 sm:w-48 sm:h-48 lg:w-64 lg:h-64 bg-gradient-to-r from-blue-400/20 to-indigo-500/20 rounded-full blur-3xl animate-pulse"></div>
-                <div className="absolute bottom-1/4 right-1/4 w-40 h-40 sm:w-60 sm:h-60 lg:w-80 lg:h-80 bg-gradient-to-r from-indigo-400/15 to-purple-500/15 rounded-full blur-3xl animate-pulse delay-1000"></div>
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-72 sm:h-72 lg:w-96 lg:h-96 bg-gradient-to-r from-purple-400/10 to-blue-500/10 rounded-full blur-3xl animate-pulse delay-2000"></div>
+                <div className="absolute top-1/4 left-1/4 w-32 h-32 sm:w-48 sm:h-48 lg:w-64 lg:h-64 bg-gradient-to-r from-indigo-400/20 to-indigo-600/20 rounded-full blur-3xl animate-pulse"></div>
+                <div className="absolute bottom-1/4 right-1/4 w-40 h-40 sm:w-60 sm:h-60 lg:w-80 lg:h-80 bg-gradient-to-r from-indigo-400/15 to-indigo-600/15 rounded-full blur-3xl animate-pulse delay-1000"></div>
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-72 sm:h-72 lg:w-96 lg:h-96 bg-gradient-to-r from-indigo-400/10 to-indigo-600/10 rounded-full blur-3xl animate-pulse delay-2000"></div>
 
                 {/* Geometric patterns - responsive sizes */}
                 <div className="absolute top-4 right-4 sm:top-6 sm:right-6 lg:top-10 lg:right-10 w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 border border-white/10 rotate-45 animate-spin-slow"></div>
@@ -160,16 +200,16 @@ function Login() {
 
             {/* Centered login card - responsive sizing */}
             <Card className="w-full max-w-xs sm:max-w-sm md:max-w-md bg-white border border-gray-200 shadow-2xl rounded-2xl relative z-10 mx-auto">
-                <CardContent className="w-full space-y-4 p-4 sm:p-6 text-gray-900">
+                <CardContent className="w-full space-y-4 p-4 sm:p-6">
                     <div className="text-center mb-4 sm:mb-5">
                         <div className="flex items-center justify-start">
-                            <Button variant="ghost" className="bg-transparent text-black" onClick={() => navigateTo("/")} >
+                            <Button variant="outline" className="bg-transparent text-gray-700" onClick={() => navigateTo("/")} >
                                 <ArrowLeftCircleIcon />
                             </Button>
                         </div>
                         {/* Modern Logo/Icon - responsive sizing */}
                         <div className="mb-3 sm:mb-4 flex justify-center">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
                                 <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                                 </svg>
@@ -179,9 +219,9 @@ function Login() {
                             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
                                 Welcome Back
                             </h1>
-                            <div className="w-12 h-0.5 bg-gradient-to-r from-blue-400 to-indigo-500 mx-auto mt-2 rounded-full"></div>
+                            <div className="w-12 h-0.5 bg-gradient-to-r from-indigo-400 to-indigo-600 mx-auto mt-2 rounded-full"></div>
                         </div>
-                        <p className="text-xs sm:text-sm text-gray-700">
+                        <p className="text-xs sm:text-sm text-gray-600">
                             Please sign in to your account
                         </p>
                     </div>
@@ -195,16 +235,16 @@ function Login() {
                                 name="email"
                                 render={({ field }) => (
                                     <FormItem className="space-y-1.5">
-                                        <FormLabel className="text-sm font-medium text-black/90">Email / Username :</FormLabel>
+                                        <FormLabel className="text-sm font-medium text-black/90">Email / Username</FormLabel>
                                         <FormControl>
                                             <div className="relative">
                                                 <Input
                                                     placeholder="Enter your email or username"
-                                                    className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-black/20 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-black placeholder:text-black/60"
+                                                    className="h-9 px-3 py-2 text-sm rounded-lg bg-white/10 border-2 border-black/20 text-black placeholder:text-black/60 focus:border-indigo-300 focus:ring-indigo-300/30 transition-all duration-300"
                                                     {...field}
                                                 />
                                                 <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                                    <svg className="w-4 h-4 text-black/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                                                     </svg>
                                                 </div>
@@ -222,25 +262,25 @@ function Login() {
                                 render={({ field }) => (
                                     <FormItem className="space-y-1.5">
                                         <div className="flex justify-between items-center">
-                                            <FormLabel className="text-sm font-medium text-black/90">Password : </FormLabel>
+                                            <FormLabel className="text-sm font-medium text-black/90">Password</FormLabel>
                                         </div>
                                         <FormControl>
                                             <div className="relative">
                                                 <Input
                                                     type="password"
                                                     placeholder="Enter your password"
-                                                    className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-black/20 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-black placeholder:text-black/60"
+                                                    className="h-9 px-3 py-2 text-sm rounded-lg bg-white/10 border-2 border-black/20 text-black placeholder:text-black/60 focus:border-indigo-300 focus:ring-indigo-300/30 transition-all duration-300"
                                                     {...field}
                                                 />
                                                 <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                                    <svg className="w-4 h-4 text-black/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
                                                     </svg>
                                                 </div>
                                             </div>
                                         </FormControl>
                                         <div className="flex justify-end">
-                                            <Button variant="link" asChild className="h-auto p-0 text-xs text-gray-800 hover:text-gray-900 transition-colors">
+                                            <Button variant="link" asChild className="h-auto p-0 text-xs text-indigo-600 hover:text-indigo-700 transition-colors">
                                                 <Link to="/forgot-password">Forgot Password?</Link>
                                             </Button>
                                         </div>
@@ -250,14 +290,14 @@ function Login() {
                             />
 
                             {/* Enhanced Captcha */}
-                            <div className="bg-gray-100 backdrop-blur-sm rounded-xl p-4 border border-b/20 shadow-inner">
-                                <h2 className="text-sm font-bold mb-3 text-black/90 text-center flex items-center justify-center gap-2">
+                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 shadow-inner">
+                                <h2 className="text-sm font-bold mb-3 text-gray-800 text-center flex items-center justify-center gap-2">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
                                     </svg>
                                     Security Verification
                                 </h2>
-                                <div className="bg-white/20 rounded-lg p-3 shadow-sm border-2 border-dashed border-blue-300/50 mb-3">
+                                <div className="bg-gray-100 rounded-lg p-3 shadow-sm border-2 border-gray-200 mb-3">
                                     <div className="flex justify-center items-center gap-2">
                                         {captchaCharacters.map((c, index) => (
                                             <span
@@ -282,7 +322,7 @@ function Login() {
                                     value={userInput}
                                     onChange={handleInputChange}
                                     placeholder="Enter the characters above"
-                                    className="border-2 border-black/20 p-2 w-full rounded-lg text-center h-9 text-sm focus:border-indigo-300 focus:ring-2 focus:ring-indigo-300/30 transition-all duration-300 bg-white/10 shadow-sm text-black placeholder:text-black/60"
+                                    className="border border-gray-300 p-2 w-full rounded-lg text-center h-9 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all duration-300 bg-white shadow-sm text-gray-900 placeholder:text-gray-400"
                                 />
 
                                 <div className="flex justify-center mt-2">
@@ -290,23 +330,23 @@ function Login() {
                                         type="button"
                                         variant="link"
                                         onClick={generateCaptchaCharacters}
-                                        className=" text-indigo-600 hover:text-blue-900 text-xs underline h-auto p-0 transition-colors"
+                                        className="text-indigo-600 hover:text-indigo-700 text-xs underline h-auto p-0 transition-colors"
                                     >
-                                        Refresh CAPTCHA
+                                        🔄 Generate New Code
                                     </Button>
                                 </div>
 
                                 {!isCaptchaValid && userInput.length > 0 && (
-                                    <div className="mt-2 p-2 bg-red-500/20 border border-red-400/30 rounded-lg">
-                                        <p className="text-red-500 text-xs text-center font-medium">
+                                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                                        <p className="text-red-700 text-xs text-center font-medium">
                                             ❌ Incorrect verification code, please try again.
                                         </p>
                                     </div>
                                 )}
 
                                 {isCaptchaValid && (
-                                    <div className="mt-2 p-2 bg-green-500/20 border border-green-400/30 rounded-lg">
-                                        <p className="text-green-500 text-xs text-center font-medium">
+                                    <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
+                                        <p className="text-green-700 text-xs text-center font-medium">
                                             ✅ Verification successful!
                                         </p>
                                     </div>
@@ -318,7 +358,7 @@ function Login() {
                                 type="submit"
                                 disabled={!isCaptchaValid}
                                 className={`w-full h-12 rounded-xl font-semibold text-base transition-all duration-300 transform hover:scale-[1.02] ${isCaptchaValid
-                                    ? 'bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700'
+                                    ? 'bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl'
                                     : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                                     }`}
                             >
@@ -326,12 +366,12 @@ function Login() {
                             </Button>
 
                             {/* Sign Up Section */}
-                            <div className="text-center pt-4 border-t border-white/10">
-                                <p className="text-black/70 text-sm">
+                            <div className="text-center pt-4 border-t border-gray-200">
+                                <p className="text-gray-700 text-sm">
                                     Don't have an account?{' '}
                                     <Link
                                         to="/register"
-                                        className=" text-indigo-600 hover:text-blue-900 font-semibold transition-colors duration-200 hover:underline"
+                                        className="text-indigo-600 hover:text-indigo-700 font-semibold transition-colors duration-200 hover:underline"
                                     >
                                         Sign up here
                                     </Link>
@@ -341,6 +381,61 @@ function Login() {
                     </Form>
                 </CardContent>
             </Card>
+
+            {/* OTP Verification Modal for 2FA */}
+            {showOTPModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <Card className="w-full max-w-md bg-white shadow-2xl">
+                        <CardContent className="p-6 space-y-4">
+                            <div className="text-center">
+                                <h2 className="text-xl font-bold text-gray-800 mb-2">Enter Verification Code</h2>
+                                <p className="text-sm text-gray-600">
+                                    We've sent a verification code to your email. Please enter it below.
+                                </p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-sm font-medium text-gray-700 mb-2 block">OTP Code</label>
+                                    <input
+                                        type="text"
+                                        value={otpInput}
+                                        onChange={(e) => setOtpInput(e.target.value)}
+                                        placeholder="Enter 6-digit code"
+                                        maxLength={6}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center text-lg tracking-widest"
+                                        autoFocus
+                                    />
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => {
+                                            setShowOTPModal(false);
+                                            setOtpInput("");
+                                            setPendingUser(null);
+                                            setPendingOTPCode("");
+                                        }}
+                                        className="flex-1"
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        onClick={handleOTPVerification}
+                                        disabled={!otpInput || otpInput.length !== 6}
+                                        className="flex-1 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white"
+                                    >
+                                        Verify & Login
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
         </div>
 
     )

@@ -2477,6 +2477,7 @@ class Demiren_customer
         }
     }
 
+
     // Reset customer password (OTP verification done on frontend)
     function resetCustomerPassword($json)
     {
