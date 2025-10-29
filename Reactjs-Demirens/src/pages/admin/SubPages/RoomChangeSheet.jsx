@@ -297,8 +297,14 @@ function RoomChangeSheet({
       console.log('API Response:', res.data);
 
       if (res?.data?.success || res?.data === 1 || res?.data === 'success' || res?.data === true) {
-        toast.success(`Room numbers updated successfully for booking ${selectedBooking.reference_no}`);
-        onRoomChangeSuccess && onRoomChangeSuccess();
+        const changedRooms = (res?.data?.room_numbers && Array.isArray(res.data.room_numbers))
+          ? res.data.room_numbers.map(r => r.toString())
+          : newRoomNumbers.map(r => r.toString());
+
+        // Update local display and surface the new room numbers explicitly
+        setCurrentRooms(changedRooms);
+        toast.success(`Room numbers updated to: ${changedRooms.join(', ')} (Booking ${selectedBooking.reference_no})`);
+        onRoomChangeSuccess && onRoomChangeSuccess({ bookingId: selectedBooking.booking_id || selectedBooking.id, roomNumbers: changedRooms });
         onClose();
       } else {
         const errorMsg = res?.data?.message || res?.data?.error || res?.data || 'Failed to update room numbers';
@@ -451,7 +457,7 @@ function RoomChangeSheet({
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">
-                      Available Rooms ni siya {selectedRoomType ? `• ${selectedRoomType.name}` : ''} ({filteredRooms.length}{searchQuery && ` of ${availableRooms.length}`})
+                      Available Rooms{selectedRoomType ? `• ${selectedRoomType.name}` : ''} ({filteredRooms.length}{searchQuery && ` of ${availableRooms.length}`})
                     </CardTitle>
                   </CardHeader>
                   <CardContent>

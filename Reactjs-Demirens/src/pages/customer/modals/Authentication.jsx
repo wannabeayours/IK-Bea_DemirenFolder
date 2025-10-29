@@ -227,7 +227,7 @@ function Authentication() {
         <>
         <Dialog>
             <DialogTrigger>
-                <Button >
+                <Button className={"bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white "}>
                     Two-Factor Authentication
                 </Button>
             </DialogTrigger>

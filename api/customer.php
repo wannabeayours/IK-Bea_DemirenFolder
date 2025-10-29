@@ -1795,7 +1795,6 @@ class Demiren_customer
         $bookingCustomerId = $json['booking_customer_id'] ?? 0;
         $today = date("Y-m-d H:i:s");
 
-
         $sql = "
         SELECT 
             a.*, 
@@ -1842,8 +1841,7 @@ class Demiren_customer
         WHERE a.customers_id = :bookingCustomerId
         AND j.status_id = 5
         ORDER BY a.booking_created_at DESC;
-        ";
-
+    ";
 
         $stmt = $conn->prepare($sql);
         $stmt->bindParam(':bookingCustomerId', $bookingCustomerId);
@@ -1905,8 +1903,8 @@ class Demiren_customer
                 $bookings[$bookingId]['chargesTotal'] += $row['booking_charges_price'];
             }
 
-            // ✅ Only count Bed if not cancelled
-            if ($row['charges_master_id'] == 2 && $row['booking_charge_status'] != 3) {
+            // ✅ Set isAddBed = 1 if room already has a Bed charge (ID = 2) with Pending or Delivered status
+            if ($row['charges_master_id'] == 2 && in_array($row['booking_charge_status'], [1, 2])) {
                 $bookings[$bookingId]['roomsList'][$roomKey]['isAddBed'] = 1;
             }
         }
@@ -1923,7 +1921,7 @@ class Demiren_customer
                         "booking_charges_id" => $c['booking_charges_id'],
                         "booking_charges_quantity" => $c['qty'],
                         "booking_charges_price" => $c['price'],
-                        // If amenity is cancelled (status_id == 3), do not count towards total
+                        // If amenity is cancelled (status_id == 3), exclude from total
                         "total" => ($c['status_id'] == 3) ? 0 : ($c['price'] * $c['qty'])
                     ];
                 }, $room['charges_raw']);
@@ -1934,6 +1932,7 @@ class Demiren_customer
 
         return array_values($bookings);
     }
+
 
 
     function checkAndSendOTP($json)

@@ -273,7 +273,9 @@ function AdminRequestedAmenities() {
     const statusConfig = {
       pending: { color: 'bg-yellow-100 text-yellow-800', icon: Clock },
       approved: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
+      delivered: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
       rejected: { color: 'bg-red-100 text-red-800', icon: XCircle },
+      cancelled: { color: 'bg-red-100 text-red-800', icon: XCircle },
       return: { color: 'bg-blue-100 text-blue-800', icon: RotateCcw },
       mixed: { color: 'bg-gray-100 text-gray-800', icon: Package }
     };
@@ -790,16 +792,6 @@ function AdminRequestedAmenities() {
                                       >
                                         <XCircle className="h-4 w-4" />
                                       </Button>
-                                      {String(request.charges_master_name || '').toLowerCase().includes('bed') && (
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => handleAction(request, 'return')}
-                                          className="border-blue-300 text-blue-700 hover:bg-blue-50"
-                                        >
-                                          <Undo className="h-4 w-4" />
-                                        </Button>
-                                      )}
                                     </>
                                   )}
                                   {request.request_status !== 'pending' && (
@@ -812,7 +804,7 @@ function AdminRequestedAmenities() {
                                       >
                                         Set Pending
                                       </Button>
-                                      {String(request.charges_master_name || '').toLowerCase().includes('bed') && (
+                                      {String(request.charges_master_name || '').toLowerCase().includes('bed') && ['approved','delivered'].includes(String(request.request_status || '').toLowerCase()) && (
                                         <Button
                                           size="sm"
                                           variant="outline"

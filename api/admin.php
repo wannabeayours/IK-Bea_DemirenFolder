@@ -2,6 +2,138 @@
 include "headers.php";
 class Admin_Functions
 {
+    // Alias: getAllDiscounts -> same as viewDiscounts
+    function getAllDiscounts()
+    {
+        // Reuse existing method to keep behavior identical
+        return $this->viewDiscounts();
+    }
+
+    // Change booking rooms: update roomnumber assignments, totals, billing, and log history
+    function changeCustomerRoomsNumber($json)
+    {
+        include "connection.php";
+        try {
+            $data = is_string($json) ? json_decode($json, true) : (is_array($json) ? $json : []);
+            $booking_id = intval($data['booking_id'] ?? 0);
+            $employee_id = isset($data['employee_id']) ? intval($data['employee_id']) : null;
+            $room_numbers_str = isset($data['room_numbers']) ? trim($data['room_numbers']) : '';
+            $new_total_with_vat = isset($data['booking_totalAmount']) ? floatval($data['booking_totalAmount']) : null;
+            $new_downpayment = isset($data['booking_downpayment']) ? floatval($data['booking_downpayment']) : null;
+            $discounts_id = isset($data['discounts_id']) && $data['discounts_id'] !== '' ? intval($data['discounts_id']) : null;
+
+            if ($booking_id <= 0 || empty($room_numbers_str)) {
+                if (ob_get_length()) { ob_clean(); }
+                echo json_encode(['success' => false, 'message' => 'Missing or invalid parameters']);
+                return;
+            }
+
+            $conn->beginTransaction();
+
+            // Fetch current booking_room rows for this booking, ordered deterministically
+            $brStmt = $conn->prepare("SELECT booking_room_id FROM tbl_booking_room WHERE booking_id = :bid ORDER BY booking_room_id ASC");
+            $brStmt->bindParam(':bid', $booking_id, PDO::PARAM_INT);
+            $brStmt->execute();
+            $brRows = $brStmt->fetchAll(PDO::FETCH_ASSOC);
+            if (!$brRows || count($brRows) === 0) {
+                $conn->rollBack();
+                if (ob_get_length()) { ob_clean(); }
+                echo json_encode(['success' => false, 'message' => 'No booking rooms found']);
+                return;
+            }
+
+            $newRooms = array_values(array_filter(array_map('trim', explode(',', $room_numbers_str)), function($x){ return $x !== ''; }));
+            if (count($newRooms) !== count($brRows)) {
+                $conn->rollBack();
+                if (ob_get_length()) { ob_clean(); }
+                echo json_encode(['success' => false, 'message' => 'Room count mismatch']);
+                return;
+            }
+
+            // Validate each target room exists and capture its roomtype_id
+            $chkRoom = $conn->prepare("SELECT roomnumber_id, roomtype_id FROM tbl_rooms WHERE roomnumber_id = :rn LIMIT 1");
+            $updRoom = $conn->prepare("UPDATE tbl_booking_room SET roomnumber_id = :rn, roomtype_id = :rtid WHERE booking_room_id = :brid");
+            for ($i = 0; $i < count($brRows); $i++) {
+                $rn = intval($newRooms[$i]);
+                $chkRoom->bindParam(':rn', $rn, PDO::PARAM_INT);
+                $chkRoom->execute();
+                $roomRow = $chkRoom->fetch(PDO::FETCH_ASSOC);
+                if (!$roomRow) {
+                    $conn->rollBack();
+                    if (ob_get_length()) { ob_clean(); }
+                    echo json_encode(['success' => false, 'message' => 'Room ' . $rn . ' not found']);
+                    return;
+                }
+                $brid = intval($brRows[$i]['booking_room_id']);
+                $rtid = intval($roomRow['roomtype_id']);
+                $updRoom->bindParam(':rn', $rn, PDO::PARAM_INT);
+                $updRoom->bindParam(':rtid', $rtid, PDO::PARAM_INT);
+                $updRoom->bindParam(':brid', $brid, PDO::PARAM_INT);
+                $updRoom->execute();
+            }
+
+            // Update booking totalAmount if provided
+            if ($new_total_with_vat !== null && $new_total_with_vat > 0) {
+                $upBook = $conn->prepare("UPDATE tbl_booking SET booking_totalAmount = :total WHERE booking_id = :bid");
+                $upBook->bindParam(':total', $new_total_with_vat);
+                $upBook->bindParam(':bid', $booking_id, PDO::PARAM_INT);
+                $upBook->execute();
+            }
+
+            // Update latest billing with new totals (and optional discount)
+            $lbStmt = $conn->prepare("SELECT billing_id, billing_downpayment FROM tbl_billing WHERE booking_id = :bid ORDER BY billing_id DESC LIMIT 1");
+            $lbStmt->bindParam(':bid', $booking_id, PDO::PARAM_INT);
+            $lbStmt->execute();
+            $lbRow = $lbStmt->fetch(PDO::FETCH_ASSOC);
+            if ($lbRow) {
+                $billing_id = intval($lbRow['billing_id']);
+                $existing_dp = isset($lbRow['billing_downpayment']) ? floatval($lbRow['billing_downpayment']) : 0;
+                $dp = ($new_downpayment !== null) ? $new_downpayment : $existing_dp;
+                $total = ($new_total_with_vat !== null) ? $new_total_with_vat : null;
+                if ($total !== null) {
+                    $balance = max($total - $dp, 0);
+                    $updBill = $conn->prepare("UPDATE tbl_billing SET billing_total_amount = :total, billing_balance = :balance, billing_downpayment = :downpayment, discounts_id = :discounts_id WHERE billing_id = :bid");
+                    // Handle nullable discounts_id
+                    if ($discounts_id && $discounts_id > 0) {
+                        $updBill->bindParam(':discounts_id', $discounts_id, PDO::PARAM_INT);
+                    } else {
+                        $null = null;
+                        $updBill->bindParam(':discounts_id', $null, PDO::PARAM_NULL);
+                    }
+                    $updBill->bindParam(':total', $total);
+                    $updBill->bindParam(':balance', $balance);
+                    $updBill->bindParam(':downpayment', $dp);
+                    $updBill->bindParam(':bid', $billing_id, PDO::PARAM_INT);
+                    $updBill->execute();
+                }
+            }
+
+            // Log the change in booking_history (keep current status id)
+            $hs = $conn->prepare("SELECT status_id FROM tbl_booking_history WHERE booking_id = :bid ORDER BY booking_history_id DESC LIMIT 1");
+            $hs->bindParam(':bid', $booking_id, PDO::PARAM_INT);
+            $hs->execute();
+            $hsRow = $hs->fetch(PDO::FETCH_ASSOC);
+            $status_id = $hsRow ? intval($hsRow['status_id']) : 2; // default to Pending (2) if unknown
+            $insHist = $conn->prepare("INSERT INTO tbl_booking_history (booking_id, employee_id, status_id, updated_at) VALUES (:bid, :eid, :sid, NOW())");
+            $eidParam = ($employee_id && $employee_id > 0) ? $employee_id : null;
+            $insHist->bindParam(':bid', $booking_id, PDO::PARAM_INT);
+            if ($eidParam === null) {
+                $insHist->bindParam(':eid', $eidParam, PDO::PARAM_NULL);
+            } else {
+                $insHist->bindParam(':eid', $eidParam, PDO::PARAM_INT);
+            }
+            $insHist->bindParam(':sid', $status_id, PDO::PARAM_INT);
+            $insHist->execute();
+
+            $conn->commit();
+            if (ob_get_length()) { ob_clean(); }
+            echo json_encode(['success' => true, 'booking_id' => $booking_id, 'room_numbers' => $newRooms]);
+        } catch (Exception $e) {
+            if (isset($conn) && $conn->inTransaction()) { $conn->rollBack(); }
+            if (ob_get_length()) { ob_clean(); }
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
     function setVisitorApproval()
     {
         include "connection.php";
@@ -1469,6 +1601,60 @@ class Admin_Functions
                 return;
             }
 
+            // Block checkout when there is an outstanding balance or incomplete invoice
+            $synCheckOut = ['checked-out','checked out','check-out','check out'];
+            if (in_array($nm, $synCheckOut)) {
+                // Compute remaining balance using latest billing/invoice if available; otherwise fallback to booking totals
+                $balQuery = "
+                    SELECT 
+                        CASE 
+                            WHEN lb.billing_id IS NOT NULL THEN 
+                                CASE 
+                                    WHEN li.invoice_status_id = 1 THEN 0 
+                                    ELSE COALESCE(lb.billing_balance, 0) 
+                                END
+                            ELSE 
+                                COALESCE(b.booking_totalAmount, 0) - COALESCE(b.booking_payment, 0)
+                        END AS balance,
+                        COALESCE(li.invoice_status_id, NULL) AS invoice_status_id
+                    FROM tbl_booking b
+                    LEFT JOIN (
+                        SELECT billing_id, booking_id, billing_balance 
+                        FROM tbl_billing 
+                        WHERE booking_id = :bid 
+                        ORDER BY billing_id DESC 
+                        LIMIT 1
+                    ) lb ON lb.booking_id = b.booking_id
+                    LEFT JOIN (
+                        SELECT i.invoice_id, b.booking_id, i.invoice_status_id 
+                        FROM tbl_invoice i 
+                        LEFT JOIN tbl_billing b ON i.billing_id = b.billing_id 
+                        WHERE b.booking_id = :bid 
+                        ORDER BY i.invoice_id DESC 
+                        LIMIT 1
+                    ) li ON li.booking_id = b.booking_id
+                    WHERE b.booking_id = :bid
+                ";
+                $stmtBal = $conn->prepare($balQuery);
+                $stmtBal->bindParam(':bid', $booking_id, PDO::PARAM_INT);
+                $stmtBal->execute();
+                $balRow = $stmtBal->fetch(PDO::FETCH_ASSOC);
+                $remaining = floatval($balRow['balance'] ?? 0);
+                $invoiceStatusId = isset($balRow['invoice_status_id']) ? intval($balRow['invoice_status_id']) : null;
+
+                // Consider small rounding; block if > 0.009 or invoice not complete when present
+                if ($remaining > 0.009) {
+                    if (ob_get_length()) { ob_clean(); }
+                    echo json_encode(['success' => false, 'message' => 'Cannot check out: outstanding balance of ' . number_format($remaining, 2)]);
+                    return;
+                }
+                if ($invoiceStatusId !== null && $invoiceStatusId !== 1) {
+                    if (ob_get_length()) { ob_clean(); }
+                    echo json_encode(['success' => false, 'message' => 'Cannot check out: latest invoice is not completed']);
+                    return;
+                }
+            }
+
             // Determine room ids
             $room_ids = [];
             if (is_array($provided_room_ids) && count($provided_room_ids) > 0) {
@@ -2224,9 +2410,9 @@ class Admin_Functions
                         bc.booking_charges_quantity AS request_quantity,
                         bc.booking_charges_price AS request_price,
                         bc.booking_charges_total AS request_total,
-                        CASE bc.booking_charge_status WHEN 1 THEN 'pending' WHEN 2 THEN 'approved' WHEN 3 THEN 'rejected' ELSE 'pending' END AS request_status,
+                        CASE bc.booking_charge_status WHEN 1 THEN 'pending' WHEN 2 THEN 'approved' WHEN 3 THEN 'rejected' WHEN 4 THEN 'return' ELSE 'pending' END AS request_status,
                         bc.booking_charge_datetime AS requested_at,
-                        CASE WHEN bc.booking_charge_status IN (2,3) THEN bc.booking_return_datetime ELSE NULL END AS processed_at,
+                        CASE WHEN bc.booking_charge_status IN (2,3,4) THEN bc.booking_return_datetime ELSE NULL END AS processed_at,
                         bn.booking_c_notes AS admin_notes,
                         NULL AS customer_notes
                     FROM tbl_booking_charges bc
@@ -2347,6 +2533,72 @@ class Admin_Functions
         }
     }
 
+    // 6.1) Set amenity request back to pending
+    function set_pending_amenity_request($json) {
+        include "connection.php";
+        try {
+            $data = is_string($json) ? json_decode($json, true) : $json;
+            $request_id = intval($data['request_id'] ?? 0);
+            $admin_notes = trim($data['admin_notes'] ?? '');
+            if ($request_id <= 0) { if (ob_get_length()) { ob_clean(); } echo 0; return; }
+
+            $conn->beginTransaction();
+
+            $note_id = null;
+            if ($admin_notes !== '') {
+                $stmtN = $conn->prepare("INSERT INTO tbl_booking_charges_notes (booking_c_notes) VALUES (:notes)");
+                $stmtN->execute([':notes' => $admin_notes]);
+                $note_id = $conn->lastInsertId();
+            }
+
+            $stmt = $conn->prepare("UPDATE tbl_booking_charges SET booking_charge_status=1, booking_return_datetime=NULL" . ($note_id ? ", booking_charges_notes_id=:nid" : "") . " WHERE booking_charges_id=:id");
+            $params = [':id' => $request_id];
+            if ($note_id) { $params[':nid'] = $note_id; }
+            $stmt->execute($params);
+
+            $conn->commit();
+            if (ob_get_length()) { ob_clean(); }
+            echo 1;
+        } catch (Exception $e) {
+            if ($conn && $conn->inTransaction()) { $conn->rollBack(); }
+            if (ob_get_length()) { ob_clean(); }
+            echo 0;
+        }
+    }
+
+    // 6.2) Mark amenity request as returned
+    function return_amenity_request($json) {
+        include "connection.php";
+        try {
+            $data = is_string($json) ? json_decode($json, true) : $json;
+            $request_id = intval($data['request_id'] ?? 0);
+            $admin_notes = trim($data['admin_notes'] ?? '');
+            if ($request_id <= 0) { if (ob_get_length()) { ob_clean(); } echo 0; return; }
+
+            $conn->beginTransaction();
+
+            $note_id = null;
+            if ($admin_notes !== '') {
+                $stmtN = $conn->prepare("INSERT INTO tbl_booking_charges_notes (booking_c_notes) VALUES (:notes)");
+                $stmtN->execute([':notes' => $admin_notes]);
+                $note_id = $conn->lastInsertId();
+            }
+
+            $stmt = $conn->prepare("UPDATE tbl_booking_charges SET booking_charge_status=4, booking_return_datetime=NOW()" . ($note_id ? ", booking_charges_notes_id=:nid" : "") . " WHERE booking_charges_id=:id");
+            $params = [':id' => $request_id];
+            if ($note_id) { $params[':nid'] = $note_id; }
+            $stmt->execute($params);
+
+            $conn->commit();
+            if (ob_get_length()) { ob_clean(); }
+            echo 1;
+        } catch (Exception $e) {
+            if ($conn && $conn->inTransaction()) { $conn->rollBack(); }
+            if (ob_get_length()) { ob_clean(); }
+            echo 0;
+        }
+    }
+
     // 7) Pending amenity count for header bell
     function get_pending_amenity_count() {
         include "connection.php";
@@ -2370,6 +2622,13 @@ class Admin_Functions
             $amenity_names = isset($data['amenity_names']) && is_array($data['amenity_names']) ? array_filter(array_map('strval', $data['amenity_names'])) : [];
             $booking_id = intval($data['booking_id'] ?? 0);
             $booking_room_id = intval($data['booking_room_id'] ?? 0);
+            
+            // Guard: require booking scope to prevent unintended global increments
+            if ($booking_id <= 0 && $booking_room_id <= 0) {
+                if (ob_get_length()) { ob_clean(); }
+                echo json_encode(['success' => false, 'message' => 'Missing booking_id or booking_room_id. Select a booking before applying +1 Day.']);
+                return;
+            }
 
             // Resolve amenity IDs by names if needed
             if (count($amenity_ids) === 0 && count($amenity_names) > 0) {
@@ -2390,6 +2649,36 @@ class Admin_Functions
                     $tvId = $tvStmt->fetchColumn();
                     if ($tvId) { $amenity_ids[] = intval($tvId); }
                 } catch (Exception $_) { /* ignore */ }
+            }
+
+            // Resolve booking_id if only booking_room_id is provided
+            if ($booking_id <= 0 && $booking_room_id > 0) {
+                $brStmt = $conn->prepare("SELECT booking_id FROM tbl_booking_room WHERE booking_room_id = :brid LIMIT 1");
+                $brStmt->bindParam(':brid', $booking_room_id, PDO::PARAM_INT);
+                $brStmt->execute();
+                $brRow = $brStmt->fetch(PDO::FETCH_ASSOC);
+                if ($brRow && isset($brRow['booking_id'])) {
+                    $booking_id = intval($brRow['booking_id']);
+                }
+            }
+
+            // Block increments for bookings already checked-out
+            if ($booking_id > 0) {
+                $statusStmt = $conn->prepare("SELECT bs.booking_status_name 
+                    FROM tbl_booking_history bh 
+                    JOIN tbl_booking_status bs ON bs.booking_status_id = bh.status_id 
+                    WHERE bh.booking_id = :bid 
+                    ORDER BY bh.updated_at DESC, bh.booking_history_id DESC 
+                    LIMIT 1");
+                $statusStmt->bindParam(':bid', $booking_id, PDO::PARAM_INT);
+                $statusStmt->execute();
+                $statusRow = $statusStmt->fetch(PDO::FETCH_ASSOC);
+                $latestName = $statusRow ? strtolower(trim($statusRow['booking_status_name'])) : '';
+                if (in_array($latestName, ['checked-out','checked out'])) {
+                    if (ob_get_length()) { ob_clean(); }
+                    echo json_encode(['success' => false, 'message' => 'Cannot apply +1 Day: booking is already Checked-Out.']);
+                    return;
+                }
             }
 
             // Build WHERE scope for delivered charges
@@ -2600,6 +2889,7 @@ class Admin_Functions
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
     }
+
 }
 
 $json = isset($_POST['json']) ? $_POST['json'] : 0;
@@ -2668,6 +2958,9 @@ switch ($method) {
     case 'viewDiscounts':
         $admin->viewDiscounts();
         break;
+    case 'getAllDiscounts': // alias used by frontend RoomChangeSheet
+        $admin->getAllDiscounts();
+        break;
     case 'addDiscounts':
         $admin->addDiscounts();
         break;
@@ -2726,6 +3019,11 @@ switch ($method) {
         $data = is_string($json) ? json_decode($json, true) : $json;
         if (!is_array($data)) { $data = []; }
         $admin->extendMultiRoomBookingWithPayment($data);
+        break;
+    case 'changeCustomerRoomsNumber':
+        $data = is_string($json) ? json_decode($json, true) : $json;
+        if (!is_array($data)) { $data = []; }
+        $admin->changeCustomerRoomsNumber($data);
         break;
     case 'changeBookingStatus':
         $admin->changeBookingStatus($json);
@@ -2831,6 +3129,12 @@ switch ($method) {
         break;
     case 'reject_amenity_request':
         $admin->reject_amenity_request($json);
+        break;
+    case 'set_pending_amenity_request':
+        $admin->set_pending_amenity_request($json);
+        break;
+    case 'return_amenity_request':
+        $admin->return_amenity_request($json);
         break;
     case 'get_pending_amenity_count':
         $admin->get_pending_amenity_count();

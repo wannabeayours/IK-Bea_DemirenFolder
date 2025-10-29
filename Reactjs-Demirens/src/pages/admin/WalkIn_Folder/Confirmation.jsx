@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 
 export default function Confirmation() {
-  const APIConn = `${localStorage.url}customer.php`;
+  const APIConn = `${localStorage.url}admin.php`;
   const navigate = useNavigate();
   const { walkInData, resetWalkIn } = useWalkIn();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -222,6 +222,12 @@ export default function Confirmation() {
       console.log('🌐 Sending request to:', APIConn);
       const res = await axios.post(APIConn, formData);
 
+      // Verbose response logging to help diagnose backend errors
+      console.log('🧾 Response status:', res?.status);
+      console.log('🧾 Response headers:', res?.headers);
+      console.log('🧾 Raw response data type:', typeof res?.data);
+      console.log('🧾 Raw response data:', res?.data);
+
       let responseData = res.data;
       try {
         // In case backend returns JSON string
@@ -230,7 +236,12 @@ export default function Confirmation() {
         }
       } catch (_) {}
 
-      const isSuccess = responseData === 1 || responseData?.success === true;
+      // Consider various backend success shapes
+      const isSuccess = (
+        responseData === 1 ||
+        responseData?.success === true ||
+        (Array.isArray(responseData) && responseData.length === 0) // admin.php sometimes returns [] on success
+      );
       if (isSuccess) {
         setConfirmStatus('success');
         // Clear persisted Walk-In flow state on successful submission
@@ -239,6 +250,12 @@ export default function Confirmation() {
           navigate('/admin/choose-rooms');
         }, 2000);
       } else {
+        console.error('❗ Booking not successful. Detailed diagnostics:', {
+          normalizedResponse: responseData,
+          rawResponse: res?.data,
+          status: res?.status,
+          headers: res?.headers
+        });
         setConfirmStatus('error');
         const code = Number(responseData);
         if (code === -1) {
@@ -250,8 +267,14 @@ export default function Confirmation() {
         } else if (code === 4) {
           alert('File upload failed: move error on server.');
         } else if (typeof responseData === 'string') {
+          console.error('❗ Server returned string error:', responseData);
           alert(responseData);
+        } else if (responseData && (responseData.error || responseData.message)) {
+          const msg = responseData.error || responseData.message;
+          console.error('❗ Server returned error/message field:', msg, responseData);
+          alert(String(msg));
         } else {
+          console.error('❗ Unknown booking failure. See logs above for details.');
           alert('Booking failed due to an unknown error.');
         }
       }
@@ -264,6 +287,15 @@ export default function Confirmation() {
         status: err.response?.status,
         config: err.config
       });
+      if (err.response) {
+        try {
+          console.error('🧾 Error response raw:', err.response.data);
+          const maybeJson = typeof err.response.data === 'string' ? JSON.parse(err.response.data) : err.response.data;
+          console.error('🧾 Error response parsed:', maybeJson);
+        } catch (_) {
+          // ignore JSON parse failures
+        }
+      }
       setConfirmStatus('error');
     } finally {
       setIsLoading(false);

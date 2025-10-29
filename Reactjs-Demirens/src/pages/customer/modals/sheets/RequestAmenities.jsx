@@ -27,11 +27,12 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
 
       let filteredAmenities = res.data;
 
-      // ✅ Filter "Bed" if isAddBed is 1 or true
+      // ✅ Filter "Bed" or "Beds" if isAddBed is 1 or true
       if (String(isAddBed) === "1" || isAddBed === true) {
-        filteredAmenities = res.data.filter(a =>
-          a.charges_master_name?.trim().toLowerCase() !== "bed"
-        );
+        filteredAmenities = res.data.filter(a => {
+          const name = a.charges_master_name?.trim().toLowerCase();
+          return name !== "bed" && name !== "beds";
+        });
       }
 
       setAmenities(Array.isArray(filteredAmenities) ? filteredAmenities : []);
@@ -41,11 +42,10 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
     }
   }, [isAddBed]);
 
-
   useEffect(() => {
-    console.log("isAddBedisAddBedisAddBed", isAddBed);
+    console.log("isAddBed value:", isAddBed);
     getAmenitiesMaster();
-  }, [getAmenitiesMaster])
+  }, [getAmenitiesMaster]);
 
   // 🔹 Handle check/uncheck
   const handleCheckboxChange = (id) => {
@@ -53,8 +53,8 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
       prev.includes(id)
         ? prev.filter((item) => item !== id)
         : [...prev, id]
-    )
-  }
+    );
+  };
 
   // 🔹 Submit from Sheet → open Dialog if valid
   const handleSubmit = (e) => {
@@ -78,13 +78,11 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
 
     setSelectedAmenities(selected);
     setDialogOpen(true);
-  }
+  };
 
   // 🔹 Update quantity & total per amenity
-  // Allow clearing while typing; compute totals safely
   const handleQuantityChange = (index, rawValue) => {
     const updated = [...selectedAmenities];
-    // Keep raw string to allow clearing input
     const value = rawValue;
     updated[index].quantity = value;
 
@@ -112,21 +110,18 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
 
   // 🔹 Confirm → build PHP JSON
   const handleConfirm = () => {
-    // validation: all quantity > 0
     for (const item of selectedAmenities) {
       if (item.quantity < 1 || isNaN(item.quantity)) {
         toast.error("Please enter valid quantity for all items");
         return;
       }
     }
-    console.log("bookingId", bookingId)
-    console.log("bookingRoomId", bookingRoomId)
+
     if (!bookingId || !bookingRoomId) {
       toast.error("Booking information not found");
       return;
     }
 
-    // build payload for PHP
     const payload = {
       bookingId: parseInt(bookingId),
       notes: notes,
@@ -138,21 +133,18 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
       }))
     };
 
-    // ✅ This is the JSON your PHP expects 
     console.log("Payload for PHP:", JSON.stringify(payload, null, 2));
-
 
     const url = localStorage.getItem('url') + 'customer.php';
     const formData = new FormData();
     formData.append("operation", "addBookingCharges");
     formData.append("json", JSON.stringify(payload));
+
     axios.post(url, formData).then(res => {
       console.log("res ni request amenities", res);
       if (res.data === 1) {
         getBookingSummary();
         toast.success("Amenities added successfully");
-        
-        // ✅ Reset form state after successful submission
         setSelectedItems([]);
         setSelectedAmenities([]);
         setNotes("");
@@ -163,7 +155,7 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
 
     setDialogOpen(false);
     setOpen(false);
-  }
+  };
 
   return (
     <>
@@ -175,7 +167,7 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
           </Button>
         </SheetTrigger>
 
-        <SheetContent side="right" className="rounded-2xl ">
+        <SheetContent side="right" className="rounded-2xl">
           <SheetHeader>
             <SheetTitle>Request Amenities</SheetTitle>
           </SheetHeader>
@@ -230,8 +222,7 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
                   <span>{item.name} (₱{item.price} each)</span>
                   <span className="text-xs text-gray-500">Total: ₱{item.total}</span>
                 </div>
-                {item.name.trim().toLowerCase() === "bed" ? (
-                  // ✅ Bed: Fixed quantity of 1
+                {item.name.trim().toLowerCase() === "bed" || item.name.trim().toLowerCase() === "beds" ? (
                   <Input
                     type="number"
                     min="1"
@@ -241,7 +232,6 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
                     className="w-20 cursor-not-allowed bg-gray-100 text-gray-500"
                   />
                 ) : (
-                  // ✅ Other amenities: editable quantity
                   <Input
                     type="number"
                     inputMode="numeric"
@@ -256,19 +246,20 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
             ))}
           </div>
 
-          {/* Grand total display */}
           <div className="mt-4 font-semibold flex justify-between">
             <span>Grand Total:</span>
             <span>₱{grandTotal}</span>
           </div>
 
           <DialogFooter className="mt-4">
-            <Button className={"bg-gradient-to-r from-[#113f67] to-[#226597] hover:from-[#0d2f4f] hover:to-[#1a4f7a]"} onClick={handleConfirm}>Confirm</Button>
+            <Button className="bg-gradient-to-r from-[#113f67] to-[#226597] hover:from-[#0d2f4f] hover:to-[#1a4f7a]" onClick={handleConfirm}>
+              Confirm
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }
 
-export default RequestAmenities
+export default RequestAmenities;

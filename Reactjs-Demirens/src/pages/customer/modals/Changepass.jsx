@@ -136,7 +136,7 @@ function Changepass() {
         <>
         <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
             <DialogTrigger>
-                <Button>
+                <Button className={"bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white "}>
                     Change Password
                 </Button>
             </DialogTrigger>
