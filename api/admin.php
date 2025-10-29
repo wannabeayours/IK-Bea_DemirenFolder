@@ -807,15 +807,12 @@ class Admin_Functions
     }
 
     // Visitor Logs: update an existing visitor log entry
-    function updateVisitorLog()
-    {
+     function updateVisitorLog() {
         include "connection.php";
         try {
             $id = isset($_POST['visitorlogs_id']) ? intval($_POST['visitorlogs_id']) : 0;
             if ($id <= 0) {
-                if (ob_get_length()) {
-                    ob_clean();
-                }
+                if (ob_get_length()) { ob_clean(); }
                 echo json_encode(['success' => false, 'message' => 'Invalid visitor log ID']);
                 return;
             }
@@ -828,36 +825,16 @@ class Admin_Functions
             $checkout = isset($_POST['visitorlogs_checkout_time']) ? trim($_POST['visitorlogs_checkout_time']) : null;
 
             $fields = [];
-            $params = [':id' => $id];
-            if ($name !== null) {
-                $fields[] = 'visitorlogs_visitorname = :name';
-                $params[':name'] = $name;
-            }
-            if ($purpose !== null) {
-                $fields[] = 'visitorlogs_purpose = :purpose';
-                $params[':purpose'] = $purpose;
-            }
-            if ($statusId !== null) {
-                $fields[] = 'visitorapproval_id = :statusId';
-                $params[':statusId'] = $statusId;
-            }
-            if ($booking_room_id !== null && $booking_room_id > 0) {
-                $fields[] = 'booking_room_id = :booking_room_id';
-                $params[':booking_room_id'] = $booking_room_id;
-            }
-            if ($employee_id !== null) {
-                $fields[] = 'employee_id = :employee_id';
-                $params[':employee_id'] = $employee_id;
-            }
-            if ($checkout !== null && $checkout !== '') {
-                $fields[] = 'visitorlogs_checkout_time = :checkout';
-                $params[':checkout'] = $checkout;
-            }
+            $params = [ ':id' => $id ];
+            if ($name !== null) { $fields[] = 'visitorlogs_visitorname = :name'; $params[':name'] = $name; }
+            if ($purpose !== null) { $fields[] = 'visitorlogs_purpose = :purpose'; $params[':purpose'] = $purpose; }
+            if ($statusId !== null) { $fields[] = 'visitorapproval_id = :statusId'; $params[':statusId'] = $statusId; }
+            if ($booking_room_id !== null && $booking_room_id > 0) { $fields[] = 'booking_room_id = :booking_room_id'; $params[':booking_room_id'] = $booking_room_id; }
+            if ($employee_id !== null) { $fields[] = 'employee_id = :employee_id'; $params[':employee_id'] = $employee_id; }
+            if ($checkout !== null && $checkout !== '') { $fields[] = 'visitorlogs_checkout_time = :checkout'; $params[':checkout'] = $checkout; }
 
             if (empty($fields)) {
-                if (ob_get_length()) {
-                    ob_clean();
-                }
+                if (ob_get_length()) { ob_clean(); }
                 echo json_encode(['success' => false, 'message' => 'No fields to update']);
                 return;
             }
@@ -867,14 +844,23 @@ class Admin_Functions
             $ok = $stmt->execute($params);
 
             // Calculate and add Extra Guest charge if checkout_time was set
+            // IMPORTANT: Only process the specific visitor log being updated (by visitorlogs_id)
             if ($checkout !== null && $checkout !== '' && $ok) {
                 // Get visitor log data including checkin_time, checkout_time, and booking_room_id
-                $getVisitorLog = $conn->prepare("SELECT visitorlogs_checkin_time, visitorlogs_checkout_time, booking_room_id FROM tbl_visitorlogs WHERE visitorlogs_id = :id");
+                // Only get the specific visitor log that was just updated (by visitorlogs_id)
+                $getVisitorLog = $conn->prepare("SELECT visitorlogs_id, visitorlogs_checkin_time, visitorlogs_checkout_time, booking_room_id FROM tbl_visitorlogs WHERE visitorlogs_id = :id");
                 $getVisitorLog->bindParam(':id', $id, PDO::PARAM_INT);
                 $getVisitorLog->execute();
                 $visitorData = $getVisitorLog->fetch(PDO::FETCH_ASSOC);
 
-                if ($visitorData && !empty($visitorData['visitorlogs_checkin_time']) && !empty($visitorData['visitorlogs_checkout_time']) && !empty($visitorData['booking_room_id'])) {
+                // Only process if this specific visitor has both checkin and checkout times
+                // This ensures we only charge the visitor that actually checked out
+                if ($visitorData && 
+                    !empty($visitorData['visitorlogs_checkin_time']) && 
+                    !empty($visitorData['visitorlogs_checkout_time']) && 
+                    !empty($visitorData['booking_room_id']) &&
+                    $visitorData['visitorlogs_id'] == $id) { // Additional safety check
+                    
                     $checkin_time = $visitorData['visitorlogs_checkin_time'];
                     $checkout_time = $visitorData['visitorlogs_checkout_time']; // Get from database after update
                     $booking_room_id = intval($visitorData['booking_room_id']);
@@ -891,9 +877,10 @@ class Admin_Functions
                         $blocks = floor($total_hours / 6);
                         $charge_total = $blocks * 420; // ₱420 per 6-hour block
 
-                        // Check if charge already exists for this visitor log (prevent duplicates)
-                        // We check by booking_room_id, charges_master_id = 12, and exact checkout time
-                        // This prevents the same checkout from being charged multiple times
+                        // Check if charge already exists for this SPECIFIC visitor checkout
+                        // We use visitorlogs_id to link the charge to this specific visitor
+                        // This prevents the same visitor checkout from being charged multiple times
+                        // Note: We check by exact checkout_time AND booking_room_id to ensure uniqueness per visitor
                         $checkExisting = $conn->prepare("
                             SELECT booking_charges_id 
                             FROM tbl_booking_charges 
@@ -907,13 +894,14 @@ class Admin_Functions
                         $checkExisting->bindParam(':checkout_time', $checkout_time);
                         $checkExisting->execute();
 
-                        // Only insert if charge doesn't exist
+                        // Only insert if charge doesn't exist for this specific checkout time
                         if ($checkExisting->rowCount() == 0) {
                             // Get price per hour from charges_master (420 / 6 = 70)
                             $price_per_hour = 70;
                             $quantity = $blocks * 6; // Number of hours charged
 
                             // Insert Extra Guest charge into tbl_booking_charges
+                            // This charge is ONLY for the visitor that just checked out (visitorlogs_id = $id)
                             $insertCharge = $conn->prepare("
                                 INSERT INTO tbl_booking_charges 
                                 (charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, booking_charges_total, booking_charge_status, booking_charge_datetime, booking_return_datetime) 
@@ -930,14 +918,10 @@ class Admin_Functions
                 }
             }
 
-            if (ob_get_length()) {
-                ob_clean();
-            }
+            if (ob_get_length()) { ob_clean(); }
             echo json_encode(['success' => $ok === true, 'response' => $ok === true]);
         } catch (Exception $e) {
-            if (ob_get_length()) {
-                ob_clean();
-            }
+            if (ob_get_length()) { ob_clean(); }
             echo json_encode(['success' => false, 'response' => false, 'message' => 'Database error: ' . $e->getMessage()]);
         }
     }

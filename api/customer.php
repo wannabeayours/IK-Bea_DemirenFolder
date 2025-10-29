@@ -1175,16 +1175,19 @@ class Demiren_customer
 
         try {
             $conn->beginTransaction();
+
             $customerId = $json["customerId"];
             $bookingDetails = $json["bookingDetails"];
             $roomDetails = $json["roomDetails"];
+
             $totalGuests = $bookingDetails["adult"] + $bookingDetails["children"];
             $checkIn = $bookingDetails["checkIn"];
             $checkOut = $bookingDetails["checkOut"];
             $paymentMethod = $bookingDetails["payment_method_id"];
             $referenceNo = "REF" . date("YmdHis") . rand(100, 999);
             $numberOfNights = $bookingDetails["numberOfNights"];
-            // ✅ First, create the booking master row
+
+            // ✅ Insert main booking record
             $stmt = $conn->prepare("
             INSERT INTO tbl_booking 
                 (customers_id, guests_amnt, customers_walk_in_id, booking_payment, 
@@ -1192,23 +1195,25 @@ class Demiren_customer
                 booking_totalAmount, booking_paymentMethod, reference_no) 
             VALUES 
                 (:customers_id, :guestTotalAmount, NULL, :booking_downpayment, 
-                :booking_checkin_dateandtime, :booking_checkout_dateandtime, NOW(), :totalAmount, :paymentMethod, :reference_no)");
+                :booking_checkin_dateandtime, :booking_checkout_dateandtime, NOW(), 
+                :totalAmount, :paymentMethod, :reference_no)
+        ");
             $stmt->bindParam(":customers_id", $customerId);
+            $stmt->bindParam(":guestTotalAmount", $totalGuests);
             $stmt->bindParam(":booking_downpayment", $bookingDetails["downpayment"]);
             $stmt->bindParam(":booking_checkin_dateandtime", $checkIn);
             $stmt->bindParam(":booking_checkout_dateandtime", $checkOut);
             $stmt->bindParam(":totalAmount", $bookingDetails["totalAmount"]);
-            $stmt->bindParam(":guestTotalAmount", $totalGuests);
             $stmt->bindParam(":paymentMethod", $paymentMethod);
             $stmt->bindParam(":reference_no", $referenceNo);
             $stmt->execute();
             $bookingId = $conn->lastInsertId();
 
-            // ✅ For each room requested, find an available physical room and insert
+            // ✅ Loop through each selected room
             foreach ($roomDetails as $room) {
                 $roomTypeId = $room["roomTypeId"];
 
-                // ✅ Find ONE available physical roomnumber_id that’s free for that date range
+                // ✅ Find available physical room number
                 $availabilityStmt = $conn->prepare("
                 SELECT r.roomnumber_id
                 FROM tbl_rooms r
@@ -1219,12 +1224,11 @@ class Demiren_customer
                     FROM tbl_booking_room br
                     JOIN tbl_booking b ON br.booking_id = b.booking_id
                     WHERE br.roomtype_id = :roomtype_id
-                        AND b.booking_isArchive = 0
-                        AND (
-                            b.booking_checkin_dateandtime < :check_out 
-                            AND b.booking_checkout_dateandtime > :check_in
-                        )
-                        AND br.roomnumber_id IS NOT NULL
+                    AND b.booking_isArchive = 0
+                    AND (
+                        b.booking_checkin_dateandtime < :check_out 
+                        AND b.booking_checkout_dateandtime > :check_in
+                    )
                 )
                 LIMIT 1
             ");
@@ -1232,19 +1236,20 @@ class Demiren_customer
                 $availabilityStmt->bindParam(":check_in", $checkIn);
                 $availabilityStmt->bindParam(":check_out", $checkOut);
                 $availabilityStmt->execute();
-
                 $availableRoom = $availabilityStmt->fetch(PDO::FETCH_ASSOC);
 
                 if (!$availableRoom) {
                     $conn->rollBack();
-                    return -1;
+                    return -1; // No available room
                 }
 
                 $selectedRoomNumberId = $availableRoom['roomnumber_id'];
 
-                // ✅ Insert booking room row with the assigned roomnumber_id
-                $sql = "INSERT INTO tbl_booking_room (booking_id, roomtype_id, roomnumber_id, bookingRoom_adult, bookingRoom_children) 
-                    VALUES (:booking_id, :roomtype_id, :roomnumber_id, :bookingRoom_adult, :bookingRoom_children)";
+                // ✅ Insert into tbl_booking_room
+                $sql = "INSERT INTO tbl_booking_room 
+                        (booking_id, roomtype_id, roomnumber_id, bookingRoom_adult, bookingRoom_children) 
+                    VALUES 
+                        (:booking_id, :roomtype_id, :roomnumber_id, :bookingRoom_adult, :bookingRoom_children)";
                 $stmt = $conn->prepare($sql);
                 $stmt->bindParam(":booking_id", $bookingId);
                 $stmt->bindParam(":roomtype_id", $roomTypeId);
@@ -1254,56 +1259,70 @@ class Demiren_customer
                 $stmt->execute();
                 $bookingRoomId = $conn->lastInsertId();
 
+                // ✅ Prepare prices
                 $extraGuestPrice = $this->getExtraGuestPrice();
                 $bedPrice = $this->getBedPrice();
                 $now = date("Y-m-d H:i:s");
 
-                // Add extra bed charge if applicable
+                // ✅ Add extra bed charge if applicable
                 if (isset($room["bedCount"]) && $room["bedCount"] > 0) {
-                    // $totalCharges = $room["bedCount"] * 420;
                     $totalCharges = $numberOfNights * $bedPrice;
-                    $sql = "INSERT INTO tbl_booking_charges(charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, booking_charges_total, booking_charge_status, booking_charge_datetime)
-                    VALUES (2, :booking_room_id, :bedPrice, :booking_charges_quantity, :booking_charges_total, 2, :now)";
+                    $sql = "INSERT INTO tbl_booking_charges
+                        (charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, 
+                        booking_charges_total, booking_charge_status, booking_charge_datetime)
+                        VALUES 
+                        (2, :booking_room_id, :bedPrice, :booking_charges_quantity, 
+                        :booking_charges_total, 2, :now)";
                     $stmt = $conn->prepare($sql);
                     $stmt->bindParam(":booking_room_id", $bookingRoomId);
                     $stmt->bindParam(":bedPrice", $bedPrice);
-                    $stmt->bindParam(":now", $now);
                     $stmt->bindParam(":booking_charges_quantity", $numberOfNights);
                     $stmt->bindParam(":booking_charges_total", $totalCharges);
+                    $stmt->bindParam(":now", $now);
                     $stmt->execute();
                 }
 
-                // add extra guest
-                if ($room["extraGuestCharges"] > 0) {
-                    // $totalCharges = $room["extraGuestCharges"] * 420;
+                // ✅ Add extra guest charge if applicable
+                if (isset($room["extraGuestCharges"]) && $room["extraGuestCharges"] > 0) {
                     $totalCharges = $numberOfNights * $extraGuestPrice;
-                    $sql = "INSERT INTO tbl_booking_charges(charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, booking_charges_total, booking_charge_status, booking_charge_datetime)
-                    VALUES (12, :booking_room_id, :extraGuestPrice, :booking_charges_quantity, :booking_charges_total, 5, :now)";
+                    $sql = "INSERT INTO tbl_booking_charges
+                        (charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, 
+                        booking_charges_total, booking_charge_status, booking_charge_datetime)
+                        VALUES 
+                        (12, :booking_room_id, :extraGuestPrice, :booking_charges_quantity, 
+                        :booking_charges_total, 5, :now)";
                     $stmt = $conn->prepare($sql);
                     $stmt->bindParam(":booking_room_id", $bookingRoomId);
+                    $stmt->bindParam(":extraGuestPrice", $extraGuestPrice);
                     $stmt->bindParam(":booking_charges_quantity", $numberOfNights);
                     $stmt->bindParam(":booking_charges_total", $totalCharges);
-                    $stmt->bindParam(":extraGuestPrice", $extraGuestPrice);
                     $stmt->bindParam(":now", $now);
                     $stmt->execute();
                 }
             }
 
-            $sql = "INSERT INTO tbl_booking_history
-            (booking_id, employee_id, status_id, updated_at) 
-            VALUES 
-            (:booking_id, NULL, 2, NOW())";
+            // ✅ Add booking history
+            $sql = "INSERT INTO tbl_booking_history 
+                    (booking_id, employee_id, status_id, updated_at) 
+                VALUES 
+                    (:booking_id, NULL, 2, NOW())";
             $stmt = $conn->prepare($sql);
             $stmt->bindParam(":booking_id", $bookingId);
             $stmt->execute();
 
+            // ✅ Add billing info
             if ($bookingDetails["payment_method_id"] == 1) {
                 $balance = $bookingDetails["totalAmount"] - $bookingDetails["totalPay"];
             } else {
                 $balance = $bookingDetails["totalAmount"] - $bookingDetails["downpayment"];
             }
-            $sql = "INSERT INTO tbl_billing(booking_id, payment_method_id, billing_total_amount, billing_dateandtime, billing_vat, billing_balance, billing_downpayment) 
-                VALUES (:booking_id, :payment_method_id, :total_amount, NOW(), :billing_vat, :billing_balance, :billing_downpayment)";
+
+            $sql = "INSERT INTO tbl_billing
+                    (booking_id, payment_method_id, billing_total_amount, billing_dateandtime, 
+                    billing_vat, billing_balance, billing_downpayment) 
+                VALUES 
+                    (:booking_id, :payment_method_id, :total_amount, NOW(), 
+                    :billing_vat, :billing_balance, :billing_downpayment)";
             $stmt = $conn->prepare($sql);
             $stmt->bindParam(":booking_id", $bookingId);
             $stmt->bindParam(":payment_method_id", $bookingDetails["payment_method_id"]);
@@ -1314,7 +1333,7 @@ class Demiren_customer
             $stmt->execute();
 
             $conn->commit();
-            return 1; // Success
+            return 1; // ✅ Success
         } catch (PDOException $e) {
             $conn->rollBack();
             return $e->getMessage();
