@@ -293,12 +293,27 @@ function InvoiceManagementSubpage({
   };
 
   const handleAddCharge = async () => {
+    // Safety check: ensure selectedBooking exists
+    if (!selectedBooking || !selectedBooking.booking_id) {
+      toast.error("No booking selected. Please select a booking first.");
+      console.error("handleAddCharge: selectedBooking is missing", selectedBooking);
+      return;
+    }
+
     if (!newChargeForm.charge_name || !newChargeForm.charge_price) {
       toast.error("Please fill in charge name and price");
       return;
     }
 
     try {
+      // Get employee_id using the existing helper function
+      const employeeId = getCurrentEmployeeId();
+      if (!employeeId || employeeId <= 0) {
+        toast.error("Employee ID not found. Please log in again.");
+        console.error("handleAddCharge: employee_id is missing or invalid", employeeId);
+        return;
+      }
+
       const url = localStorage.getItem("url") + "transactions.php";
       const formData = new FormData();
       formData.append("operation", "addBookingCharge");
@@ -306,11 +321,13 @@ function InvoiceManagementSubpage({
         booking_id: selectedBooking.booking_id,
         charge_name: newChargeForm.charge_name,
         charge_price: parseFloat(newChargeForm.charge_price),
-        quantity: parseInt(newChargeForm.quantity),
-        category_id: newChargeForm.category_id
+        quantity: parseInt(newChargeForm.quantity) || 1,
+        category_id: newChargeForm.category_id || 4,
+        employee_id: employeeId
       }));
       
       console.log("Adding charge:", newChargeForm);
+      console.log("Selected booking:", selectedBooking);
       const res = await axios.post(url, formData);
       console.log("Add charge response:", res.data);
       
@@ -433,7 +450,7 @@ function InvoiceManagementSubpage({
         }
         // Secondary path: if generator failed, try direct server download
         if (info?.pdf_url) {
-          const filenameFromUrl = (info.pdf_url.split("/").pop() || `invoice_${selectedBooking.booking_id}_${info.invoice_id}.pdf`).replace(/\?.*$/, "");
+          const filenameFromUrl = (`info.pdf_url.split("/").pop() || invoice_${selectedBooking.booking_id}_${info.invoice_id}.pdf).replace(/\?.*$/, ""`);
           const dlUrl = baseUrl + "download_invoice.php?file=" + encodeURIComponent(filenameFromUrl);
           console.log("Invoice PDF URL:", info.pdf_url);
           console.log("Server download URL:", dlUrl);
@@ -843,8 +860,15 @@ function InvoiceManagementSubpage({
               </div>
               <div>
                 <Button 
-                  onClick={handleAddCharge}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log("Add Charge button clicked", { selectedBooking, newChargeForm });
+                    handleAddCharge();
+                  }}
+                  disabled={!selectedBooking || !selectedBooking.booking_id || loading}
                   className="w-full"
+                  type="button"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add Charge

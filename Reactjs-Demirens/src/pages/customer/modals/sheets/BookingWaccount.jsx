@@ -128,12 +128,15 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
         const adultCount = adultCounts[rk] ?? 0;
         const childrenCount = childrenCounts[rk] ?? 0;
         const totalGuests = adultCount + childrenCount;
+        // Calculate extra guests for THIS specific room
+        const capacity = Number(room.roomtype_capacity) || 0;
+        const extraGuestsForThisRoom = Math.max(0, totalGuests - capacity);
         return {
           roomTypeId: room.room_type,
           guestCount: totalGuests,
           adultCount,
           childrenCount,
-          extraGuestCharges: extraGuestCharges === 0 ? 0 : 1,
+          extraGuestCharges: extraGuestsForThisRoom > 0 ? 1 : 0,
         };
       });
 
@@ -200,12 +203,15 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
         const adultCount = adultCounts[rk] ?? 0;
         const childrenCount = childrenCounts[rk] ?? 0;
         const totalGuests = adultCount + childrenCount;
+        // Calculate extra guests for THIS specific room
+        const capacity = Number(room.roomtype_capacity) || 0;
+        const extraGuestsForThisRoom = Math.max(0, totalGuests - capacity);
         return {
           roomTypeId: room.room_type,
           guestCount: totalGuests,
           adultCount,
           childrenCount,
-          extraGuestCharges: extraGuestCharges === 0 ? 0 : 1,
+          extraGuestCharges: extraGuestsForThisRoom > 0 ? 1 : 0,
         };
       });
 

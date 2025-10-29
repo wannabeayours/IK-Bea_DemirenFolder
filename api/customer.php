@@ -472,7 +472,7 @@ class Demiren_customer
                     // $totalCharges = $room["extraGuestCharges"] * 420;
                     $totalCharges = $numberOfNights * $extraGuestPrice;
                     $sql = "INSERT INTO tbl_booking_charges(charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, booking_charges_total, booking_charge_status, booking_charge_datetime)
-                    VALUES (12, :booking_room_id, :extraGuestPrice, :booking_charges_quantity, :booking_charges_total, 5, :now)";
+                    VALUES (12, :booking_room_id, :extraGuestPrice, :booking_charges_quantity, :booking_charges_total, 2, :now)";
                     $stmt = $conn->prepare($sql);
                     $stmt->bindParam(":now", $now);
                     $stmt->bindParam(":booking_room_id", $bookingRoomId);
@@ -1290,7 +1290,7 @@ class Demiren_customer
                         booking_charges_total, booking_charge_status, booking_charge_datetime)
                         VALUES 
                         (12, :booking_room_id, :extraGuestPrice, :booking_charges_quantity, 
-                        :booking_charges_total, 5, :now)";
+                        :booking_charges_total, 2, :now)";
                     $stmt = $conn->prepare($sql);
                     $stmt->bindParam(":booking_room_id", $bookingRoomId);
                     $stmt->bindParam(":extraGuestPrice", $extraGuestPrice);
@@ -1339,6 +1339,7 @@ class Demiren_customer
             return $e->getMessage();
         }
     }
+
 
     function customerBookingWithoutAccount($json)
     {
