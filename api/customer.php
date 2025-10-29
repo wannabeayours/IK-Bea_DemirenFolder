@@ -191,8 +191,8 @@ class Demiren_customer
         try {
             $json = json_decode($json, true);
 
-            // 1. First verify the current password
-            $sql = "SELECT customers_online_password
+            // 1. Check if user exists and get current password info
+            $sql = "SELECT customers_online_password, customers_online_email
                     FROM tbl_customers_online 
                     WHERE customers_online_id = :customers_online_id";
             $stmt = $conn->prepare($sql);
@@ -202,14 +202,29 @@ class Demiren_customer
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$result) {
-                return 0; // User not found
+                return -1; // User not found
             }
 
-            // 2. Compare current password with stored password
-            if ($json["current_password"] !== $result["customers_online_password"]) {
-                return -1; // Current password is wrong
+            // 2. Compare current password with stored password (using password_verify for hashed passwords)
+            $storedPassword = $result["customers_online_password"];
+            $inputPassword = $json["current_password"];
+
+            // Check if the stored password is hashed (starts with $2y$)
+            $isPasswordCorrect = false;
+            if (password_get_info($storedPassword)['algo'] !== null) {
+                // Password is hashed, use password_verify
+                $isPasswordCorrect = password_verify($inputPassword, $storedPassword);
+            } else {
+                // Password is plain text (legacy), compare directly
+                $isPasswordCorrect = ($inputPassword === $storedPassword);
             }
-            $newPassword = $json["new_password"];
+
+            if (!$isPasswordCorrect) {
+                return -2; // Current password is wrong
+            }
+
+            // 3. Hash the new password
+            $newPassword = password_hash($json["new_password"], PASSWORD_DEFAULT);
 
             // 4. Update the password
             $sql = "UPDATE tbl_customers_online 
@@ -225,6 +240,69 @@ class Demiren_customer
             error_log("Password change error: " . $e->getMessage());
             return 0;
         }
+    }
+
+    function sendPasswordChangeOTP($json)
+    {
+        include "connection.php";
+        $data = json_decode($json, true);
+        $customers_online_id = $data['customers_online_id'] ?? null;
+
+        if (!$customers_online_id) {
+            echo json_encode(['success' => false, 'message' => 'Missing customer ID']);
+            return;
+        }
+
+        try {
+            // Get customer email
+            $sql = "SELECT customers_online_email FROM tbl_customers_online WHERE customers_online_id = :customers_online_id";
+            $stmt = $conn->prepare($sql);
+            $stmt->bindParam(":customers_online_id", $customers_online_id);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$result) {
+                echo json_encode(['success' => false, 'message' => 'Customer not found']);
+                return;
+            }
+
+            $email = $result['customers_online_email'];
+
+            // Generate OTP
+            $otp = $this->generateOTP();
+
+            // Send OTP email
+            include "send_email.php";
+            $mailer = new SendEmail();
+            $subject = 'Password Change Verification Code - Demiren Hotel';
+            $body = '<div style="font-family: Arial, sans-serif; line-height: 1.5;">'
+                . '<h2 style="margin:0 0 8px;">Password Change Verification</h2>'
+                . '<p>Use this code to verify your password change:</p>'
+                . '<p style="font-size:22px; font-weight:bold; letter-spacing:2px;">' . htmlspecialchars($otp) . '</p>'
+                . '<p>This code expires in 5 minutes.</p>'
+                . '<hr style="margin:16px 0;" />'
+                . '<p style="color:#666; font-size:12px;">Demirens Booking System</p>'
+                . '</div>';
+            $ok = $mailer->sendEmail($email, $subject, $body);
+
+            if ($ok) {
+                echo json_encode(['success' => true, 'otp_code' => $otp]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Failed to send email']);
+            }
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => 'Error sending OTP']);
+        }
+    }
+
+    private function generateOTP($length = 6)
+    {
+        $chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // avoid ambiguous chars like 0, O, I, 1
+        $otp = '';
+        for ($i = 0; $i < $length; $i++) {
+            $otp .= $chars[random_int(0, strlen($chars) - 1)];
+        }
+        return $otp;
     }
 
     function customerChangeEmail($json)
@@ -2727,6 +2805,9 @@ switch ($operation) {
         break;
     case "sendCustomerForgotPasswordOTP":
         echo $demiren_customer->sendCustomerForgotPasswordOTP($json);
+        break;
+    case "sendPasswordChangeOTP":
+        echo $demiren_customer->sendPasswordChangeOTP($json);
         break;
     default:
         echo json_encode(["error" => "Invalid operation"]);
