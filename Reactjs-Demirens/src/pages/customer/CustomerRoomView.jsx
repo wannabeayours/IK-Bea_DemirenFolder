@@ -5,6 +5,8 @@ import React, { useEffect, useState } from 'react';
 import RoomDialogs from './modals/RoomDialogs';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import axios from 'axios';
 
 function CustomerRoomView() {
   const [room, setRoom] = useState(null);
@@ -15,17 +17,17 @@ function CustomerRoomView() {
   useEffect(() => {
     // Scroll to top when component mounts
     window.scrollTo(0, 0);
-    
+
     const stored = sessionStorage.getItem('viewRoomDetails');
     console.log("Stored Room Details:", stored);
     if (stored) {
       const roomData = JSON.parse(stored);
       setRoom(roomData);
-      
+
       // Process images
       const imagesList = [];
       const baseUrl = localStorage.getItem("url") + "images/";
-      
+
       // Add main image first
       if (roomData.roomtype_image) {
         imagesList.push({
@@ -34,7 +36,8 @@ function CustomerRoomView() {
           isMain: true
         });
       }
-      
+
+
       // Add additional images
       if (roomData.images) {
         const additionalImages = roomData.images.split(',');
@@ -48,7 +51,7 @@ function CustomerRoomView() {
           }
         });
       }
-      
+
       setAllImages(imagesList);
       console.log("Processed Images:", imagesList);
     }
@@ -69,6 +72,27 @@ function CustomerRoomView() {
   const goToImage = (index) => {
     setCurrentIndex(index);
   };
+
+  const [roomAmenities, setRoomAmenities] = useState([]);
+  const getAllRoomAmenities = async () => {
+    try {
+      const url = localStorage.getItem("url") + "customer.php";
+      const formData = new FormData();
+      formData.append("operation", "getAllRoomAmenities");
+      const res = await axios.post(url, formData);
+      console.log("Room Amenities Response:", res.data);
+      if (res.data !== 0) {
+        setRoomAmenities(res.data);
+      }
+    } catch (error) {
+      console.log("Error fetching room amenities:", error);
+      toast.error("Error fetching room amenities. Please try again.");
+    }
+  }
+
+  useEffect(() => {
+    getAllRoomAmenities();
+  }, []);
 
   if (!room) {
     return (
@@ -100,7 +124,7 @@ function CustomerRoomView() {
                 }}
               />
               {/* Fallback when image fails to load */}
-              <div className="absolute inset-0 flex items-center justify-center bg-blue-600 text-white" style={{display: 'none'}}>
+              <div className="absolute inset-0 flex items-center justify-center bg-blue-600 text-white" style={{ display: 'none' }}>
                 <div className="text-center">
                   <h2 className="text-2xl font-semibold mb-2">Room Gallery</h2>
                   <p className="text-blue-100">Image not available</p>
@@ -138,11 +162,10 @@ function CustomerRoomView() {
                   <button
                     key={index}
                     onClick={() => goToImage(index)}
-                    className={`w-16 h-12 rounded-lg overflow-hidden border-2 transition-all duration-200 ${
-                      index === currentIndex 
-                        ? 'border-white shadow-lg' 
-                        : 'border-transparent opacity-70 hover:opacity-100'
-                    }`}
+                    className={`w-16 h-12 rounded-lg overflow-hidden border-2 transition-all duration-200 ${index === currentIndex
+                      ? 'border-white shadow-lg'
+                      : 'border-transparent opacity-70 hover:opacity-100'
+                      }`}
                   >
                     <img
                       src={image.src}
@@ -153,7 +176,7 @@ function CustomerRoomView() {
                         e.target.nextSibling.style.display = 'block';
                       }}
                     />
-                    <div className="w-full h-full bg-gray-600 flex items-center justify-center text-white text-xs" style={{display: 'none'}}>
+                    <div className="w-full h-full bg-gray-600 flex items-center justify-center text-white text-xs" style={{ display: 'none' }}>
                       {index + 1}
                     </div>
                   </button>
@@ -227,63 +250,21 @@ function CustomerRoomView() {
         </div>
 
         {/* Features Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-5xl mt-16">
+        <div className="grid grid-cols-1 gap-8 w-full max-w-5xl mt-16">
           {/* Column 1 - Room Features */}
           <div className="space-y-3 bg-white rounded-lg p-6 border shadow-sm">
             <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <Check size={20} className="text-blue-600" />
-              Room Features
+              Room Amenities
             </h2>
-            {[
-              'Iron / Ironing Board',
-              'Complimentary Bottled Water',
-              'Electric Water Kettle',
-              'Air Conditioning',
-              'In-room Safe',
-              'Cable TV'
-            ].map((feature, index) => (
-              <div key={index} className="flex items-center gap-3 py-2">
-                <Check size={16} className="text-green-600 flex-shrink-0" />
-                <span className="text-gray-700">{feature}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Column 2 - Bathroom Features */}
-          <div className="space-y-3 bg-white rounded-lg p-6 border shadow-sm">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <Check size={20} className="text-blue-600" />
-              Bathroom Features
-            </h2>
-            {[
-              'Bidet',
-              'Air Conditioning',
-              'Hot & Cold Shower',
-                'Hair Dryer',
-              'Room service'
-            ].map((feature, index) => (
-              <div key={index} className="flex items-center gap-3 py-2">
-                <Check size={16} className="text-green-600 flex-shrink-0" />
-                <span className="text-gray-700">{feature}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Column 3 - Hotel Amenities */}
-          <div className="space-y-3 bg-white rounded-lg p-6 border shadow-sm">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <WineIcon size={20} className="text-blue-600" />
-              Hotel Amenities
-            </h2>
-            {[
-              { icon: HandPlatterIcon, text: 'Restaurant' },
-              { icon: WifiIcon, text: 'Wi-Fi in Public Areas' }
-            ].map((amenity, index) => (
-              <div key={index} className="flex items-center gap-3 py-2">
-                <amenity.icon size={16} className="text-blue-600 flex-shrink-0" />
-                <span className="text-gray-700">{amenity.text}</span>
-              </div>
-            ))}
+            <div className='grid grid-cols-2 gap-4'>
+              {roomAmenities.map((element, index) => (
+                <div key={index} className="flex items-center gap-3 py-2">
+                  <Check size={16} className="text-green-600 flex-shrink-0" />
+                  <span className="text-gray-700">{element.room_amenities_master_name}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -343,7 +324,7 @@ function CustomerRoomView() {
 
         {/* Back Button */}
         <div className="mt-8 mb-12 w-full max-w-5xl flex justify-start">
-          <Button className="px-8 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium"  onClick={() => navigateTo("/")}>
+          <Button className="px-8 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium" onClick={() => navigateTo("/")}>
             ← BACK TO ROOM
           </Button>
         </div>

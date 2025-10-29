@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,41 +14,12 @@ const ResetPassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [resendLoading, setResendLoading] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(60);
   const location = useLocation();
   const navigate = useNavigate();
   const email = location.state?.email;
 
-  // SHA-256 hashing utility
-  const sha256Hex = async (text) => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
-
-  // Generate alphanumeric OTP (6 characters)
-  const generateOTP = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let otp = '';
-    for (let i = 0; i < 6; i++) {
-      otp += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return otp;
-  };
-
-  // Set up cooldown timer
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [resendCooldown]);
-
   // Redirect if no email is provided
-  useEffect(() => {
+  React.useEffect(() => {
     if (!email) {
       toast.error("No email provided. Please start the password reset process again.");
       navigate("/forgot-password");
@@ -56,14 +27,14 @@ const ResetPassword = () => {
   }, [email, navigate]);
 
   const handleOtpChange = (e) => {
-    // Only allow alphanumeric characters, convert to uppercase, max 6 characters
-    const val = e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 6);
+    // Only allow numbers and max 6 digits
+    const val = e.target.value.replace(/\D/g, "").slice(0, 6);
     setOtp(val);
   };
 
   const validateForm = () => {
     if (otp.length !== 6) {
-      toast.error("Please enter a 6-character OTP code.");
+      toast.error("Please enter a 6-digit OTP code.");
       return false;
     }
     if (newPassword.length < 6) {
@@ -77,109 +48,34 @@ const ResetPassword = () => {
     return true;
   };
 
-  // Verify OTP on frontend
-  const verifyOTP = async (inputOtp) => {
-    const storedHash = sessionStorage.getItem('customer_forgot_otp_hash');
-    const storedEmail = sessionStorage.getItem('customer_forgot_email');
-    const storedExpiry = sessionStorage.getItem('customer_forgot_otp_expiry');
-
-    if (!storedHash || !storedEmail || !storedExpiry) {
-      return { valid: false, message: 'OTP session expired. Please request a new OTP.' };
-    }
-
-    const now = new Date().getTime();
-    const expiry = parseInt(storedExpiry);
-
-    if (now > expiry) {
-      return { valid: false, message: 'OTP expired. Please request a new OTP.' };
-    }
-
-    if (storedEmail !== email) {
-      return { valid: false, message: 'Email mismatch. Please start over.' };
-    }
-
-    const inputHash = await sha256Hex(inputOtp.toUpperCase());
-    
-    if (inputHash !== storedHash) {
-      return { valid: false, message: 'Invalid OTP code. Please try again.' };
-    }
-
-    return { valid: true };
-  };
-
-  const handleResendOTP = async () => {
-    if (resendCooldown > 0) return;
-    
-    setResendLoading(true);
-    try {
-      const otp_code = generateOTP();
-      const otpHash = await sha256Hex(otp_code);
-      
-      const expiry = new Date().getTime() + (5 * 60 * 1000);
-      sessionStorage.setItem('customer_forgot_otp_hash', otpHash);
-      sessionStorage.setItem('customer_forgot_email', email);
-      sessionStorage.setItem('customer_forgot_otp_expiry', expiry.toString());
-      
-      const url = localStorage.getItem("url") + "customer.php";
-      const otpForm = new FormData();
-      otpForm.append("operation", "sendCustomerForgotPasswordOTP");
-      otpForm.append("json", JSON.stringify({ 
-        email: email,
-        otp_code: otp_code 
-      }));
-      
-      const res = await axios.post(url, otpForm);
-      
-      if (res.data?.success) {
-        toast.success("New OTP sent to your email!");
-        setResendCooldown(60);
-        setOtp("");
-      } else {
-        toast.error(res.data?.message || "Failed to resend OTP. Please try again.");
-      }
-    } catch (error) {
-      toast.error("Something went wrong. Please try again.");
-      console.error("Resend OTP error:", error);
-    } finally {
-      setResendLoading(false);
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!validateForm()) return;
-    
-    // Verify OTP on frontend
-    const otpVerification = await verifyOTP(otp);
-    if (!otpVerification.valid) {
-      toast.error(otpVerification.message);
-      return;
-    }
     
     setLoading(true);
     
     try {
       const url = localStorage.getItem("url") + "customer.php";
       
+      // Create form data for password reset
       const resetForm = new FormData();
-      resetForm.append("operation", "resetCustomerPassword");
+      resetForm.append("operation", "resetPassword");
       resetForm.append("json", JSON.stringify({
         email: email,
+        otp_code: otp,
         new_password: newPassword
       }));
+      
+      console.log("Resetting password for:", { email, otp: otp });
       
       const res = await axios.post(url, resetForm);
       
       if (res.data?.success) {
         toast.success("Password reset successfully! You can now login with your new password.");
-        // Clear OTP data from sessionStorage
-        sessionStorage.removeItem('customer_forgot_otp_hash');
-        sessionStorage.removeItem('customer_forgot_email');
-        sessionStorage.removeItem('customer_forgot_otp_expiry');
         navigate("/login");
       } else {
-        toast.error(res.data?.message || "Failed to reset password. Please try again.");
+        toast.error(res.data?.message || "Failed to reset password. Please check your OTP and try again.");
       }
     } catch (error) {
       toast.error("Something went wrong. Please try again.");
@@ -221,7 +117,7 @@ const ResetPassword = () => {
               Reset Password
             </CardTitle>
             <p className="text-muted-foreground text-sm">
-              Enter the 6-character OTP sent to <strong>{email}</strong> and your new password.
+              Enter the 6-digit OTP sent to <strong>{email}</strong> and your new password.
             </p>
           </div>
 
@@ -231,25 +127,15 @@ const ResetPassword = () => {
               <label className="block text-sm font-medium mb-2">OTP Code</label>
               <Input
                 type="text"
+                inputMode="numeric"
+                pattern="\d*"
                 maxLength={6}
                 value={otp}
                 onChange={handleOtpChange}
-                placeholder="Enter 6-character OTP"
-                className="text-center tracking-widest text-lg uppercase"
+                placeholder="Enter 6-digit OTP"
+                className="text-center tracking-widest text-lg"
                 autoFocus
               />
-            </div>
-            {/* Resend OTP Button */}
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="link"
-                onClick={handleResendOTP}
-                disabled={resendCooldown > 0 || resendLoading}
-                className="text-xs"
-              >
-                {resendLoading ? "Sending..." : resendCooldown > 0 ? `Resend OTP (${resendCooldown}s)` : "Resend OTP"}
-              </Button>
             </div>
 
             {/* New Password */}

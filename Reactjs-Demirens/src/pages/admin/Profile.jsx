@@ -305,10 +305,6 @@ function AdminProfile() {
   // Update admin profile (without password)
   const updateProfile = async () => {
     try {
-      const otpOk = await verifyOTPBeforeChange();
-      if (!otpOk) {
-        return;
-      }
       const userId = localStorage.getItem('userId');
       const userType = (localStorage.getItem('userType') || '').toLowerCase().replace(/[\s_-]/g, '')
       const userLevel = (localStorage.getItem('userLevel') || '').toLowerCase().replace(/[\s_-]/g, '')

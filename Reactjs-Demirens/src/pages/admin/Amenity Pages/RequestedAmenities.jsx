@@ -50,6 +50,28 @@ function AdminRequestedAmenities() {
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState(null);
   
+  // Console instrumentation helper
+  const log = useCallback((label, payload) => {
+    try {
+      // compact log wrapper to avoid noisy errors
+      // eslint-disable-next-line no-console
+      console.log(`[%cRequestedAmenities%c] ${label}`,
+        'color:#113f67;font-weight:bold;', 'color:inherit', payload);
+    } catch (_) {
+      // eslint-disable-next-line no-console
+      console.log('[RequestedAmenities]', label);
+    }
+  }, []);
+
+  // Initial environment log
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.info('[RequestedAmenities] Mount: env', {
+      api: APIConn,
+      baseUrl: typeof localStorage !== 'undefined' ? localStorage.url : undefined,
+      location: window.location?.pathname,
+    });
+  }, []);
 
   // Add Amenity Request Modal States
   const [addAmenityModalOpen, setAddAmenityModalOpen] = useState(false);
@@ -87,10 +109,23 @@ function AdminRequestedAmenities() {
       const formData = new FormData();
       formData.append('method', 'get_amenity_requests');
       
+      log('fetchAmenityRequests: POST admin.php', { url: APIConn, method: 'get_amenity_requests' });
       const response = await axios.post(APIConn, formData);
+      log('fetchAmenityRequests: response meta', {
+        status: response?.status,
+        statusText: response?.statusText,
+        headers: response?.headers,
+      });
       
       // Ensure we have an array and add default values for missing fields
-      const requests = Array.isArray(response.data) ? response.data : [];
+      const isArray = Array.isArray(response?.data);
+      const requests = isArray ? response.data : [];
+      log('fetchAmenityRequests: payload summary', {
+        isArray,
+        length: requests.length,
+        sample: requests.length > 0 ? requests[0] : null,
+        keys: requests.length > 0 ? Object.keys(requests[0] || {}) : [],
+      });
       const processedRequests = requests.map(request => ({
         ...request,
         request_status: request.request_status || 'pending',
@@ -103,6 +138,7 @@ function AdminRequestedAmenities() {
         request_quantity: request.request_quantity || 1
       }));
       
+      log('fetchAmenityRequests: processed length', { processedLength: processedRequests.length });
       setAmenityRequests(processedRequests);
     } catch (error) {
       console.error('Error fetching amenity requests:', error);
@@ -117,12 +153,13 @@ function AdminRequestedAmenities() {
     try {
       const formData = new FormData();
       formData.append('method', 'get_amenity_request_stats');
-      
+      log('fetchStats: POST admin.php', { url: APIConn, method: 'get_amenity_request_stats' });
       const response = await axios.post(APIConn, formData);
+      log('fetchStats: response meta', { status: response?.status, statusText: response?.statusText });
       
       // Ensure we have valid stats with default values
       const stats = response.data || {};
-      setStats({
+      const nextStats = {
         total_requests: stats.total_requests || 0,
         pending_requests: stats.pending_requests || 0,
         approved_requests: stats.approved_requests || 0,
@@ -130,11 +167,13 @@ function AdminRequestedAmenities() {
         pending_amount: stats.pending_amount || 0,
         approved_amount: stats.approved_amount || 0,
         current_month_approved: stats.current_month_approved || 0
-      });
+      };
+      log('fetchStats: computed stats', nextStats);
+      setStats(nextStats);
     } catch (error) {
       console.error('Error fetching stats:', error);
       // Set default stats on error
-      setStats({
+      const defaultStats = {
         total_requests: 0,
         pending_requests: 0,
         approved_requests: 0,
@@ -142,7 +181,9 @@ function AdminRequestedAmenities() {
         pending_amount: 0,
         approved_amount: 0,
         current_month_approved: 0
-      });
+      };
+      log('fetchStats: default stats used (error)', defaultStats);
+      setStats(defaultStats);
     }
   }, [APIConn]);
 
@@ -153,6 +194,14 @@ function AdminRequestedAmenities() {
 
   const filterRequests = useCallback(() => {
     let filtered = [...amenityRequests];
+    log('filterRequests: start', {
+      amenityCount: amenityRequests.length,
+      searchTerm,
+      statusFilter,
+      activeTab,
+      dateRange,
+      timeSortOrder,
+    });
 
     // Filter by search term
     if (searchTerm) {
@@ -162,16 +211,14 @@ function AdminRequestedAmenities() {
         request.charges_master_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         request.roomtype_name?.toLowerCase().includes(searchTerm.toLowerCase())
       );
+      log('filterRequests: after search', { count: filtered.length });
     }
 
-    // Filter by status
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(request => request.request_status === statusFilter);
-    }
-
-    // Filter by tab
-    if (activeTab !== 'all') {
-      filtered = filtered.filter(request => request.request_status === activeTab);
+    // Apply a single effective status filter to avoid double-filter intersection
+    const effectiveStatus = activeTab === 'all' ? statusFilter : activeTab;
+    if (effectiveStatus !== 'all') {
+      filtered = filtered.filter(request => String(request.request_status).toLowerCase() === String(effectiveStatus).toLowerCase());
+      log('filterRequests: after effectiveStatus', { effectiveStatus, count: filtered.length });
     }
 
     // Use shared parseDateTime defined at component scope
@@ -201,6 +248,7 @@ function AdminRequestedAmenities() {
             return true;
         }
       });
+      log('filterRequests: after dateRange', { count: filtered.length });
     }
 
     // Sort by requested_at (time) according to selected order
@@ -212,6 +260,20 @@ function AdminRequestedAmenities() {
       return timeSortOrder === 'desc' ? tb - ta : ta - tb;
     });
 
+    if (filtered.length === 0) {
+      log('filterRequests: RESULT EMPTY', {
+        amenityCount: amenityRequests.length,
+        searchTerm,
+        statusFilter,
+        activeTab,
+        dateRange,
+      });
+    } else {
+      log('filterRequests: result summary', {
+        count: filtered.length,
+        first: filtered[0],
+      });
+    }
     setFilteredRequests(filtered);
   }, [amenityRequests, searchTerm, statusFilter, activeTab, dateRange, timeSortOrder]);
 
@@ -351,6 +413,17 @@ function AdminRequestedAmenities() {
   useEffect(() => {
     filterRequests();
   }, [filterRequests]);
+
+  // Render-time warning when no data
+  useEffect(() => {
+    if (!loading && filteredRequests.length === 0) {
+      // eslint-disable-next-line no-console
+      console.warn('[RequestedAmenities] No amenity requests to display', {
+        amenityCount: amenityRequests.length,
+        filters: { searchTerm, statusFilter, activeTab, dateRange },
+      });
+    }
+  }, [loading, filteredRequests, amenityRequests.length, searchTerm, statusFilter, activeTab, dateRange]);
 
   // Handle countdown for +1 Day confirmation
   useEffect(() => {

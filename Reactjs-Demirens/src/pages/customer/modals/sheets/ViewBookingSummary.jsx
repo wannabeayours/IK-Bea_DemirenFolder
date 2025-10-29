@@ -67,19 +67,20 @@ function ViewBookingSummary({ getBookingSummary, bookingData }) {
       header: 'Status',
       cell: (row) => (
         <div className="flex items-center justify-center">
-          {row.charges_master_id === 12 ? "-" :
-            <Badge className={`flex items-center gap-1 ${row.charges_status_name === "Delivered"
-              ? "bg-green-100 text-green-700"
-              : row.charges_status_name === "Pending"
-                ? "bg-yellow-100 text-yellow-700"
+          <Badge className={`flex items-center gap-1 ${row.charges_status_name === "Delivered"
+            ? "bg-green-100 text-green-700"
+            : row.charges_status_name === "Pending"
+              ? "bg-yellow-100 text-yellow-700"
+              : row.charges_status_name === "Paid"
+                ? "bg-green-100 text-green-700"
                 : "bg-gray-100 text-gray-700"
-              }`}>
-              {row.charges_status_name === "Delivered" && <CheckCircle2 className="h-3 w-3" />}
-              {row.charges_status_name === "Pending" && <Clock className="h-3 w-3" />}
-              {row.charges_status_name !== "Delivered" && row.charges_status_name !== "Pending" && <XCircle className="h-3 w-3" />}
-              {row.charges_status_name}
-            </Badge>
-          }
+
+            }`}>
+            {row.charges_status_name === "Delivered" && <CheckCircle2 className="h-3 w-3" />}
+            {row.charges_status_name === "Pending" && <Clock className="h-3 w-3" />}
+            {row.charges_status_name !== "Delivered" && row.charges_status_name !== "Pending" && <XCircle className="h-3 w-3" />}
+            {row.charges_status_name}
+          </Badge>
         </div>
       )
     },
@@ -166,7 +167,7 @@ function ViewBookingSummary({ getBookingSummary, bookingData }) {
                   <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
                     <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
                     <div>
-                      <Label className="text-xs sm:text-sm text-gray-500 uppercase">Check In</Label>
+                      <Label className="text-xs sm:text-sm text-gray-500 uppercase">Check In </Label>
                       <p className="text-sm sm:text-base font-medium text-gray-900 break-words">{data.booking_checkin_dateandtime}</p>
                     </div>
                   </div>
@@ -241,10 +242,13 @@ function ViewBookingSummary({ getBookingSummary, bookingData }) {
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium text-gray-700">Room Total:</span>
                         <span className="font-semibold text-[#113f67]">
-                          ₱{room.charges.reduce((total, charge) => total + parseFloat(charge.total || 0), 0).toLocaleString('en-PH', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
+                          ₱{(room.charges || [])
+                            .filter((charge) => String(charge.charges_status_name || '').toLowerCase() !== 'paid')
+                            .reduce((total, charge) => total + parseFloat(charge.total || 0), 0)
+                            .toLocaleString('en-PH', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
                         </span>
                       </div>
                     </div>

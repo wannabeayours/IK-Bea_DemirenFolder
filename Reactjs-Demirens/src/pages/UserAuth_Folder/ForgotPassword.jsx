@@ -12,25 +12,6 @@ const ForgotPassword = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // SHA-256 hashing utility
-  const sha256Hex = async (text) => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
-
-  // Generate alphanumeric OTP (6 characters)
-  const generateOTP = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let otp = '';
-    for (let i = 0; i < 6; i++) {
-      otp += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return otp;
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -47,31 +28,18 @@ const ForgotPassword = () => {
     setLoading(true);
     
     try {
-      // Generate OTP on frontend
-      const otp_code = generateOTP();
-      
-      // Hash the OTP using SHA-256
-      const otpHash = await sha256Hex(otp_code);
-      
-      // Store OTP hash, email, and expiry in sessionStorage (5 minutes)
-      const expiry = new Date().getTime() + (5 * 60 * 1000);
-      sessionStorage.setItem('customer_forgot_otp_hash', otpHash);
-      sessionStorage.setItem('customer_forgot_email', email);
-      sessionStorage.setItem('customer_forgot_otp_expiry', expiry.toString());
-      
-      // Send plaintext OTP to backend for email
       const url = localStorage.getItem("url") + "customer.php";
       const otpForm = new FormData();
-      otpForm.append("operation", "sendCustomerForgotPasswordOTP");
-      otpForm.append("json", JSON.stringify({ 
-        email: email,
-        otp_code: otp_code 
-      }));
+      otpForm.append("operation", "checkAndSendOTP");
+      otpForm.append("json", JSON.stringify({ guest_email: email }));
+      
+      console.log("Sending OTP for password reset:", { email });
       
       const res = await axios.post(url, otpForm);
       
       if (res.data?.success) {
         toast.success("OTP sent to your email! Please check your inbox.");
+        // Navigate to reset password page with email
         navigate("/reset-password", { state: { email: email } });
       } else {
         toast.error(res.data?.message || "Failed to send OTP. Please try again.");
@@ -133,7 +101,7 @@ const ForgotPassword = () => {
             {/* Send OTP Button */}
             <Button
               type="submit"
-              className="w-full bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-2 rounded-lg shadow"
+              className="w-full bg-[#769FCD] hover:bg-[#5578a6] text-white font-semibold py-2 rounded-lg shadow"
               disabled={loading}
             >
               {loading ? "Sending OTP..." : "Send OTP"}

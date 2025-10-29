@@ -104,13 +104,13 @@ function CustomerBookingSummary() {
                           </div>
                           <span className="text-right text-gray-800 font-medium break-words">{element.guests_amnt}</span>
                         </div> */}
-                        {/* <div className="flex items-center justify-between text-sm sm:text-base pt-2 border-t border-gray-100">
+                        <div className="flex items-center justify-between text-sm sm:text-base pt-2 border-t border-gray-100">
                           <div className="flex items-center gap-2">
 
                             <Label className="font-medium text-gray-700">Total:</Label>
                           </div>
-                          <span className="text-right font-bold text-[#113f67] text-base sm:text-lg">  ₱{Number(element.booking_totalAmount).toFixed(2)}</span>
-                        </div> */}
+                          <span className="text-right font-bold text-[#113f67] text-base sm:text-lg">  ₱{Number(element.unpaidBookingCharges).toFixed(2)}</span>
+                        </div>
                         <ViewBookingSummary getBookingSummary={getBookingSummary} bookingData={element} />
 
                       </div>

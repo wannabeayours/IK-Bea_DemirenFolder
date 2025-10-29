@@ -188,33 +188,57 @@ function Sidebar({ onCollapse }) {
 
 
   // Render navigation links
-  const renderNavigationLinks = useCallback(() => (
+  const renderNavigationLinks = useCallback(() => {
+    const currentPath = location.pathname;
+    
+    return (
     <>
       {/* Main Links */}
-      {mainLinks.map((item, index) => (
-        <Link to={item.path} key={index} className="block w-full" onClick={saveScrollPosition}>
-          <Button variant="ghost" className="w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white">
-            {item.icon}
-            {item.label}
-          </Button>
-        </Link>
-      ))}
-
-      {/* Admin-only Links */}
-      {(localStorage.getItem("userLevel") || "").toLowerCase() === "admin" && (
-        adminOnlyLinks.map((item, index) => (
-          <Link to={item.path} key={`admin-${index}`} className="block w-full" onClick={saveScrollPosition}>
-            <Button variant="ghost" className="w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white">
+      {mainLinks.map((item, index) => {
+        const isActive = currentPath === item.path;
+        return (
+          <Link to={item.path} key={index} className="block w-full" onClick={saveScrollPosition}>
+            <Button 
+              variant="ghost" 
+              className={`w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white ${
+                isActive ? 'bg-white/20 border-l-2 border-white' : ''
+              }`}
+            >
               {item.icon}
               {item.label}
             </Button>
           </Link>
-        ))
+        );
+      })}
+
+      {/* Admin-only Links */}
+      {(localStorage.getItem("userLevel") || "").toLowerCase() === "admin" && (
+        adminOnlyLinks.map((item, index) => {
+          const isActive = currentPath === item.path;
+          return (
+            <Link to={item.path} key={`admin-${index}`} className="block w-full" onClick={saveScrollPosition}>
+              <Button 
+                variant="ghost" 
+                className={`w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white ${
+                  isActive ? 'bg-white/20 border-l-2 border-white' : ''
+                }`}
+              >
+                {item.icon}
+                {item.label}
+              </Button>
+            </Link>
+          );
+        })
       )}
 
       {/* Add Walk-In */}
       <Link to="/admin/choose-rooms" className="block w-full" onClick={saveScrollPosition}>
-        <Button variant="ghost" className="w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white">
+        <Button 
+          variant="ghost" 
+          className={`w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white ${
+            currentPath === '/admin/choose-rooms' ? 'bg-white/20 border-l-2 border-white' : ''
+          }`}
+        >
           <NotebookPen className="w-4 h-4" />
           Add Walk In
         </Button>
@@ -255,14 +279,22 @@ function Sidebar({ onCollapse }) {
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="pl-4 space-y-2 mt-1">
-          {paymentLinks.map((item, index) => (
-            <Link to={item.path} key={index} className="block w-full" onClick={saveScrollPosition}>
-              <Button variant="ghost" className="w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white">
-                {item.icon}
-                {item.label}
-              </Button>
-            </Link>
-          ))}
+          {paymentLinks.map((item, index) => {
+            const isActive = currentPath === item.path;
+            return (
+              <Link to={item.path} key={index} className="block w-full" onClick={saveScrollPosition}>
+                <Button 
+                  variant="ghost" 
+                  className={`w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white ${
+                    isActive ? 'bg-white/20 border-l-2 border-white' : ''
+                  }`}
+                >
+                  {item.icon}
+                  {item.label}
+                </Button>
+              </Link>
+            );
+          })}
         </CollapsibleContent>
       </Collapsible>
 
@@ -304,19 +336,28 @@ function Sidebar({ onCollapse }) {
           </CollapsibleTrigger>
 
           <CollapsibleContent className="pl-4 space-y-2 mt-1">
-            {masterLinks.map((item, index) => (
-              <Link to={item.path} key={index} className="block w-full" onClick={saveScrollPosition}>
-                <Button variant="ghost" className="w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white">
-                  {item.icon}
-                  {item.label}
-                </Button>
-              </Link>
-            ))}
+            {masterLinks.map((item, index) => {
+              const isActive = currentPath === item.path;
+              return (
+                <Link to={item.path} key={index} className="block w-full" onClick={saveScrollPosition}>
+                  <Button 
+                    variant="ghost" 
+                    className={`w-full justify-start gap-2 text-white hover:bg-white/10 hover:text-white ${
+                      isActive ? 'bg-white/20 border-l-2 border-white' : ''
+                    }`}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </Button>
+                </Link>
+              );
+            })}
           </CollapsibleContent>
         </Collapsible>
       )}
     </>
-  ), [openBookings, openPayments, openMasters, saveScrollPosition])
+    );
+  }, [openBookings, openPayments, openMasters, saveScrollPosition, location])
 
   // Mobile sidebar (Sheet)
   const MobileSidebar = useCallback(() => (

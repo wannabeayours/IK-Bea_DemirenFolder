@@ -109,19 +109,37 @@ function AdminBookingList() {
   // State to store amenities data for all bookings
   const [allBookingCharges, setAllBookingCharges] = useState({});
   
-  // Prefer API-computed charges total (rooms + approved amenities). Fallback to base + amenities.
+  // Use booking_totalAmount directly from tbl_booking if available, otherwise use calculated total
   const finalTotalAmount = useMemo(() => {
+    // Prioritize booking_totalAmount directly from tbl_booking
+    if (selectedBooking?.booking_totalAmount !== undefined) {
+      return parseFloat(selectedBooking.booking_totalAmount) || 0;
+    }
+    // Fallback to API-computed charges total if available
     if (bookingChargesTotal != null) {
       return bookingChargesTotal;
     }
-    const baseBookingTotal = parseFloat(selectedBooking?.total_amount ?? selectedBooking?.booking_totalAmount ?? 0) || 0;
+    // Fallback to calculated total
+    const baseBookingTotal = parseFloat(selectedBooking?.total_amount ?? 0) || 0;
     const amenitiesTotal = (bookingAmenitiesTotal != null) ? bookingAmenitiesTotal : 0;
     return baseBookingTotal + amenitiesTotal;
   }, [selectedBooking, bookingAmenitiesTotal, bookingChargesTotal]);
 
-  // Helper function to calculate correct balance for any booking including amenities
+  // Helper function to calculate correct balance for any booking
   const calculateBookingBalance = useCallback((booking) => {
-    const baseTotal = parseFloat(booking.total_amount || booking.booking_totalAmount || 0) || 0;
+    // Use booking_totalAmount and booking_payment directly from tbl_booking if available
+    if (booking.booking_totalAmount !== undefined || booking.booking_payment !== undefined) {
+      const total = parseFloat(booking.booking_totalAmount || 0) || 0;
+      const payment = parseFloat(booking.booking_payment || 0) || 0;
+      const baseBalance = Math.max(total - payment, 0);
+      
+      // Add charges from tbl_booking_charges
+      const chargesTotal = parseFloat(booking.booking_charges_total_sum || 0) || 0;
+      return baseBalance + chargesTotal;
+    }
+    
+    // Fallback to previous calculation if booking_totalAmount/booking_payment not available
+    const baseTotal = parseFloat(booking.total_amount || 0) || 0;
     const bookingCharges = allBookingCharges[booking.booking_id];
     const amenitiesTotal = bookingCharges?.amenitiesTotal || 0;
     const finalTotal = baseTotal + amenitiesTotal;
@@ -399,7 +417,6 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
       // Ensure we always set an array, even if the response is unexpected
       if (Array.isArray(res.data)) {
         setBookings(res.data);
-        console.log('Enhanced bookings loaded:', res.data);
       } else if (res.data === 0 || res.data === null || res.data === undefined) {
         setBookings([]);
       } else {
@@ -726,6 +743,17 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
 
   // Payment validation function
   const checkRemainingBalance = (booking) => {
+    // Use booking_totalAmount and booking_payment directly from tbl_booking if available
+    if (booking?.booking_totalAmount !== undefined || booking?.booking_payment !== undefined) {
+      const total = parseFloat(booking.booking_totalAmount || 0) || 0;
+      const payment = parseFloat(booking.booking_payment || 0) || 0;
+      const baseBalance = Math.max(total - payment, 0);
+      
+      // Add charges from tbl_booking_charges
+      const chargesTotal = parseFloat(booking.booking_charges_total_sum || 0) || 0;
+      return baseBalance + chargesTotal;
+    }
+    
     // If we're checking the currently selected booking and have up-to-date billing data,
     // compute remaining using the UI's source of truth (finalTotalAmount - sum of bill payments).
     if (selectedBooking && booking?.booking_id === selectedBooking.booking_id) {
@@ -2117,12 +2145,21 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
                               {(() => {
-                                // Show total including amenities
-                                const baseTotal = parseFloat(b.total_amount || 0) || 0;
-                                const bookingCharges = allBookingCharges[b.booking_id];
-                                const amenitiesTotal = bookingCharges?.amenitiesTotal || 0;
-                                const finalTotal = baseTotal + amenitiesTotal;
-                                return `Total: ${NumberFormatter.formatCurrency(finalTotal)}`;
+                                // Calculate total: (booking_totalAmount - booking_payment) + charges from tbl_booking_charges
+                                if (b.booking_totalAmount !== undefined && b.booking_totalAmount !== null &&
+                                    b.booking_payment !== undefined && b.booking_payment !== null) {
+                                  const total = parseFloat(b.booking_totalAmount) || 0;
+                                  const payment = parseFloat(b.booking_payment) || 0;
+                                  const baseBalance = Math.max(total - payment, 0);
+                                  const chargesTotal = parseFloat(b.booking_charges_total_sum || 0) || 0;
+                                  const finalTotal = baseBalance + chargesTotal;
+                                  return `Total: ${NumberFormatter.formatCurrency(finalTotal)}`;
+                                }
+                                // Fallback to using total_amount or booking_totalAmount
+                                const total = (b.booking_totalAmount !== undefined && b.booking_totalAmount !== null)
+                                  ? parseFloat(b.booking_totalAmount) || 0
+                                  : parseFloat(b.total_amount || 0) || 0;
+                                return `Total: ${NumberFormatter.formatCurrency(total)}`;
                               })()}
                             </div>
                           </div>

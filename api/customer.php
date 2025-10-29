@@ -472,7 +472,7 @@ class Demiren_customer
                     // $totalCharges = $room["extraGuestCharges"] * 420;
                     $totalCharges = $numberOfNights * $extraGuestPrice;
                     $sql = "INSERT INTO tbl_booking_charges(charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, booking_charges_total, booking_charge_status, booking_charge_datetime)
-                    VALUES (12, :booking_room_id, :extraGuestPrice, :booking_charges_quantity, :booking_charges_total, 2, :now)";
+                    VALUES (12, :booking_room_id, :extraGuestPrice, :booking_charges_quantity, :booking_charges_total, 5, :now)";
                     $stmt = $conn->prepare($sql);
                     $stmt->bindParam(":now", $now);
                     $stmt->bindParam(":booking_room_id", $bookingRoomId);
@@ -572,6 +572,7 @@ class Demiren_customer
                                     <div class="summary-card">
                                         <div class="summary-item"><span class="label">Check-in:</span><span>' . $checkInFmt . '</span></div>
                                         <div class="summary-item"><span class="label">Check-out:</span><span>' . $checkOutFmt . '</span></div>
+                                        <div class="summary-item"><span class="label">Room Number:</span><span>' . $selectedRoomNumberId . '</span></div>
                                         <div class="summary-item"><span class="label">Nights:</span><span>' . $nights . '</span></div>
                                          <div class="summary-item"><span class="label">Payment Method:</span><span>' . $paymentMethodName . '</span></div>
                                         <div class="summary-item"><span class="label">Total Amount:</span><span>₱' . $totalAmountFmt . '</span></div>
@@ -1277,7 +1278,7 @@ class Demiren_customer
                     // $totalCharges = $room["extraGuestCharges"] * 420;
                     $totalCharges = $numberOfNights * $extraGuestPrice;
                     $sql = "INSERT INTO tbl_booking_charges(charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, booking_charges_total, booking_charge_status, booking_charge_datetime)
-                    VALUES (12, :booking_room_id, :extraGuestPrice, :booking_charges_quantity, :booking_charges_total, 2, :now)";
+                    VALUES (12, :booking_room_id, :extraGuestPrice, :booking_charges_quantity, :booking_charges_total, 5, :now)";
                     $stmt = $conn->prepare($sql);
                     $stmt->bindParam(":booking_room_id", $bookingRoomId);
                     $stmt->bindParam(":booking_charges_quantity", $numberOfNights);
@@ -1795,8 +1796,7 @@ class Demiren_customer
         $bookingCustomerId = $json['booking_customer_id'] ?? 0;
         $today = date("Y-m-d H:i:s");
 
-        $sql = "
-        SELECT 
+        $sql = "SELECT 
             a.*, 
             b.*, 
             c.*, 
@@ -1810,7 +1810,12 @@ class Demiren_customer
             h.charges_category_id,
             h.charges_category_name,
             IFNULL(i.charges_status_name, 'Pending') AS charges_status_name,
-            IFNULL(f.booking_charge_status, 1) AS booking_charge_status
+            IFNULL(f.booking_charge_status, 1) AS booking_charge_status,
+            lb.billing_id AS latest_billing_id,
+            lb.billing_total_amount AS billing_total_amount,
+            lb.billing_balance AS billing_balance,
+            lb.billing_downpayment AS billing_downpayment,
+            lb.payment_method_id AS billing_payment_method_id
         FROM tbl_booking a
         INNER JOIN tbl_booking_room b 
             ON b.booking_id = a.booking_id
@@ -1838,10 +1843,19 @@ class Demiren_customer
             AND bh1.updated_at = bh2.latest_update
         ) j 
             ON j.booking_id = a.booking_id
+        LEFT JOIN (
+            SELECT b1.billing_id, b1.booking_id, b1.billing_total_amount, b1.billing_balance, b1.billing_downpayment, b1.payment_method_id
+            FROM tbl_billing b1
+            INNER JOIN (
+                SELECT booking_id, MAX(billing_id) AS latest_billing_id
+                FROM tbl_billing
+                GROUP BY booking_id
+            ) latest ON latest.booking_id = b1.booking_id AND latest.latest_billing_id = b1.billing_id
+        ) lb ON lb.booking_id = a.booking_id
         WHERE a.customers_id = :bookingCustomerId
         AND j.status_id = 5
         ORDER BY a.booking_created_at DESC;
-    ";
+     ";
 
         $stmt = $conn->prepare($sql);
         $stmt->bindParam(':bookingCustomerId', $bookingCustomerId);
@@ -1869,7 +1883,14 @@ class Demiren_customer
                     "chargesTotal" => 0,
                     "roomsTotal" => 0,
                     "booking_totalAmount" => $row['booking_totalAmount'],
-                    "roomsList" => []
+                    "roomsList" => [],
+                    "billing" => [
+                        "billing_id" => $row['latest_billing_id'] ?? null,
+                        "total_amount" => isset($row['billing_total_amount']) ? (float)$row['billing_total_amount'] : 0.0,
+                        "balance" => isset($row['billing_balance']) ? (float)$row['billing_balance'] : 0.0,
+                        "downpayment" => isset($row['billing_downpayment']) ? (float)$row['billing_downpayment'] : 0.0,
+                        "payment_method_id" => $row['billing_payment_method_id'] ?? null
+                    ]
                 ];
             }
 
@@ -1928,6 +1949,100 @@ class Demiren_customer
                 unset($room['charges_raw']);
             }
             $booking['roomsList'] = array_values($booking['roomsList']);
+        }
+
+        // Compute per-booking sum of all ordered charges that have been billed
+        // "Ordered" here means booking_charge_status IN (1,2) i.e., Pending or Delivered
+        try {
+            $sumStmt = $conn->prepare("
+                SELECT 
+                    b.booking_id,
+                    COALESCE(SUM(bc.booking_charges_total), 0) AS ordered_total
+                FROM tbl_billing bl
+                INNER JOIN tbl_booking b ON bl.booking_id = b.booking_id
+                INNER JOIN tbl_booking_room br ON br.booking_id = b.booking_id
+                INNER JOIN tbl_booking_charges bc ON bc.booking_room_id = br.booking_room_id
+                WHERE b.customers_id = :bookingCustomerId
+                GROUP BY b.booking_id
+            ");
+            $sumStmt->bindParam(':bookingCustomerId', $bookingCustomerId, PDO::PARAM_INT);
+            $sumStmt->execute();
+            $sumRows = $sumStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Recompute using a stricter filter to match getBookingSummary (latest status_id = 5)
+            // and still only include bookings that have a billing entry
+            $sumStmt2 = $conn->prepare("\n                SELECT \n                    b.booking_id,\n                    COALESCE(SUM(bc.booking_charges_total), 0) AS ordered_total\n                FROM tbl_booking b\n                INNER JOIN (\n                    SELECT bh1.booking_id\n                    FROM tbl_booking_history bh1\n                    INNER JOIN (\n                        SELECT booking_id, MAX(updated_at) AS latest_update\n                        FROM tbl_booking_history\n                        GROUP BY booking_id\n                    ) bh2 ON bh1.booking_id = bh2.booking_id AND bh1.updated_at = bh2.latest_update\n                    WHERE bh1.status_id = 5\n                ) latest ON latest.booking_id = b.booking_id\n                INNER JOIN tbl_billing bl ON bl.booking_id = b.booking_id\n                INNER JOIN tbl_booking_room br ON br.booking_id = b.booking_id\n                INNER JOIN tbl_booking_charges bc ON bc.booking_room_id = br.booking_room_id\n                WHERE b.customers_id = :bookingCustomerId\n                  AND bc.booking_charge_status IN (1,2)\n                GROUP BY b.booking_id\n            ");
+            $sumStmt2->bindParam(':bookingCustomerId', $bookingCustomerId, PDO::PARAM_INT);
+            $sumStmt2->execute();
+            $sumRows = $sumStmt2->fetchAll(PDO::FETCH_ASSOC);
+            $sumMap = [];
+            foreach ($sumRows as $sr) {
+                $sumMap[$sr['booking_id']] = floatval($sr['ordered_total']);
+            }
+            foreach ($bookings as &$booking) {
+                $bid = $booking['booking_id'];
+                $booking['orderedChargesTotal'] = isset($sumMap[$bid]) ? $sumMap[$bid] : 0.0;
+            }
+            unset($booking);
+        } catch (Exception $e) {
+            // If aggregation fails, keep the field at 0 to avoid breaking consumers
+            foreach ($bookings as &$booking) {
+                if (!isset($booking['orderedChargesTotal'])) {
+                    $booking['orderedChargesTotal'] = 0.0;
+                }
+            }
+            unset($booking);
+        }
+
+        // Compute per-booking sum of all amenity charges (from tbl_booking_charges)
+        // Use price * quantity to avoid relying on potentially stale booking_charges_total
+        // Excludes cancelled charges (status_id = 3); aligns with latest status_id = 5 filter
+        try {
+            $amenSumStmt = $conn->prepare("\n                SELECT \n                    b.booking_id,\n                    COALESCE(SUM(bc.booking_charges_price * bc.booking_charges_quantity), 0) AS amenities_total\n                FROM tbl_booking b\n                INNER JOIN (\n                    SELECT bh1.booking_id\n                    FROM tbl_booking_history bh1\n                    INNER JOIN (\n                        SELECT booking_id, MAX(updated_at) AS latest_update\n                        FROM tbl_booking_history\n                        GROUP BY booking_id\n                    ) bh2 ON bh1.booking_id = bh2.booking_id AND bh1.updated_at = bh2.latest_update\n                    WHERE bh1.status_id = 5\n                ) latest ON latest.booking_id = b.booking_id\n                INNER JOIN tbl_booking_room br ON br.booking_id = b.booking_id\n                INNER JOIN tbl_booking_charges bc ON bc.booking_room_id = br.booking_room_id\n                WHERE b.customers_id = :bookingCustomerId\n                GROUP BY b.booking_id\n            ");
+            $amenSumStmt->bindParam(':bookingCustomerId', $bookingCustomerId, PDO::PARAM_INT);
+            $amenSumStmt->execute();
+            $amenRows = $amenSumStmt->fetchAll(PDO::FETCH_ASSOC);
+            $amenMap = [];
+            foreach ($amenRows as $ar) {
+                $amenMap[$ar['booking_id']] = floatval($ar['amenities_total']);
+            }
+            foreach ($bookings as &$booking) {
+                $bid = $booking['booking_id'];
+                $booking['amenitiesChargesTotal'] = isset($amenMap[$bid]) ? $amenMap[$bid] : 0.0;
+            }
+            unset($booking);
+        } catch (Exception $e) {
+            foreach ($bookings as &$booking) {
+                if (!isset($booking['amenitiesChargesTotal'])) {
+                    $booking['amenitiesChargesTotal'] = 0.0;
+                }
+            }
+            unset($booking);
+        }
+
+        // Compute per-booking sum of all UNPAID amenity charges
+        // Paid status is 4; we count statuses 1 (Pending) and 2 (Delivered), and exclude cancelled (3)
+        try {
+            $unpaidStmt = $conn->prepare("\n                SELECT \n                    b.booking_id,\n                    COALESCE(SUM(bc.booking_charges_total), 0) AS unpaid_total\n                FROM tbl_booking b\n                INNER JOIN (\n                    SELECT bh1.booking_id\n                    FROM tbl_booking_history bh1\n                    INNER JOIN (\n                        SELECT booking_id, MAX(updated_at) AS latest_update\n                        FROM tbl_booking_history\n                        GROUP BY booking_id\n                    ) bh2 ON bh1.booking_id = bh2.booking_id AND bh1.updated_at = bh2.latest_update\n                    WHERE bh1.status_id = 5\n                ) latest ON latest.booking_id = b.booking_id\n                INNER JOIN tbl_booking_room br ON br.booking_id = b.booking_id\n                INNER JOIN tbl_booking_charges bc ON bc.booking_room_id = br.booking_room_id\n                WHERE b.customers_id = :bookingCustomerId\n                  AND bc.booking_charge_status IN (1,2)\n                GROUP BY b.booking_id\n            ");
+            $unpaidStmt->bindParam(':bookingCustomerId', $bookingCustomerId, PDO::PARAM_INT);
+            $unpaidStmt->execute();
+            $unpaidRows = $unpaidStmt->fetchAll(PDO::FETCH_ASSOC);
+            $unpaidMap = [];
+            foreach ($unpaidRows as $ur) {
+                $unpaidMap[$ur['booking_id']] = floatval($ur['unpaid_total']);
+            }
+            foreach ($bookings as &$booking) {
+                $bid = $booking['booking_id'];
+                $booking['unpaidBookingCharges'] = isset($unpaidMap[$bid]) ? $unpaidMap[$bid] : 0.0;
+            }
+            unset($booking);
+        } catch (Exception $e) {
+            foreach ($bookings as &$booking) {
+                if (!isset($booking['unpaidBookingCharges'])) {
+                    $booking['unpaidBookingCharges'] = 0.0;
+                }
+            }
+            unset($booking);
         }
 
         return array_values($bookings);
@@ -2600,6 +2715,15 @@ class Demiren_customer
             echo json_encode(['success' => false, 'message' => 'Error resetting password']);
         }
     }
+
+    function getAllRoomAmenities()
+    {
+        include "connection.php";
+        $sql = "SELECT * FROM tbl_room_amenities_master";
+        $stmt = $conn->prepare($sql);
+        $stmt->execute();
+        return $stmt->rowCount() > 0 ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+    }
 } //customer
 
 function recordExists($value, $table, $column)
@@ -2807,6 +2931,9 @@ switch ($operation) {
         break;
     case "sendPasswordChangeOTP":
         echo $demiren_customer->sendPasswordChangeOTP($json);
+        break;
+    case "getAllRoomAmenities":
+        echo json_encode($demiren_customer->getAllRoomAmenities());
         break;
     default:
         echo json_encode(["error" => "Invalid operation"]);

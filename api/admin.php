@@ -23,7 +23,9 @@ class Admin_Functions
             $discounts_id = isset($data['discounts_id']) && $data['discounts_id'] !== '' ? intval($data['discounts_id']) : null;
 
             if ($booking_id <= 0 || empty($room_numbers_str)) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Missing or invalid parameters']);
                 return;
             }
@@ -37,15 +39,21 @@ class Admin_Functions
             $brRows = $brStmt->fetchAll(PDO::FETCH_ASSOC);
             if (!$brRows || count($brRows) === 0) {
                 $conn->rollBack();
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'No booking rooms found']);
                 return;
             }
 
-            $newRooms = array_values(array_filter(array_map('trim', explode(',', $room_numbers_str)), function($x){ return $x !== ''; }));
+            $newRooms = array_values(array_filter(array_map('trim', explode(',', $room_numbers_str)), function ($x) {
+                return $x !== '';
+            }));
             if (count($newRooms) !== count($brRows)) {
                 $conn->rollBack();
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Room count mismatch']);
                 return;
             }
@@ -60,7 +68,9 @@ class Admin_Functions
                 $roomRow = $chkRoom->fetch(PDO::FETCH_ASSOC);
                 if (!$roomRow) {
                     $conn->rollBack();
-                    if (ob_get_length()) { ob_clean(); }
+                    if (ob_get_length()) {
+                        ob_clean();
+                    }
                     echo json_encode(['success' => false, 'message' => 'Room ' . $rn . ' not found']);
                     return;
                 }
@@ -126,11 +136,17 @@ class Admin_Functions
             $insHist->execute();
 
             $conn->commit();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => true, 'booking_id' => $booking_id, 'room_numbers' => $newRooms]);
         } catch (Exception $e) {
-            if (isset($conn) && $conn->inTransaction()) { $conn->rollBack(); }
-            if (ob_get_length()) { ob_clean(); }
+            if (isset($conn) && $conn->inTransaction()) {
+                $conn->rollBack();
+            }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -141,7 +157,9 @@ class Admin_Functions
             $id = $_POST['visitorlogs_id'] ?? null;
             $statusId = $_POST['visitorapproval_id'] ?? null;
             if (!$id || !$statusId) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 return json_encode(['response' => false, 'success' => false, 'message' => 'Missing parameters']);
             }
 
@@ -151,10 +169,14 @@ class Admin_Functions
             $stmt->bindParam(':id', $id);
             $ok = $stmt->execute();
 
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             return json_encode(['response' => $ok === true, 'success' => $ok === true]);
         } catch (PDOException $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             return json_encode(['response' => false, 'success' => false, 'message' => 'Database error']);
         }
     }
@@ -247,35 +269,41 @@ class Admin_Functions
             // Create billing record referenced to the original booking (always create; VAT = 0 for extensions)
             $billing_id = null;
             $insertBilling = $conn->prepare("INSERT INTO tbl_billing (booking_id, employee_id, payment_method_id, billing_dateandtime, billing_invoice_number, billing_downpayment, billing_vat, billing_total_amount, billing_balance) VALUES (:booking_id, :employee_id, :payment_method_id, NOW(), :invoice_number, :payment_amount, 0, :total_amount, :balance)");
-             // Generate grouped extension invoice number under original reference e.g., REF1234567890-EXT001
-             $baseRef = $originalBooking['reference_no'] ?? null;
-             if (!$baseRef) { $baseRef = 'REF' . date('YmdHis'); }
-             $countStmt = $conn->prepare("SELECT COUNT(*) AS ext_count FROM tbl_billing WHERE booking_id = :booking_id AND billing_invoice_number LIKE :like_pattern");
-             $likePattern = $baseRef . '-EXT%';
-             $countStmt->bindParam(':booking_id', $booking_id);
-             $countStmt->bindParam(':like_pattern', $likePattern);
-             $countStmt->execute();
-             $extCountRow = $countStmt->fetch(PDO::FETCH_ASSOC);
-             $sequence = intval($extCountRow['ext_count'] ?? 0) + 1;
-             $invoice_number = $baseRef . '-EXT' . str_pad($sequence, 3, '0', STR_PAD_LEFT);
+            // Generate grouped extension invoice number under original reference e.g., REF1234567890-EXT001
+            $baseRef = $originalBooking['reference_no'] ?? null;
+            if (!$baseRef) {
+                $baseRef = 'REF' . date('YmdHis');
+            }
+            $countStmt = $conn->prepare("SELECT COUNT(*) AS ext_count FROM tbl_billing WHERE booking_id = :booking_id AND billing_invoice_number LIKE :like_pattern");
+            $likePattern = $baseRef . '-EXT%';
+            $countStmt->bindParam(':booking_id', $booking_id);
+            $countStmt->bindParam(':like_pattern', $likePattern);
+            $countStmt->execute();
+            $extCountRow = $countStmt->fetch(PDO::FETCH_ASSOC);
+            $sequence = intval($extCountRow['ext_count'] ?? 0) + 1;
+            $invoice_number = $baseRef . '-EXT' . str_pad($sequence, 3, '0', STR_PAD_LEFT);
 
-             $balance = $additional_amount - $payment_amount;
-             if ($balance < 0) { $balance = 0; }
-             $insertBilling->execute([
-                 ':booking_id' => $booking_id,
-                 ':employee_id' => $employee_id,
-                 ':payment_method_id' => $payment_method_id,
-                 ':invoice_number' => $invoice_number,
-                 ':payment_amount' => $payment_amount,
-                 ':total_amount' => $additional_amount,
-                 ':balance' => $balance
-             ]);
-             $billing_id = $conn->lastInsertId();
+            $balance = $additional_amount - $payment_amount;
+            if ($balance < 0) {
+                $balance = 0;
+            }
+            $insertBilling->execute([
+                ':booking_id' => $booking_id,
+                ':employee_id' => $employee_id,
+                ':payment_method_id' => $payment_method_id,
+                ':invoice_number' => $invoice_number,
+                ':payment_amount' => $payment_amount,
+                ':total_amount' => $additional_amount,
+                ':balance' => $balance
+            ]);
+            $billing_id = $conn->lastInsertId();
 
             $conn->commit();
 
             // Clean output buffer to avoid warnings mixing with JSON
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([
                 "success" => true,
                 "message" => "Single-room booking extended: checkout updated and billing recorded",
@@ -290,7 +318,9 @@ class Admin_Functions
             ]);
         } catch (Exception $e) {
             $conn->rollBack();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([
                 "success" => false,
                 "error" => $e->getMessage()
@@ -335,13 +365,17 @@ class Admin_Functions
             foreach ($selected_rooms as $room) {
                 $room_id = intval($room['room_id'] ?? 0);
                 $price_per_night = floatval($room['price_per_night'] ?? 0);
-                if ($room_id <= 0 || $price_per_night <= 0) { continue; }
+                if ($room_id <= 0 || $price_per_night <= 0) {
+                    continue;
+                }
 
                 // Find booking_room row for this room number
                 $getBookingRoom = $conn->prepare("SELECT booking_room_id FROM tbl_booking_room WHERE booking_id = :booking_id AND roomnumber_id = :room_id LIMIT 1");
                 $getBookingRoom->execute([':booking_id' => $booking_id, ':room_id' => $room_id]);
                 $bookingRoom = $getBookingRoom->fetch(PDO::FETCH_ASSOC);
-                if (!$bookingRoom) { continue; }
+                if (!$bookingRoom) {
+                    continue;
+                }
 
                 // Ensure charges master exists for Room Extended Stay (schema without status column)
                 $checkChargesMaster = $conn->prepare("SELECT charges_master_id FROM tbl_charges_master WHERE charges_master_name = 'Room Extended Stay' LIMIT 1");
@@ -387,7 +421,9 @@ class Admin_Functions
             $invoice_number = $baseRef . '-EXT' . str_pad($sequence, 3, '0', STR_PAD_LEFT);
 
             $balance = $additional_amount - $payment_amount;
-            if ($balance < 0) { $balance = 0; }
+            if ($balance < 0) {
+                $balance = 0;
+            }
             $insertBilling->execute([
                 ':booking_id' => $booking_id,
                 ':employee_id' => $employee_id,
@@ -400,7 +436,9 @@ class Admin_Functions
             $billing_id = $conn->lastInsertId();
 
             $conn->commit();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([
                 'success' => true,
                 'message' => 'Multi-room booking extended and billed',
@@ -413,7 +451,9 @@ class Admin_Functions
             ]);
         } catch (Exception $e) {
             $conn->rollBack();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         }
     }
@@ -433,32 +473,42 @@ class Admin_Functions
         try {
             $stmt = $conn->prepare("SELECT visitorapproval_id, visitorapproval_status FROM tbl_visitorapproval ORDER BY visitorapproval_id ASC");
             $stmt->execute();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([]);
         }
     }
 
     // Visitor Logs: list all logs for admin UI
-    function getVisitorLogs() {
+    function getVisitorLogs()
+    {
         include "connection.php";
         try {
             $sql = "SELECT visitorlogs_id, visitorapproval_id, booking_room_id, employee_id, visitorlogs_visitorname, visitorlogs_purpose, visitorlogs_checkin_time, visitorlogs_checkout_time FROM tbl_visitorlogs ORDER BY visitorlogs_id DESC";
             $stmt = $conn->prepare($sql);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($rows);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([]);
         }
     }
 
     // Employee management: list all employees with user level
-    function viewEmployees() {
+    function viewEmployees()
+    {
         include "connection.php";
         try {
             $sql = "SELECT 
@@ -482,39 +532,51 @@ class Admin_Functions
             $stmt = $conn->prepare($sql);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['status' => 'success', 'data' => $rows]);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['status' => 'error', 'message' => 'Failed to fetch employees']);
         }
     }
 
     // Employee management: get user levels
-    function getUserLevels() {
+    function getUserLevels()
+    {
         include "connection.php";
         try {
             $stmt = $conn->prepare("SELECT userlevel_id, userlevel_name FROM tbl_user_level ORDER BY userlevel_id ASC");
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['status' => 'success', 'data' => $rows]);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['status' => 'error', 'message' => 'Failed to fetch user levels']);
         }
     }
 
     // Employee management: add employee
-    function addEmployee($json) {
+    function addEmployee($json)
+    {
         include "connection.php";
         try {
             $data = is_string($json) ? json_decode($json, true) : (is_array($json) ? $json : []);
-            $required = ['employee_fname','employee_lname','employee_username','employee_email','employee_phone','employee_address','employee_birthdate','employee_gender','employee_password'];
+            $required = ['employee_fname', 'employee_lname', 'employee_username', 'employee_email', 'employee_phone', 'employee_address', 'employee_birthdate', 'employee_gender', 'employee_password'];
             foreach ($required as $key) {
                 if (!isset($data[$key]) || trim($data[$key]) === '') {
-                    if (ob_get_length()) { ob_clean(); }
-                    echo json_encode(['status' => 'error', 'message' => 'Missing required field: '.$key]);
+                    if (ob_get_length()) {
+                        ob_clean();
+                    }
+                    echo json_encode(['status' => 'error', 'message' => 'Missing required field: ' . $key]);
                     return;
                 }
             }
@@ -525,7 +587,9 @@ class Admin_Functions
             $chk->bindParam(':e', $data['employee_email']);
             $chk->execute();
             if ($chk->fetch(PDO::FETCH_ASSOC)) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['status' => 'error', 'message' => 'Username or email already exists']);
                 return;
             }
@@ -556,22 +620,29 @@ class Admin_Functions
             $stmt->bindParam(':user_level', $user_level, PDO::PARAM_INT);
             $stmt->bindParam(':status', $status, PDO::PARAM_INT);
             $ok = $stmt->execute();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['status' => $ok ? 'success' : 'error', 'message' => $ok ? 'Employee added successfully' : 'Failed to add employee']);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['status' => 'error', 'message' => 'Database error']);
         }
     }
 
     // Employee management: update employee
-    function updateEmployee($json) {
+    function updateEmployee($json)
+    {
         include "connection.php";
         try {
             $data = is_string($json) ? json_decode($json, true) : (is_array($json) ? $json : []);
             $employee_id = intval($data['employee_id'] ?? 0);
             if ($employee_id <= 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['status' => 'error', 'message' => 'Invalid employee ID']);
                 return;
             }
@@ -579,11 +650,21 @@ class Admin_Functions
             $fields = [];
             $params = [':employee_id' => $employee_id];
             $map = [
-                'employee_fname','employee_lname','employee_username','employee_email','employee_phone',
-                'employee_address','employee_birthdate','employee_gender','employee_user_level_id'
+                'employee_fname',
+                'employee_lname',
+                'employee_username',
+                'employee_email',
+                'employee_phone',
+                'employee_address',
+                'employee_birthdate',
+                'employee_gender',
+                'employee_user_level_id'
             ];
             foreach ($map as $key) {
-                if (isset($data[$key])) { $fields[] = "$key = :$key"; $params[":$key"] = $data[$key]; }
+                if (isset($data[$key])) {
+                    $fields[] = "$key = :$key";
+                    $params[":$key"] = $data[$key];
+                }
             }
 
             if (isset($data['employee_password']) && trim($data['employee_password']) !== '') {
@@ -592,7 +673,9 @@ class Admin_Functions
             }
 
             if (empty($fields)) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['status' => 'error', 'message' => 'No fields to update']);
                 return;
             }
@@ -601,23 +684,30 @@ class Admin_Functions
             $sql = "UPDATE tbl_employee SET " . implode(', ', $fields) . " WHERE employee_id = :employee_id";
             $stmt = $conn->prepare($sql);
             $ok = $stmt->execute($params);
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['status' => $ok ? 'success' : 'error', 'message' => $ok ? 'Employee updated successfully' : 'Failed to update employee']);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['status' => 'error', 'message' => 'Database error']);
         }
     }
 
     // Employee management: toggle active/inactive
-    function changeEmployeeStatus($json) {
+    function changeEmployeeStatus($json)
+    {
         include "connection.php";
         try {
             $data = is_string($json) ? json_decode($json, true) : (is_array($json) ? $json : []);
             $employee_id = intval($data['employee_id'] ?? 0);
             $employee_status = isset($data['employee_status']) ? intval($data['employee_status']) : null;
             if ($employee_id <= 0 || $employee_status === null) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['status' => 'error', 'message' => 'Missing employee_id or employee_status']);
                 return;
             }
@@ -625,16 +715,21 @@ class Admin_Functions
             $stmt->bindParam(':status', $employee_status, PDO::PARAM_INT);
             $stmt->bindParam(':id', $employee_id, PDO::PARAM_INT);
             $ok = $stmt->execute();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['status' => $ok ? 'success' : 'error', 'message' => $ok ? 'Status updated successfully' : 'Failed to update status']);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['status' => 'error', 'message' => 'Database error']);
         }
     }
 
     // Visitor Logs: add a new visitor log entry (robust defaults)
-    function addVisitorLog() {
+    function addVisitorLog()
+    {
         include "connection.php";
         try {
             $name = isset($_POST['visitorlogs_visitorname']) ? trim($_POST['visitorlogs_visitorname']) : '';
@@ -669,7 +764,9 @@ class Admin_Functions
             }
 
             if ($name === '' || $purpose === '' || $booking_room_id <= 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'response' => false, 'message' => 'Missing required fields']);
                 return;
             }
@@ -697,21 +794,28 @@ class Admin_Functions
             $ok = $stmt->execute();
             $id = $conn->lastInsertId();
 
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => $ok === true, 'response' => $ok === true, 'visitorlogs_id' => $id]);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'response' => false, 'message' => 'Database error']);
         }
     }
 
     // Visitor Logs: update an existing visitor log entry
-    function updateVisitorLog() {
+    function updateVisitorLog()
+    {
         include "connection.php";
         try {
             $id = isset($_POST['visitorlogs_id']) ? intval($_POST['visitorlogs_id']) : 0;
             if ($id <= 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Invalid visitor log ID']);
                 return;
             }
@@ -724,16 +828,36 @@ class Admin_Functions
             $checkout = isset($_POST['visitorlogs_checkout_time']) ? trim($_POST['visitorlogs_checkout_time']) : null;
 
             $fields = [];
-            $params = [ ':id' => $id ];
-            if ($name !== null) { $fields[] = 'visitorlogs_visitorname = :name'; $params[':name'] = $name; }
-            if ($purpose !== null) { $fields[] = 'visitorlogs_purpose = :purpose'; $params[':purpose'] = $purpose; }
-            if ($statusId !== null) { $fields[] = 'visitorapproval_id = :statusId'; $params[':statusId'] = $statusId; }
-            if ($booking_room_id !== null && $booking_room_id > 0) { $fields[] = 'booking_room_id = :booking_room_id'; $params[':booking_room_id'] = $booking_room_id; }
-            if ($employee_id !== null) { $fields[] = 'employee_id = :employee_id'; $params[':employee_id'] = $employee_id; }
-            if ($checkout !== null && $checkout !== '') { $fields[] = 'visitorlogs_checkout_time = :checkout'; $params[':checkout'] = $checkout; }
+            $params = [':id' => $id];
+            if ($name !== null) {
+                $fields[] = 'visitorlogs_visitorname = :name';
+                $params[':name'] = $name;
+            }
+            if ($purpose !== null) {
+                $fields[] = 'visitorlogs_purpose = :purpose';
+                $params[':purpose'] = $purpose;
+            }
+            if ($statusId !== null) {
+                $fields[] = 'visitorapproval_id = :statusId';
+                $params[':statusId'] = $statusId;
+            }
+            if ($booking_room_id !== null && $booking_room_id > 0) {
+                $fields[] = 'booking_room_id = :booking_room_id';
+                $params[':booking_room_id'] = $booking_room_id;
+            }
+            if ($employee_id !== null) {
+                $fields[] = 'employee_id = :employee_id';
+                $params[':employee_id'] = $employee_id;
+            }
+            if ($checkout !== null && $checkout !== '') {
+                $fields[] = 'visitorlogs_checkout_time = :checkout';
+                $params[':checkout'] = $checkout;
+            }
 
             if (empty($fields)) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'No fields to update']);
                 return;
             }
@@ -741,11 +865,80 @@ class Admin_Functions
             $sql = "UPDATE tbl_visitorlogs SET " . implode(', ', $fields) . " WHERE visitorlogs_id = :id";
             $stmt = $conn->prepare($sql);
             $ok = $stmt->execute($params);
-            if (ob_get_length()) { ob_clean(); }
+
+            // Calculate and add Extra Guest charge if checkout_time was set
+            if ($checkout !== null && $checkout !== '' && $ok) {
+                // Get visitor log data including checkin_time, checkout_time, and booking_room_id
+                $getVisitorLog = $conn->prepare("SELECT visitorlogs_checkin_time, visitorlogs_checkout_time, booking_room_id FROM tbl_visitorlogs WHERE visitorlogs_id = :id");
+                $getVisitorLog->bindParam(':id', $id, PDO::PARAM_INT);
+                $getVisitorLog->execute();
+                $visitorData = $getVisitorLog->fetch(PDO::FETCH_ASSOC);
+
+                if ($visitorData && !empty($visitorData['visitorlogs_checkin_time']) && !empty($visitorData['visitorlogs_checkout_time']) && !empty($visitorData['booking_room_id'])) {
+                    $checkin_time = $visitorData['visitorlogs_checkin_time'];
+                    $checkout_time = $visitorData['visitorlogs_checkout_time']; // Get from database after update
+                    $booking_room_id = intval($visitorData['booking_room_id']);
+
+                    // Calculate hours difference
+                    $checkin_dt = new DateTime($checkin_time);
+                    $checkout_dt = new DateTime($checkout_time);
+                    $diff = $checkout_dt->diff($checkin_dt);
+                    $total_hours = ($diff->days * 24) + $diff->h + ($diff->i / 60) + ($diff->s / 3600);
+
+                    // Only charge if >= 6 hours
+                    if ($total_hours >= 6) {
+                        // Calculate number of 6-hour blocks: floor(hours / 6)
+                        $blocks = floor($total_hours / 6);
+                        $charge_total = $blocks * 420; // ₱420 per 6-hour block
+
+                        // Check if charge already exists for this visitor log (prevent duplicates)
+                        // We check by booking_room_id, charges_master_id = 12, and exact checkout time
+                        // This prevents the same checkout from being charged multiple times
+                        $checkExisting = $conn->prepare("
+                            SELECT booking_charges_id 
+                            FROM tbl_booking_charges 
+                            WHERE booking_room_id = :booking_room_id 
+                              AND charges_master_id = 12 
+                              AND booking_return_datetime = :checkout_time
+                              AND booking_charge_status = 2
+                            LIMIT 1
+                        ");
+                        $checkExisting->bindParam(':booking_room_id', $booking_room_id, PDO::PARAM_INT);
+                        $checkExisting->bindParam(':checkout_time', $checkout_time);
+                        $checkExisting->execute();
+
+                        // Only insert if charge doesn't exist
+                        if ($checkExisting->rowCount() == 0) {
+                            // Get price per hour from charges_master (420 / 6 = 70)
+                            $price_per_hour = 70;
+                            $quantity = $blocks * 6; // Number of hours charged
+
+                            // Insert Extra Guest charge into tbl_booking_charges
+                            $insertCharge = $conn->prepare("
+                                INSERT INTO tbl_booking_charges 
+                                (charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, booking_charges_total, booking_charge_status, booking_charge_datetime, booking_return_datetime) 
+                                VALUES (12, :booking_room_id, :price, :quantity, :total, 2, NOW(), :checkout_time)
+                            ");
+                            $insertCharge->bindParam(':booking_room_id', $booking_room_id, PDO::PARAM_INT);
+                            $insertCharge->bindParam(':price', $price_per_hour, PDO::PARAM_INT);
+                            $insertCharge->bindParam(':quantity', $quantity, PDO::PARAM_INT);
+                            $insertCharge->bindParam(':total', $charge_total, PDO::PARAM_INT);
+                            $insertCharge->bindParam(':checkout_time', $checkout_time);
+                            $insertCharge->execute();
+                        }
+                    }
+                }
+            }
+
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => $ok === true, 'response' => $ok === true]);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
-            echo json_encode(['success' => false, 'response' => false, 'message' => 'Database error']);
+            if (ob_get_length()) {
+                ob_clean();
+            }
+            echo json_encode(['success' => false, 'response' => false, 'message' => 'Database error: ' . $e->getMessage()]);
         }
     }
 
@@ -767,10 +960,14 @@ class Admin_Functions
             $room_floor = isset($_POST['room_floor']) ? intval($_POST['room_floor']) : 0;
             $room_numbers_json = isset($_POST['room_numbers']) ? $_POST['room_numbers'] : '[]';
             $numbers = json_decode($room_numbers_json, true);
-            if (!is_array($numbers)) { $numbers = []; }
+            if (!is_array($numbers)) {
+                $numbers = [];
+            }
 
             if ($roomtype_id <= 0 || count($numbers) === 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'error' => 'Invalid parameters']);
                 return;
             }
@@ -783,24 +980,37 @@ class Admin_Functions
             $duplicates = [];
             foreach ($numbers as $n) {
                 $rn = intval($n);
-                if ($rn <= 0) { continue; }
+                if ($rn <= 0) {
+                    continue;
+                }
                 $check->execute([':rn' => $rn]);
                 $exists = $check->fetch(PDO::FETCH_ASSOC);
-                if ($exists) { $duplicates[] = $rn; continue; }
+                if ($exists) {
+                    $duplicates[] = $rn;
+                    continue;
+                }
                 $ok = $insert->execute([':rn' => $rn, ':rt' => $roomtype_id, ':floor' => $room_floor, ':status' => $room_status_id]);
-                if ($ok) { $created[] = $rn; }
+                if ($ok) {
+                    $created[] = $rn;
+                }
             }
 
             $conn->commit();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             if (!empty($created)) {
                 echo json_encode(['success' => true, 'message' => 'Room numbers added successfully', 'created' => $created, 'duplicates' => $duplicates]);
             } else {
                 echo json_encode(['success' => false, 'error' => 'No new rooms added', 'duplicates' => $duplicates]);
             }
         } catch (Exception $e) {
-            if (isset($conn) && $conn->inTransaction()) { $conn->rollBack(); }
-            if (ob_get_length()) { ob_clean(); }
+            if (isset($conn) && $conn->inTransaction()) {
+                $conn->rollBack();
+            }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         }
     }
@@ -812,7 +1022,9 @@ class Admin_Functions
         try {
             $room_id = isset($_POST['room_id']) ? intval($_POST['room_id']) : 0;
             if ($room_id <= 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Invalid room_id']);
                 return;
             }
@@ -823,7 +1035,9 @@ class Admin_Functions
             $get->execute();
             $row = $get->fetch(PDO::FETCH_ASSOC);
             if (!$row) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Room not found']);
                 return;
             }
@@ -831,7 +1045,9 @@ class Admin_Functions
             $current = intval($row['room_status_id']);
             // Do not allow disabling occupied rooms
             if ($current === 1) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Cannot disable an occupied room']);
                 return;
             }
@@ -842,17 +1058,23 @@ class Admin_Functions
             $upd = $conn->prepare("UPDATE tbl_rooms SET room_status_id = :ns WHERE roomnumber_id = :rn");
             $ok = $upd->execute([':ns' => $next, ':rn' => $room_id]);
             if (!$ok) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Failed to update room status']);
                 return;
             }
 
             // Map status name
             $name = ($next === 6) ? 'Disabled' : 'Vacant';
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => true, 'new_status_id' => $next, 'new_status_name' => $name, 'room_id' => $room_id]);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'message' => 'Server error']);
         }
     }
@@ -875,10 +1097,14 @@ class Admin_Functions
             $stmt = $conn->prepare($sql);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($rows);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([]);
         }
     }
@@ -895,26 +1121,32 @@ class Admin_Functions
         include "connection.php";
         try {
             $data = is_string($json) ? json_decode($json, true) : (is_array($json) ? $json : []);
-            
+
             $roomtype_id = intval($data['roomtype_id'] ?? 0);
             $roomtype_name = trim($data['roomtype_name'] ?? '');
             $roomtype_description = trim($data['roomtype_description'] ?? '');
             $roomtype_price = floatval($data['roomtype_price'] ?? 0);
 
             if ($roomtype_id <= 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Invalid room type ID']);
                 return;
             }
 
             if (empty($roomtype_name)) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Room type name is required']);
                 return;
             }
 
             if ($roomtype_price <= 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Room type price must be greater than 0']);
                 return;
             }
@@ -923,9 +1155,11 @@ class Admin_Functions
             $checkStmt = $conn->prepare("SELECT roomtype_id FROM tbl_roomtype WHERE roomtype_id = :roomtype_id");
             $checkStmt->bindParam(':roomtype_id', $roomtype_id, PDO::PARAM_INT);
             $checkStmt->execute();
-            
+
             if ($checkStmt->rowCount() === 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Room type not found']);
                 return;
             }
@@ -936,22 +1170,28 @@ class Admin_Functions
                         roomtype_description = :roomtype_description,
                         roomtype_price = :roomtype_price
                     WHERE roomtype_id = :roomtype_id";
-            
+
             $stmt = $conn->prepare($sql);
             $stmt->bindParam(':roomtype_name', $roomtype_name, PDO::PARAM_STR);
             $stmt->bindParam(':roomtype_description', $roomtype_description, PDO::PARAM_STR);
             $stmt->bindParam(':roomtype_price', $roomtype_price, PDO::PARAM_STR);
             $stmt->bindParam(':roomtype_id', $roomtype_id, PDO::PARAM_INT);
-            
+
             if ($stmt->execute()) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => true, 'message' => 'Room type updated successfully']);
             } else {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Failed to update room type']);
             }
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
         }
     }
@@ -972,12 +1212,16 @@ class Admin_Functions
             $max_capacity = intval($data['max_capacity'] ?? 4);
 
             if (empty($roomtype_name)) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Room type name is required']);
                 return;
             }
             if ($roomtype_price <= 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Room type price must be greater than 0']);
                 return;
             }
@@ -987,7 +1231,9 @@ class Admin_Functions
             $dupStmt->bindParam(':name', $roomtype_name, PDO::PARAM_STR);
             $dupStmt->execute();
             if ($dupStmt->rowCount() > 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Room type already exists']);
                 return;
             }
@@ -1005,14 +1251,20 @@ class Admin_Functions
 
             if ($stmt->execute()) {
                 $new_id = $conn->lastInsertId();
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => true, 'roomtype_id' => intval($new_id)]);
             } else {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Failed to add room type']);
             }
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
         }
     }
@@ -1037,10 +1289,14 @@ class Admin_Functions
             $stmt = $conn->prepare($sql);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($rows);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([]);
         }
     }
@@ -1054,10 +1310,14 @@ class Admin_Functions
             $stmt = $conn->prepare($sql);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($rows);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([]);
         }
     }
@@ -1073,10 +1333,14 @@ class Admin_Functions
             $stmt = $conn->prepare($sql);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($rows);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([]);
         }
     }
@@ -1090,10 +1354,14 @@ class Admin_Functions
             $stmt = $conn->prepare($sql);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($rows);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([]);
         }
     }
@@ -1107,10 +1375,14 @@ class Admin_Functions
             $stmt = $conn->prepare($sql);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($rows);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([]);
         }
     }
@@ -1121,15 +1393,19 @@ class Admin_Functions
         try {
             $json = json_decode($_POST['json'], true);
             $amenity_name = $json['amenity_name'];
-            
+
             $sql = "INSERT INTO tbl_room_amenities_master (room_amenities_master_name) VALUES (?)";
             $stmt = $conn->prepare($sql);
             $result = $stmt->execute([$amenity_name]);
-            
-            if (ob_get_length()) { ob_clean(); }
+
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($result ? 1 : 0);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(0);
         }
     }
@@ -1141,15 +1417,19 @@ class Admin_Functions
             $json = json_decode($_POST['json'], true);
             $amenity_id = $json['amenity_id'];
             $amenity_name = $json['amenity_name'];
-            
+
             $sql = "UPDATE tbl_room_amenities_master SET room_amenities_master_name = ? WHERE room_amenities_master_id = ?";
             $stmt = $conn->prepare($sql);
             $result = $stmt->execute([$amenity_name, $amenity_id]);
-            
-            if (ob_get_length()) { ob_clean(); }
+
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($result ? 1 : 0);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(0);
         }
     }
@@ -1160,16 +1440,20 @@ class Admin_Functions
         try {
             $json = json_decode($_POST['json'], true);
             $amenity_id = $json['amenity_id'];
-            
+
             // Instead of deleting, we could set a status field, but for now we'll delete
             $sql = "DELETE FROM tbl_room_amenities_master WHERE room_amenities_master_id = ?";
             $stmt = $conn->prepare($sql);
             $result = $stmt->execute([$amenity_id]);
-            
-            if (ob_get_length()) { ob_clean(); }
+
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($result ? 1 : 0);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(0);
         }
     }
@@ -1185,16 +1469,20 @@ class Admin_Functions
             $charge_price = $json['charge_price'];
             $charge_description = $json['charge_description'] ?? '';
             $charge_is_restricted = $json['charge_is_restricted'] ?? 0;
-            
+
             $sql = "INSERT INTO tbl_charges_master (charges_category_id, charges_master_name, charges_master_price, charges_master_description, charge_name_isRestricted, charges_master_status_id) 
                     VALUES (?, ?, ?, ?, ?, 1)";
             $stmt = $conn->prepare($sql);
             $result = $stmt->execute([$charge_category, $charge_name, $charge_price, $charge_description, $charge_is_restricted]);
-            
-            if (ob_get_length()) { ob_clean(); }
+
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($result ? 1 : 0);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(0);
         }
     }
@@ -1210,7 +1498,7 @@ class Admin_Functions
             $charge_price = $json['charge_price'];
             $charge_description = $json['charge_description'] ?? '';
             $charge_is_restricted = $json['charge_is_restricted'] ?? 0;
-            
+
             $sql = "UPDATE tbl_charges_master SET 
                     charges_category_id = ?, 
                     charges_master_name = ?, 
@@ -1220,11 +1508,15 @@ class Admin_Functions
                     WHERE charges_master_id = ?";
             $stmt = $conn->prepare($sql);
             $result = $stmt->execute([$charge_category, $charge_name, $charge_price, $charge_description, $charge_is_restricted, $charges_master_id]);
-            
-            if (ob_get_length()) { ob_clean(); }
+
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($result ? 1 : 0);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(0);
         }
     }
@@ -1235,16 +1527,20 @@ class Admin_Functions
         try {
             $json = json_decode($_POST['json'], true);
             $charges_master_id = $json['charges_master_id'];
-            
+
             // Set status to inactive instead of deleting
             $sql = "UPDATE tbl_charges_master SET charges_master_status_id = 0 WHERE charges_master_id = ?";
             $stmt = $conn->prepare($sql);
             $result = $stmt->execute([$charges_master_id]);
-            
-            if (ob_get_length()) { ob_clean(); }
+
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($result ? 1 : 0);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(0);
         }
     }
@@ -1258,10 +1554,14 @@ class Admin_Functions
             $stmt = $conn->prepare($sql);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($rows);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([]);
         }
     }
@@ -1279,7 +1579,9 @@ class Admin_Functions
             $discountEndsIn = $json['discountEndsIn'] ?? null;
 
             if (!$discountName || ($discountPercentage === null && $discountAmount === null)) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(0);
                 return;
             }
@@ -1287,11 +1589,15 @@ class Admin_Functions
             $sql = "INSERT INTO tbl_discounts (discounts_name, discounts_percentage, discounts_amount, discounts_description, discount_start_in, discount_ends_in) VALUES (?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
             $result = $stmt->execute([$discountName, $discountPercentage, $discountAmount, $discountDescription, $discountStartIn, $discountEndsIn]);
-            
-            if (ob_get_length()) { ob_clean(); }
+
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($result ? 1 : 0);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(0);
         }
     }
@@ -1312,11 +1618,15 @@ class Admin_Functions
             $sql = "UPDATE tbl_discounts SET discounts_name = ?, discounts_percentage = ?, discounts_amount = ?, discounts_description = ?, discount_start_in = ?, discount_ends_in = ? WHERE discounts_id = ?";
             $stmt = $conn->prepare($sql);
             $result = $stmt->execute([$discountName, $discountPercentage, $discountAmount, $discountDescription, $discountStartIn, $discountEndsIn, $discount_id]);
-            
-            if (ob_get_length()) { ob_clean(); }
+
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($result ? 1 : 0);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(0);
         }
     }
@@ -1327,15 +1637,19 @@ class Admin_Functions
         try {
             $json = json_decode($_POST['json'], true);
             $discount_id = $json['discount_id'];
-            
+
             $sql = "DELETE FROM tbl_discounts WHERE discounts_id = ?";
             $stmt = $conn->prepare($sql);
             $result = $stmt->execute([$discount_id]);
-            
-            if (ob_get_length()) { ob_clean(); }
+
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($result ? 1 : 0);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(0);
         }
     }
@@ -1375,6 +1689,15 @@ class Admin_Functions
                     COALESCE(latest_billing.billing_downpayment, b.booking_payment)
                 ELSE b.booking_payment
             END AS downpayment,
+            b.booking_totalAmount,
+            b.booking_payment,
+            COALESCE((
+                SELECT SUM(bc2.booking_charges_total)
+                FROM tbl_booking_room br2
+                INNER JOIN tbl_booking_charges bc2 ON bc2.booking_room_id = br2.booking_room_id
+                WHERE br2.booking_id = b.booking_id
+                  AND bc2.booking_charge_status = 2
+            ), 0) AS booking_charges_total_sum,
             COALESCE(bs.booking_status_name, 'Pending') AS booking_status,
             latest_billing.billing_id,
             latest_invoice.invoice_id,
@@ -1438,11 +1761,14 @@ class Admin_Functions
         include "connection.php";
         $d = is_string($json) ? json_decode($json, true) : $json;
         $booking_id = intval($d["booking_id"] ?? 0);
-        if ($booking_id <= 0) { echo json_encode(["success"=>false,"data"=>[]]); return; }
+        if ($booking_id <= 0) {
+            echo json_encode(["success" => false, "data" => []]);
+            return;
+        }
         $stmt = $conn->prepare("SELECT br.booking_room_id, r.roomnumber_id, rt.roomtype_id, rt.roomtype_name, rt.roomtype_price AS roomtype_price FROM tbl_booking_room br JOIN tbl_rooms r ON br.roomnumber_id = r.roomnumber_id JOIN tbl_roomtype rt ON r.roomtype_id = rt.roomtype_id WHERE br.booking_id = :booking_id");
         $stmt->bindParam(":booking_id", $booking_id, PDO::PARAM_INT);
         $stmt->execute();
-        echo json_encode(["success"=>true,"data"=>$stmt->fetchAll(PDO::FETCH_ASSOC)]);
+        echo json_encode(["success" => true, "data" => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     }
 
     // NEW: Unified dataset of booking rooms for Amenity and Visitor pages
@@ -1545,10 +1871,16 @@ class Admin_Functions
     {
         include "connection.php";
         try {
-            if (!$json && isset($_POST['json'])) { $json = $_POST['json']; }
+            if (!$json && isset($_POST['json'])) {
+                $json = $_POST['json'];
+            }
             $payload = null;
             if ($json) {
-                try { $payload = json_decode($json, true); } catch (Exception $e) { $payload = null; }
+                try {
+                    $payload = json_decode($json, true);
+                } catch (Exception $e) {
+                    $payload = null;
+                }
             }
             $check_in = $payload['check_in'] ?? null;
             $check_out = $payload['check_out'] ?? null;
@@ -1613,10 +1945,14 @@ class Admin_Functions
                 $response[$key] = isset($by_roomtype[$id]) ? $by_roomtype[$id] : 0;
             }
 
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($response);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['by_roomtype' => new stdClass()]);
         }
     }
@@ -1635,7 +1971,9 @@ class Admin_Functions
 
             // Allow either status_id or status_name
             if ($booking_id <= 0 || $employee_id <= 0 || ($status_id <= 0 && empty($status_name))) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Missing parameters']);
                 return;
             }
@@ -1661,14 +1999,23 @@ class Admin_Functions
             // Fallback synonym mapping if status_id unresolved
             if ($status_id <= 0 && !empty($nm)) {
                 $rows = $conn->query("SELECT booking_status_id, booking_status_name FROM tbl_booking_status")->fetchAll(PDO::FETCH_ASSOC);
-                $synCheckIn = ['checked-in','checked in','check-in','check in'];
-                $synCheckOut = ['checked-out','checked out','check-out','check out'];
-                $synCancelled = ['cancelled','canceled'];
+                $synCheckIn = ['checked-in', 'checked in', 'check-in', 'check in'];
+                $synCheckOut = ['checked-out', 'checked out', 'check-out', 'check out'];
+                $synCancelled = ['cancelled', 'canceled'];
                 foreach ($rows as $r) {
                     $rn = strtolower(trim($r['booking_status_name']));
-                    if (in_array($rn, $synCheckIn) && in_array($nm, $synCheckIn)) { $status_id = intval($r['booking_status_id']); break; }
-                    if (in_array($rn, $synCheckOut) && in_array($nm, $synCheckOut)) { $status_id = intval($r['booking_status_id']); break; }
-                    if (in_array($rn, $synCancelled) && in_array($nm, $synCancelled)) { $status_id = intval($r['booking_status_id']); break; }
+                    if (in_array($rn, $synCheckIn) && in_array($nm, $synCheckIn)) {
+                        $status_id = intval($r['booking_status_id']);
+                        break;
+                    }
+                    if (in_array($rn, $synCheckOut) && in_array($nm, $synCheckOut)) {
+                        $status_id = intval($r['booking_status_id']);
+                        break;
+                    }
+                    if (in_array($rn, $synCancelled) && in_array($nm, $synCancelled)) {
+                        $status_id = intval($r['booking_status_id']);
+                        break;
+                    }
                 }
             }
 
@@ -1696,13 +2043,15 @@ class Admin_Functions
             $bookStmt->execute();
             $bookRow = $bookStmt->fetch(PDO::FETCH_ASSOC);
             if (!$bookRow) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Booking not found']);
                 return;
             }
 
             // Block checkout when there is an outstanding balance or incomplete invoice
-            $synCheckOut = ['checked-out','checked out','check-out','check out'];
+            $synCheckOut = ['checked-out', 'checked out', 'check-out', 'check out'];
             if (in_array($nm, $synCheckOut)) {
                 // Compute remaining balance using latest billing/invoice if available; otherwise fallback to booking totals
                 $balQuery = "
@@ -1744,12 +2093,16 @@ class Admin_Functions
 
                 // Consider small rounding; block if > 0.009 or invoice not complete when present
                 if ($remaining > 0.009) {
-                    if (ob_get_length()) { ob_clean(); }
+                    if (ob_get_length()) {
+                        ob_clean();
+                    }
                     echo json_encode(['success' => false, 'message' => 'Cannot check out: outstanding balance of ' . number_format($remaining, 2)]);
                     return;
                 }
                 if ($invoiceStatusId !== null && $invoiceStatusId !== 1) {
-                    if (ob_get_length()) { ob_clean(); }
+                    if (ob_get_length()) {
+                        ob_clean();
+                    }
                     echo json_encode(['success' => false, 'message' => 'Cannot check out: latest invoice is not completed']);
                     return;
                 }
@@ -1763,7 +2116,9 @@ class Admin_Functions
                 $roomStmt = $conn->prepare("SELECT roomnumber_id FROM tbl_booking_room WHERE booking_id = :booking_id AND roomnumber_id IS NOT NULL");
                 $roomStmt->bindParam(':booking_id', $booking_id, PDO::PARAM_INT);
                 $roomStmt->execute();
-                $room_ids = array_map(function($r){ return intval($r['roomnumber_id']); }, $roomStmt->fetchAll(PDO::FETCH_ASSOC));
+                $room_ids = array_map(function ($r) {
+                    return intval($r['roomnumber_id']);
+                }, $roomStmt->fetchAll(PDO::FETCH_ASSOC));
             }
 
             $conn->beginTransaction();
@@ -1776,7 +2131,7 @@ class Admin_Functions
             $hist->execute();
 
             // Fallback: on Checked-In, auto-assign vacant rooms to booking if none assigned
-            if (in_array($nm, ['checked-in','checked in']) && empty($room_ids)) {
+            if (in_array($nm, ['checked-in', 'checked in']) && empty($room_ids)) {
                 $missingStmt = $conn->prepare("SELECT booking_room_id, roomtype_id FROM tbl_booking_room WHERE booking_id = :booking_id AND roomnumber_id IS NULL");
                 $missingStmt->bindParam(':booking_id', $booking_id, PDO::PARAM_INT);
                 $missingStmt->execute();
@@ -1805,8 +2160,8 @@ class Admin_Functions
 
             // Sync room occupancy based on status - using canonical status name
             if (!empty($room_ids)) {
-                $isCheckIn = in_array($nm, ['checked-in','checked in']);
-                $isVacate = in_array($nm, ['checked-out','checked out','cancelled']);
+                $isCheckIn = in_array($nm, ['checked-in', 'checked in']);
+                $isVacate = in_array($nm, ['checked-out', 'checked out', 'cancelled']);
 
                 $roomUpdateStatus = null;
                 if ($isCheckIn) {
@@ -1829,17 +2184,19 @@ class Admin_Functions
             // This ensures room status is ALWAYS updated regardless of triggers
             // Recompute dynamic status IDs locally to avoid scope issues
             $stRows2 = $conn->query("SELECT booking_status_id, booking_status_name FROM tbl_booking_status")->fetchAll(PDO::FETCH_ASSOC);
-            $findId2 = function($rows, $cands) {
+            $findId2 = function ($rows, $cands) {
                 foreach ($rows as $r) {
                     $name = strtolower(trim($r['booking_status_name']));
                     foreach ($cands as $c) {
-                        if ($name === strtolower($c)) { return intval($r['booking_status_id']); }
+                        if ($name === strtolower($c)) {
+                            return intval($r['booking_status_id']);
+                        }
                     }
                 }
                 return null;
             };
-            $isCheckIn2 = in_array($nm, ['checked-in','checked in']);
-            $isVacate2 = in_array($nm, ['checked-out','checked out','cancelled']);
+            $isCheckIn2 = in_array($nm, ['checked-in', 'checked in']);
+            $isVacate2 = in_array($nm, ['checked-out', 'checked out', 'cancelled']);
 
             if ($isCheckIn2 || $isVacate2) {
                 $roomUpdateStatus = ($isCheckIn2) ? 1 : 3;
@@ -1852,7 +2209,7 @@ class Admin_Functions
                 );
                 $result = $joinUpdate->execute([':rs' => $roomUpdateStatus, ':booking_id' => $booking_id]);
                 $affectedRows = $joinUpdate->rowCount();
-                
+
                 if (!$result) {
                     error_log("Failed to update room status via join for booking $booking_id");
                 } else {
@@ -1861,11 +2218,15 @@ class Admin_Functions
             }
 
             $conn->commit();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => true]);
         } catch (Exception $e) {
             $conn->rollBack();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -1879,7 +2240,9 @@ class Admin_Functions
             $booking_id = $data['booking_id'] ?? 0;
 
             if (empty($reference_no) && empty($booking_id)) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Missing reference number or booking ID']);
                 return;
             }
@@ -1946,14 +2309,18 @@ class Admin_Functions
             $stmt->execute();
             $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             if ($invoice) {
                 echo json_encode(['success' => true, 'invoice_data' => $invoice]);
             } else {
                 echo json_encode(['success' => false, 'message' => 'No invoice found']);
             }
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'message' => 'Error fetching invoice data']);
         }
     }
@@ -1967,7 +2334,9 @@ class Admin_Functions
             $booking_id = $data['booking_id'] ?? 0;
 
             if (empty($reference_no) && empty($booking_id)) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Missing reference number or booking ID']);
                 return;
             }
@@ -2024,10 +2393,14 @@ class Admin_Functions
             $stmt->execute();
             $billings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => true, 'billing_data' => $billings]);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'message' => 'Error fetching billing data']);
         }
     }
@@ -2040,7 +2413,9 @@ class Admin_Functions
         $password = $data['password'] ?? '';
 
         if ($username === '' || $password === '') {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'message' => 'Missing username or password']);
             return;
         }
@@ -2057,7 +2432,9 @@ class Admin_Functions
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$user) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Invalid username or password']);
                 return;
             }
@@ -2071,14 +2448,18 @@ class Admin_Functions
             }
 
             if (!$verified) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Invalid username or password']);
                 return;
             }
 
             $status = $user['employee_status'] ?? null;
             if ($status === 0 || $status === 'Inactive' || $status === 'Disabled') {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Account is inactive']);
                 return;
             }
@@ -2087,10 +2468,14 @@ class Admin_Functions
             $roleName = strtolower(trim($user['userlevel_name'] ?? ''));
             $user_type = ($roleName === 'admin') ? 'admin' : 'front-desk';
 
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => true, 'user' => $user, 'user_type' => $user_type]);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'message' => 'Login error']);
         }
     }
@@ -2103,7 +2488,9 @@ class Admin_Functions
             $employee_id = intval($data['employee_id'] ?? 0);
 
             if ($employee_id <= 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Invalid employee ID']);
                 return;
             }
@@ -2119,7 +2506,9 @@ class Admin_Functions
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$user) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Employee not found']);
                 return;
             }
@@ -2127,10 +2516,14 @@ class Admin_Functions
             // Remove password from response
             unset($user['employee_password']);
 
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => true, 'data' => $user]);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'message' => 'Error fetching profile']);
         }
     }
@@ -2143,7 +2536,9 @@ class Admin_Functions
             $employee_id = intval($data['employee_id'] ?? 0);
 
             if ($employee_id <= 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Invalid employee ID']);
                 return;
             }
@@ -2156,7 +2551,9 @@ class Admin_Functions
             $existingUser = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$existingUser) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Employee not found']);
                 return;
             }
@@ -2176,7 +2573,9 @@ class Admin_Functions
                 }
 
                 if (!$verified) {
-                    if (ob_get_length()) { ob_clean(); }
+                    if (ob_get_length()) {
+                        ob_clean();
+                    }
                     echo json_encode(['success' => false, 'message' => 'Current password is incorrect']);
                     return;
                 }
@@ -2189,9 +2588,14 @@ class Admin_Functions
 
             // Update other fields, including 2FA authentication status
             $fieldsToUpdate = [
-                'employee_fname', 'employee_lname', 'employee_username',
-                'employee_email', 'employee_phone', 'employee_address',
-                'employee_birthdate', 'employee_gender',
+                'employee_fname',
+                'employee_lname',
+                'employee_username',
+                'employee_email',
+                'employee_phone',
+                'employee_address',
+                'employee_birthdate',
+                'employee_gender',
                 'employee_online_authentication_status'
             ];
 
@@ -2210,7 +2614,9 @@ class Admin_Functions
             }
 
             if (empty($updateFields)) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'No fields to update']);
                 return;
             }
@@ -2220,16 +2626,22 @@ class Admin_Functions
 
             $sql = "UPDATE tbl_employee SET " . implode(', ', $updateFields) . " WHERE employee_id = :employee_id";
             $stmt = $conn->prepare($sql);
-            
+
             if ($stmt->execute($params)) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => true, 'message' => 'Profile updated successfully']);
             } else {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Failed to update profile']);
             }
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'message' => 'Error updating profile']);
         }
     }
@@ -2295,11 +2707,13 @@ class Admin_Functions
             ORDER BY b.billing_dateandtime DESC";
 
             $stmtB = $conn->prepare($sqlBilling);
-            foreach ($paramsBilling as $k => $v) { $stmtB->bindValue($k, $v); }
+            foreach ($paramsBilling as $k => $v) {
+                $stmtB->bindValue($k, $v);
+            }
             $stmtB->execute();
             $rowsB = $stmtB->fetchAll(PDO::FETCH_ASSOC);
 
-            $billingList = array_map(function($r) {
+            $billingList = array_map(function ($r) {
                 $balanced = floatval($r['billing_balance'] ?? 0);
                 $status = ($balanced > 0) ? 'Pending' : 'Approved';
                 $status_color = ($balanced > 0) ? 'warning' : 'success';
@@ -2371,11 +2785,13 @@ class Admin_Functions
             ORDER BY i.invoice_id DESC";
 
             $stmtI = $conn->prepare($sqlInv);
-            foreach ($paramsInv as $k => $v) { $stmtI->bindValue($k, $v); }
+            foreach ($paramsInv as $k => $v) {
+                $stmtI->bindValue($k, $v);
+            }
             $stmtI->execute();
             $rowsI = $stmtI->fetchAll(PDO::FETCH_ASSOC);
 
-            $invoiceList = array_map(function($r) {
+            $invoiceList = array_map(function ($r) {
                 $approved = intval($r['invoice_status_id'] ?? 0) === 1;
                 $status = $approved ? 'Approved' : 'Pending';
                 $status_color = $approved ? 'success' : 'warning';
@@ -2403,13 +2819,17 @@ class Admin_Functions
 
             // Server-side filter by transaction_type when specified
             if ($type === 'billing') {
-                $combined = array_values(array_filter($combined, function($t){ return ($t['transaction_type'] ?? '') === 'billing'; }));
+                $combined = array_values(array_filter($combined, function ($t) {
+                    return ($t['transaction_type'] ?? '') === 'billing';
+                }));
             } else if ($type === 'invoice') {
-                $combined = array_values(array_filter($combined, function($t){ return ($t['transaction_type'] ?? '') === 'invoice'; }));
+                $combined = array_values(array_filter($combined, function ($t) {
+                    return ($t['transaction_type'] ?? '') === 'invoice';
+                }));
             }
 
             // Sort by date desc (strings compare OK if YYYY-MM-DD HH:MM:SS)
-            usort($combined, function($a, $b) {
+            usort($combined, function ($a, $b) {
                 return strcmp(($b['transaction_date'] ?? ''), ($a['transaction_date'] ?? ''));
             });
 
@@ -2418,16 +2838,21 @@ class Admin_Functions
                 $combined = array_slice($combined, $offset, $limit);
             }
 
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => true, 'transactions' => $combined, 'total_count' => $total]);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'message' => 'Error fetching transactions']);
         }
     }
     // Amenity endpoints
     // 1) List available charges (amenities)
-    function get_available_charges() {
+    function get_available_charges()
+    {
         include "connection.php";
         try {
             $sql = "SELECT cm.charges_master_id, cm.charges_category_id, cm.charges_master_name, cm.charges_master_price, cm.charges_master_description, cc.charges_category_name
@@ -2437,27 +2862,36 @@ class Admin_Functions
             $stmt = $conn->prepare($sql);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($rows);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([]);
         }
     }
 
     // 2) Add amenity request(s) for a booking room
     // Expects $json: { booking_room_id, amenities: [{charges_master_id, booking_charges_price, booking_charges_quantity}], booking_charge_status }
-    function add_amenity_request($json) {
+    function add_amenity_request($json)
+    {
         include "connection.php";
         try {
             $data = is_string($json) ? json_decode($json, true) : $json;
-            if (!is_array($data)) { $data = []; }
+            if (!is_array($data)) {
+                $data = [];
+            }
             $booking_room_id = intval($data['booking_room_id'] ?? 0);
             $amenities = $data['amenities'] ?? [];
             $status = intval($data['booking_charge_status'] ?? 1); // 1=pending,2=approved,3=rejected
 
             if ($booking_room_id <= 0 || !is_array($amenities) || count($amenities) === 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Invalid payload']);
                 return;
             }
@@ -2471,7 +2905,9 @@ class Admin_Functions
                 $price = floatval($a['booking_charges_price'] ?? 0);
                 $qty = intval($a['booking_charges_quantity'] ?? 1);
                 $total = $price * $qty;
-                if ($cmid <= 0 || $qty <= 0) { continue; }
+                if ($cmid <= 0 || $qty <= 0) {
+                    continue;
+                }
                 $insert->execute([
                     ':cmid' => $cmid,
                     ':brid' => $booking_room_id,
@@ -2483,17 +2919,24 @@ class Admin_Functions
             }
 
             $conn->commit();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => true]);
         } catch (Exception $e) {
-            if ($conn && $conn->inTransaction()) { $conn->rollBack(); }
-            if (ob_get_length()) { ob_clean(); }
+            if ($conn && $conn->inTransaction()) {
+                $conn->rollBack();
+            }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false]);
         }
     }
 
     // 3) Fetch amenity requests with rich details for UI
-    function get_amenity_requests() {
+    function get_amenity_requests()
+    {
         include "connection.php";
         try {
             $sql = "SELECT 
@@ -2529,16 +2972,21 @@ class Admin_Functions
             $stmt = $conn->prepare($sql);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($rows);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([]);
         }
     }
 
     // 4) Stats for cards
-    function get_amenity_request_stats() {
+    function get_amenity_request_stats()
+    {
         include "connection.php";
         try {
             $total = intval($conn->query("SELECT COUNT(*) FROM tbl_booking_charges")->fetchColumn());
@@ -2559,22 +3007,33 @@ class Admin_Functions
                 'approved_amount' => $approved_amt,
                 'current_month_approved' => $curr_month_approved
             ];
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($resp);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
-            echo json_encode(['total_requests'=>0,'pending_requests'=>0,'approved_requests'=>0,'rejected_requests'=>0,'pending_amount'=>0,'approved_amount'=>0,'current_month_approved'=>0]);
+            if (ob_get_length()) {
+                ob_clean();
+            }
+            echo json_encode(['total_requests' => 0, 'pending_requests' => 0, 'approved_requests' => 0, 'rejected_requests' => 0, 'pending_amount' => 0, 'approved_amount' => 0, 'current_month_approved' => 0]);
         }
     }
 
     // 5) Approve amenity request
-    function approve_amenity_request($json) {
+    function approve_amenity_request($json)
+    {
         include "connection.php";
         try {
             $data = is_string($json) ? json_decode($json, true) : $json;
             $request_id = intval($data['request_id'] ?? 0);
             $admin_notes = trim($data['admin_notes'] ?? '');
-            if ($request_id <= 0) { if (ob_get_length()) { ob_clean(); } echo 0; return; }
+            if ($request_id <= 0) {
+                if (ob_get_length()) {
+                    ob_clean();
+                }
+                echo 0;
+                return;
+            }
 
             $conn->beginTransaction();
 
@@ -2587,27 +3046,42 @@ class Admin_Functions
 
             $stmt = $conn->prepare("UPDATE tbl_booking_charges SET booking_charge_status=2, booking_return_datetime=NOW()" . ($note_id ? ", booking_charges_notes_id=:nid" : "") . " WHERE booking_charges_id=:id");
             $params = [':id' => $request_id];
-            if ($note_id) { $params[':nid'] = $note_id; }
+            if ($note_id) {
+                $params[':nid'] = $note_id;
+            }
             $stmt->execute($params);
 
             $conn->commit();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo 1;
         } catch (Exception $e) {
-            if ($conn && $conn->inTransaction()) { $conn->rollBack(); }
-            if (ob_get_length()) { ob_clean(); }
+            if ($conn && $conn->inTransaction()) {
+                $conn->rollBack();
+            }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo 0;
         }
     }
 
     // 6) Reject amenity request
-    function reject_amenity_request($json) {
+    function reject_amenity_request($json)
+    {
         include "connection.php";
         try {
             $data = is_string($json) ? json_decode($json, true) : $json;
             $request_id = intval($data['request_id'] ?? 0);
             $admin_notes = trim($data['admin_notes'] ?? '');
-            if ($request_id <= 0) { if (ob_get_length()) { ob_clean(); } echo 0; return; }
+            if ($request_id <= 0) {
+                if (ob_get_length()) {
+                    ob_clean();
+                }
+                echo 0;
+                return;
+            }
 
             $conn->beginTransaction();
 
@@ -2620,27 +3094,42 @@ class Admin_Functions
 
             $stmt = $conn->prepare("UPDATE tbl_booking_charges SET booking_charge_status=3, booking_return_datetime=NOW()" . ($note_id ? ", booking_charges_notes_id=:nid" : "") . " WHERE booking_charges_id=:id");
             $params = [':id' => $request_id];
-            if ($note_id) { $params[':nid'] = $note_id; }
+            if ($note_id) {
+                $params[':nid'] = $note_id;
+            }
             $stmt->execute($params);
 
             $conn->commit();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo 1;
         } catch (Exception $e) {
-            if ($conn && $conn->inTransaction()) { $conn->rollBack(); }
-            if (ob_get_length()) { ob_clean(); }
+            if ($conn && $conn->inTransaction()) {
+                $conn->rollBack();
+            }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo 0;
         }
     }
 
     // 6.1) Set amenity request back to pending
-    function set_pending_amenity_request($json) {
+    function set_pending_amenity_request($json)
+    {
         include "connection.php";
         try {
             $data = is_string($json) ? json_decode($json, true) : $json;
             $request_id = intval($data['request_id'] ?? 0);
             $admin_notes = trim($data['admin_notes'] ?? '');
-            if ($request_id <= 0) { if (ob_get_length()) { ob_clean(); } echo 0; return; }
+            if ($request_id <= 0) {
+                if (ob_get_length()) {
+                    ob_clean();
+                }
+                echo 0;
+                return;
+            }
 
             $conn->beginTransaction();
 
@@ -2653,27 +3142,42 @@ class Admin_Functions
 
             $stmt = $conn->prepare("UPDATE tbl_booking_charges SET booking_charge_status=1, booking_return_datetime=NULL" . ($note_id ? ", booking_charges_notes_id=:nid" : "") . " WHERE booking_charges_id=:id");
             $params = [':id' => $request_id];
-            if ($note_id) { $params[':nid'] = $note_id; }
+            if ($note_id) {
+                $params[':nid'] = $note_id;
+            }
             $stmt->execute($params);
 
             $conn->commit();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo 1;
         } catch (Exception $e) {
-            if ($conn && $conn->inTransaction()) { $conn->rollBack(); }
-            if (ob_get_length()) { ob_clean(); }
+            if ($conn && $conn->inTransaction()) {
+                $conn->rollBack();
+            }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo 0;
         }
     }
 
     // 6.2) Mark amenity request as returned
-    function return_amenity_request($json) {
+    function return_amenity_request($json)
+    {
         include "connection.php";
         try {
             $data = is_string($json) ? json_decode($json, true) : $json;
             $request_id = intval($data['request_id'] ?? 0);
             $admin_notes = trim($data['admin_notes'] ?? '');
-            if ($request_id <= 0) { if (ob_get_length()) { ob_clean(); } echo 0; return; }
+            if ($request_id <= 0) {
+                if (ob_get_length()) {
+                    ob_clean();
+                }
+                echo 0;
+                return;
+            }
 
             $conn->beginTransaction();
 
@@ -2686,35 +3190,49 @@ class Admin_Functions
 
             $stmt = $conn->prepare("UPDATE tbl_booking_charges SET booking_charge_status=4, booking_return_datetime=NOW()" . ($note_id ? ", booking_charges_notes_id=:nid" : "") . " WHERE booking_charges_id=:id");
             $params = [':id' => $request_id];
-            if ($note_id) { $params[':nid'] = $note_id; }
+            if ($note_id) {
+                $params[':nid'] = $note_id;
+            }
             $stmt->execute($params);
 
             $conn->commit();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo 1;
         } catch (Exception $e) {
-            if ($conn && $conn->inTransaction()) { $conn->rollBack(); }
-            if (ob_get_length()) { ob_clean(); }
+            if ($conn && $conn->inTransaction()) {
+                $conn->rollBack();
+            }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo 0;
         }
     }
 
     // 7) Pending amenity count for header bell
-    function get_pending_amenity_count() {
+    function get_pending_amenity_count()
+    {
         include "connection.php";
         try {
             $cnt = intval($conn->query("SELECT COUNT(*) FROM tbl_booking_charges WHERE booking_charge_status=1")->fetchColumn());
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => true, 'pending_count' => $cnt]);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'pending_count' => 0]);
         }
     }
 
     // 8) Increment delivered amenity day(s) for multiple amenity types
     // Accepts: json { amenity_ids?: [int], amenity_names?: [string], booking_id?: int, booking_room_id?: int }
-    function increment_amenity_day($json) {
+    function increment_amenity_day($json)
+    {
         include "connection.php";
         try {
             $data = is_string($json) ? json_decode($json, true) : (is_array($json) ? $json : []);
@@ -2722,10 +3240,12 @@ class Admin_Functions
             $amenity_names = isset($data['amenity_names']) && is_array($data['amenity_names']) ? array_filter(array_map('strval', $data['amenity_names'])) : [];
             $booking_id = intval($data['booking_id'] ?? 0);
             $booking_room_id = intval($data['booking_room_id'] ?? 0);
-            
+
             // Guard: require booking scope to prevent unintended global increments
             if ($booking_id <= 0 && $booking_room_id <= 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Missing booking_id or booking_room_id. Select a booking before applying +1 Day.']);
                 return;
             }
@@ -2734,10 +3254,14 @@ class Admin_Functions
             if (count($amenity_ids) === 0 && count($amenity_names) > 0) {
                 $placeholders = implode(',', array_fill(0, count($amenity_names), '?'));
                 $stmt = $conn->prepare("SELECT charges_master_id FROM tbl_charges_master WHERE charges_master_name IN ($placeholders)");
-                foreach ($amenity_names as $i => $n) { $stmt->bindValue($i+1, $n, PDO::PARAM_STR); }
+                foreach ($amenity_names as $i => $n) {
+                    $stmt->bindValue($i + 1, $n, PDO::PARAM_STR);
+                }
                 $stmt->execute();
                 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                foreach ($rows as $r) { $amenity_ids[] = intval($r['charges_master_id']); }
+                foreach ($rows as $r) {
+                    $amenity_ids[] = intval($r['charges_master_id']);
+                }
             }
 
             // Sensible defaults if still empty: Bed (2), Extra Guest (12), plus Television if present
@@ -2747,8 +3271,11 @@ class Admin_Functions
                     $tvStmt = $conn->prepare("SELECT charges_master_id FROM tbl_charges_master WHERE charges_master_name LIKE 'Television%' LIMIT 1");
                     $tvStmt->execute();
                     $tvId = $tvStmt->fetchColumn();
-                    if ($tvId) { $amenity_ids[] = intval($tvId); }
-                } catch (Exception $_) { /* ignore */ }
+                    if ($tvId) {
+                        $amenity_ids[] = intval($tvId);
+                    }
+                } catch (Exception $_) { /* ignore */
+                }
             }
 
             // Resolve booking_id if only booking_room_id is provided
@@ -2774,8 +3301,10 @@ class Admin_Functions
                 $statusStmt->execute();
                 $statusRow = $statusStmt->fetch(PDO::FETCH_ASSOC);
                 $latestName = $statusRow ? strtolower(trim($statusRow['booking_status_name'])) : '';
-                if (in_array($latestName, ['checked-out','checked out'])) {
-                    if (ob_get_length()) { ob_clean(); }
+                if (in_array($latestName, ['checked-out', 'checked out'])) {
+                    if (ob_get_length()) {
+                        ob_clean();
+                    }
                     echo json_encode(['success' => false, 'message' => 'Cannot apply +1 Day: booking is already Checked-Out.']);
                     return;
                 }
@@ -2787,7 +3316,9 @@ class Admin_Functions
             if (count($amenity_ids) > 0) {
                 $in = implode(',', array_fill(0, count($amenity_ids), '?'));
                 $where .= " AND bc.charges_master_id IN ($in)";
-                foreach ($amenity_ids as $id) { $params[] = $id; }
+                foreach ($amenity_ids as $id) {
+                    $params[] = $id;
+                }
             }
             if ($booking_room_id > 0) {
                 $where .= " AND bc.booking_room_id = ?";
@@ -2806,20 +3337,27 @@ class Admin_Functions
                         bc.booking_return_datetime = NOW()
                     WHERE $where";
             $stmt = $conn->prepare($sql);
-            foreach ($params as $i => $p) { $stmt->bindValue($i+1, $p, PDO::PARAM_INT); }
+            foreach ($params as $i => $p) {
+                $stmt->bindValue($i + 1, $p, PDO::PARAM_INT);
+            }
             $stmt->execute();
             $affected = $stmt->rowCount();
 
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => true, 'affected' => $affected]);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
     }
 
     // List online booking requests grouped with requested rooms
-    function reqBookingList() {
+    function reqBookingList()
+    {
         include "connection.php";
         try {
             $sql = "
@@ -2870,22 +3408,29 @@ class Admin_Functions
                     ];
                 }
             }
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(array_values($grouped));
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([]);
         }
     }
 
     // Fetch booking rooms by booking_id for guest counts and fallback room assignment
-    function get_booking_rooms_by_booking($json) {
+    function get_booking_rooms_by_booking($json)
+    {
         include "connection.php";
         try {
             $data = is_string($json) ? json_decode($json, true) : (is_array($json) ? $json : []);
             $booking_id = intval($data['booking_id'] ?? 0);
             if ($booking_id <= 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode([]);
                 return;
             }
@@ -2904,16 +3449,21 @@ class Admin_Functions
             $stmt->bindParam(':booking_id', $booking_id, PDO::PARAM_INT);
             $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode($rows);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode([]);
         }
     }
 
     // Approve a customer booking: assign rooms, update totals, log status
-    function approveCustomerBooking($json) {
+    function approveCustomerBooking($json)
+    {
         include "connection.php";
         try {
             $data = is_string($json) ? json_decode($json, true) : (is_array($json) ? $json : []);
@@ -2924,7 +3474,9 @@ class Admin_Functions
             $down = floatval($data['booking_downpayment'] ?? 0);
 
             if ($booking_id <= 0 || $employee_id <= 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Missing booking_id or user_id']);
                 return;
             }
@@ -2935,7 +3487,9 @@ class Admin_Functions
             $empStmt->execute();
             $empRow = $empStmt->fetch(PDO::FETCH_ASSOC);
             if (!$empRow || $empRow['employee_status'] == 0 || $empRow['employee_status'] === 'Inactive' || $empRow['employee_status'] === 'Disabled') {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Invalid employee']);
                 return;
             }
@@ -2946,7 +3500,9 @@ class Admin_Functions
             $bookStmt->execute();
             $bookRow = $bookStmt->fetch(PDO::FETCH_ASSOC);
             if (!$bookRow) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Booking not found']);
                 return;
             }
@@ -2966,30 +3522,39 @@ class Admin_Functions
 
             // Insert status history as Reserved/Confirmed using dynamic status ID
             $stRows = $conn->query("SELECT booking_status_id, booking_status_name FROM tbl_booking_status")->fetchAll(PDO::FETCH_ASSOC);
-            $findId = function($rows, $cands) {
+            $findId = function ($rows, $cands) {
                 foreach ($rows as $r) {
                     $name = strtolower(trim($r['booking_status_name']));
                     foreach ($cands as $c) {
-                        if ($name === strtolower($c)) { return intval($r['booking_status_id']); }
+                        if ($name === strtolower($c)) {
+                            return intval($r['booking_status_id']);
+                        }
                     }
                 }
                 return null;
             };
-            $approvedId = $findId($stRows, ['Reserved','Confirmed','Approved']);
-            if ($approvedId === null) { $approvedId = 2; }
+            $approvedId = $findId($stRows, ['Reserved', 'Confirmed', 'Approved']);
+            if ($approvedId === null) {
+                $approvedId = 2;
+            }
             $hist = $conn->prepare("INSERT INTO tbl_booking_history (booking_id, employee_id, status_id, updated_at) VALUES (:bid, :eid, :sid, NOW())");
             $hist->execute([':bid' => $booking_id, ':eid' => $employee_id, ':sid' => $approvedId]);
 
             $conn->commit();
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => true, 'email_status' => 'skipped']);
         } catch (Exception $e) {
-            if ($conn && $conn->inTransaction()) { $conn->rollBack(); }
-            if (ob_get_length()) { ob_clean(); }
+            if ($conn && $conn->inTransaction()) {
+                $conn->rollBack();
+            }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
     }
-
 }
 
 $json = isset($_POST['json']) ? $_POST['json'] : 0;
@@ -3118,17 +3683,23 @@ switch ($method) {
         break;
     case 'extendBookingWithPayment':
         $data = is_string($json) ? json_decode($json, true) : $json;
-        if (!is_array($data)) { $data = []; }
+        if (!is_array($data)) {
+            $data = [];
+        }
         $admin->extendBookingWithPayment($data);
         break;
     case 'extendMultiRoomBookingWithPayment':
         $data = is_string($json) ? json_decode($json, true) : $json;
-        if (!is_array($data)) { $data = []; }
+        if (!is_array($data)) {
+            $data = [];
+        }
         $admin->extendMultiRoomBookingWithPayment($data);
         break;
     case 'changeCustomerRoomsNumber':
         $data = is_string($json) ? json_decode($json, true) : $json;
-        if (!is_array($data)) { $data = []; }
+        if (!is_array($data)) {
+            $data = [];
+        }
         $admin->changeCustomerRoomsNumber($data);
         break;
     case 'changeBookingStatus':
@@ -3158,13 +3729,13 @@ switch ($method) {
             $mailer = new SendEmail();
             $subject = 'Demirens Admin OTP';
             $body = '<div style="font-family: Arial, sans-serif; line-height: 1.5;">'
-                  . '<h2 style="margin:0 0 8px;">Your Admin OTP Code</h2>'
-                  . '<p>Use this One-Time Passcode to verify your action:</p>'
-                  . '<p style="font-size:22px; font-weight:bold; letter-spacing:2px;">' . htmlspecialchars($otp_code) . '</p>'
-                  . '<p>This code expires in 5 minutes.</p>'
-                  . '<hr style="margin:16px 0;" />'
-                  . '<p style="color:#666; font-size:12px;">Demirens Booking System</p>'
-                  . '</div>';
+                . '<h2 style="margin:0 0 8px;">Your Admin OTP Code</h2>'
+                . '<p>Use this One-Time Passcode to verify your action:</p>'
+                . '<p style="font-size:22px; font-weight:bold; letter-spacing:2px;">' . htmlspecialchars($otp_code) . '</p>'
+                . '<p>This code expires in 5 minutes.</p>'
+                . '<hr style="margin:16px 0;" />'
+                . '<p style="color:#666; font-size:12px;">Demirens Booking System</p>'
+                . '</div>';
             $ok = $mailer->sendEmail($email, $subject, $body);
             echo json_encode(['success' => $ok === true]);
         } catch (Exception $e) {

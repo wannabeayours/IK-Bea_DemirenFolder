@@ -1174,7 +1174,7 @@ class Transactions
                 FROM tbl_booking_charges bc
                 JOIN tbl_booking_room br ON bc.booking_room_id = br.booking_room_id
                 WHERE br.booking_id = :booking_id
-                AND bc.booking_charge_status = 2
+                AND bc.booking_charge_status IN (2, 4)
             ");
             $chargesQuery->bindParam(':booking_id', $booking_id);
             $chargesQuery->execute();
