@@ -648,7 +648,7 @@ class Transactions
                         </style></head><body>
                         <div class="wrapper">
                         <div class="header">
-                            <div class="logo">YOUR LOGO</div>
+                            <div class="logo"></div>
                             <div class="invno">NO. ' . str_pad($invoice_id, 6, '0', STR_PAD_LEFT) . '</div>
                         </div>
 

@@ -757,6 +757,106 @@ class Admin_Functions
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
     }
 
+    // Create new physical room numbers for a given room type
+    function addRoomNumbers()
+    {
+        include "connection.php";
+        try {
+            $roomtype_id = isset($_POST['roomtype_id']) ? intval($_POST['roomtype_id']) : 0;
+            $room_status_id = isset($_POST['room_status_id']) ? intval($_POST['room_status_id']) : 3; // default Vacant
+            $room_floor = isset($_POST['room_floor']) ? intval($_POST['room_floor']) : 0;
+            $room_numbers_json = isset($_POST['room_numbers']) ? $_POST['room_numbers'] : '[]';
+            $numbers = json_decode($room_numbers_json, true);
+            if (!is_array($numbers)) { $numbers = []; }
+
+            if ($roomtype_id <= 0 || count($numbers) === 0) {
+                if (ob_get_length()) { ob_clean(); }
+                echo json_encode(['success' => false, 'error' => 'Invalid parameters']);
+                return;
+            }
+
+            $conn->beginTransaction();
+            $check = $conn->prepare("SELECT roomnumber_id FROM tbl_rooms WHERE roomnumber_id = :rn LIMIT 1");
+            $insert = $conn->prepare("INSERT INTO tbl_rooms (roomnumber_id, roomtype_id, roomfloor, room_status_id) VALUES (:rn, :rt, :floor, :status)");
+
+            $created = [];
+            $duplicates = [];
+            foreach ($numbers as $n) {
+                $rn = intval($n);
+                if ($rn <= 0) { continue; }
+                $check->execute([':rn' => $rn]);
+                $exists = $check->fetch(PDO::FETCH_ASSOC);
+                if ($exists) { $duplicates[] = $rn; continue; }
+                $ok = $insert->execute([':rn' => $rn, ':rt' => $roomtype_id, ':floor' => $room_floor, ':status' => $room_status_id]);
+                if ($ok) { $created[] = $rn; }
+            }
+
+            $conn->commit();
+            if (ob_get_length()) { ob_clean(); }
+            if (!empty($created)) {
+                echo json_encode(['success' => true, 'message' => 'Room numbers added successfully', 'created' => $created, 'duplicates' => $duplicates]);
+            } else {
+                echo json_encode(['success' => false, 'error' => 'No new rooms added', 'duplicates' => $duplicates]);
+            }
+        } catch (Exception $e) {
+            if (isset($conn) && $conn->inTransaction()) { $conn->rollBack(); }
+            if (ob_get_length()) { ob_clean(); }
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    // Toggle a room's status between Disabled (6) and Vacant (3)
+    function toggleRoomStatus()
+    {
+        include "connection.php";
+        try {
+            $room_id = isset($_POST['room_id']) ? intval($_POST['room_id']) : 0;
+            if ($room_id <= 0) {
+                if (ob_get_length()) { ob_clean(); }
+                echo json_encode(['success' => false, 'message' => 'Invalid room_id']);
+                return;
+            }
+
+            // Fetch current status
+            $get = $conn->prepare("SELECT room_status_id FROM tbl_rooms WHERE roomnumber_id = :rn LIMIT 1");
+            $get->bindParam(':rn', $room_id, PDO::PARAM_INT);
+            $get->execute();
+            $row = $get->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                if (ob_get_length()) { ob_clean(); }
+                echo json_encode(['success' => false, 'message' => 'Room not found']);
+                return;
+            }
+
+            $current = intval($row['room_status_id']);
+            // Do not allow disabling occupied rooms
+            if ($current === 1) {
+                if (ob_get_length()) { ob_clean(); }
+                echo json_encode(['success' => false, 'message' => 'Cannot disable an occupied room']);
+                return;
+            }
+
+            // Compute next status: Disabled (6) <-> Vacant (3)
+            $next = ($current === 6) ? 3 : 6;
+
+            $upd = $conn->prepare("UPDATE tbl_rooms SET room_status_id = :ns WHERE roomnumber_id = :rn");
+            $ok = $upd->execute([':ns' => $next, ':rn' => $room_id]);
+            if (!$ok) {
+                if (ob_get_length()) { ob_clean(); }
+                echo json_encode(['success' => false, 'message' => 'Failed to update room status']);
+                return;
+            }
+
+            // Map status name
+            $name = ($next === 6) ? 'Disabled' : 'Vacant';
+            if (ob_get_length()) { ob_clean(); }
+            echo json_encode(['success' => true, 'new_status_id' => $next, 'new_status_name' => $name, 'room_id' => $room_id]);
+        } catch (Exception $e) {
+            if (ob_get_length()) { ob_clean(); }
+            echo json_encode(['success' => false, 'message' => 'Server error']);
+        }
+    }
+
     // Returns room type master data with image filenames for admin UI
     function view_room_types()
     {
@@ -2902,6 +3002,12 @@ switch ($method) {
         break;
     case 'viewAllRooms':
         $admin->viewAllRooms();
+        break;
+    case 'addRoomNumbers':
+        $admin->addRoomNumbers();
+        break;
+    case 'toggleRoomStatus':
+        $admin->toggleRoomStatus();
         break;
     case 'view_room_types':
         $admin->view_room_types();

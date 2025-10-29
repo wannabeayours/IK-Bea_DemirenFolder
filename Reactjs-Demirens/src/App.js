@@ -286,6 +286,12 @@ function App() {
                     <Confirmation />
                   </AdminRouteGuard>
                 } />
+
+                  <Route path="/admin/new-room-number" element={
+                  <AdminRouteGuard>
+                    <NewRoomNumber />
+                  </AdminRouteGuard>
+                } />
                 
                 {/* Customer Route */}
                 <Route path="/customer/roomview" element={<CustomerRoomView />} />

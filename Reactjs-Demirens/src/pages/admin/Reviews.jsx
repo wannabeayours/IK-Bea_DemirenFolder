@@ -107,14 +107,30 @@ function AdminReviews() {
     return { counts, max }
   }, [filtered])
 
-  // Render star icons for a rating value
+  // Render star icons for a rating value (filled/unfilled)
   const renderStars = (value, size = 16) => {
     const filled = Math.max(0, Math.min(5, Math.round(Number(value || 0))))
     return (
-      <div className="flex items-center gap-0.5">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <StarIcon key={i} className={"" + (i < filled ? "text-violet-600" : "text-muted-foreground")} style={{ width: size, height: size }} />
-        ))}
+      <div className="flex items-center gap-1">
+        {Array.from({ length: 5 }).map((_, i) => {
+          const isFilled = i < filled
+          return (
+            <svg
+              key={i}
+              width={size}
+              height={size}
+              viewBox="0 0 24 24"
+              className={isFilled ? "text-violet-600" : "text-muted-foreground"}
+            >
+              <path
+                d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+                fill={isFilled ? "currentColor" : "none"}
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+          )
+        })}
       </div>
     )
   }

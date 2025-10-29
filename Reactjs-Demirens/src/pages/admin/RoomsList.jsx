@@ -486,7 +486,7 @@ function AdminRoomsList() {
     }
   }
   
-  // Toggle room status between Vacant (3) and Under-Maintenance (4)
+  // Toggle room status between Vacant (3) and Disabled (6)
   const toggleRoomStatus = async (roomId) => {
     setUpdatingRoomStatus(roomId);
     
@@ -499,8 +499,8 @@ function AdminRoomsList() {
 
     // Normalize current status to number and decide next status
     const currentId = Number(currentRoom.room_status_id)
-    const nextStatusId = currentId === 4 ? 3 : 4
-    const nextStatusName = nextStatusId === 3 ? 'Vacant' : 'Under-Maintenance'
+    const nextStatusId = currentId === 6 ? 3 : 6
+    const nextStatusName = nextStatusId === 3 ? 'Vacant' : 'Disabled'
 
 
     // Optimistic UI update: swap button label immediately
@@ -531,7 +531,7 @@ function AdminRoomsList() {
         // Use backend-confirmed values, with robust fallbacks
         const confirmedIdRaw = res?.data?.new_status_id ?? res?.data?.status_id ?? nextStatusId
         const confirmedId = Number(confirmedIdRaw)
-        const confirmedName = res?.data?.new_status_name ?? res?.data?.status_name ?? (confirmedId === 4 ? 'Under-Maintenance' : 'Vacant')
+        const confirmedName = res?.data?.new_status_name ?? res?.data?.status_name ?? (confirmedId === 6 ? 'Disabled' : 'Vacant')
 
         setRooms(prev => prev.map(r => (
           r.roomnumber_id === roomId
@@ -1025,11 +1025,11 @@ function AdminRoomsList() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className={`flex-1 flex items-center justify-center ${Number(room.room_status_id) === 4 ? 'bg-green-50 hover:bg-green-100 text-green-600' : 'bg-red-50 hover:bg-red-100 text-red-600'} border-border`}
+                          className={`flex-1 flex items-center justify-center ${Number(room.room_status_id) === 6 ? 'bg-green-50 hover:bg-green-100 text-green-600' : 'bg-red-50 hover:bg-red-100 text-red-600'} border-border`}
                           onClick={() => toggleRoomStatus(room.roomnumber_id)}
                           disabled={status === 'Occupied'}
                         >
-                          {Number(room.room_status_id) === 4 ? 'Enable' : 'Disable'}
+                          {Number(room.room_status_id) === 6 ? 'Enable' : 'Disable'}
                         </Button>
                       </div>
                     </CardFooter>
@@ -1191,13 +1191,13 @@ function AdminRoomsList() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className={`flex-1 flex items-center justify-center ${Number(room.room_status_id) === 4 ? 'bg-green-50 hover:bg-green-100 text-green-600' : 'bg-red-50 hover:bg-red-100 text-red-600'} border-border`}
+                            className={`flex-1 flex items-center justify-center ${Number(room.room_status_id) === 6 ? 'bg-green-50 hover:bg-green-100 text-green-600' : 'bg-red-50 hover:bg-red-100 text-red-600'} border-border`}
                             onClick={() => toggleRoomStatus(room.roomnumber_id)}
                             disabled={status === 'Occupied' || updatingRoomStatus === room.roomnumber_id}
                           >
                             {updatingRoomStatus === room.roomnumber_id 
                               ? 'Updating...' 
-                              : Number(room.room_status_id) === 4 ? 'Enable' : 'Disable'
+                              : Number(room.room_status_id) === 6 ? 'Enable' : 'Disable'
                             }
                           </Button>
                         </div>
