@@ -30,6 +30,8 @@ import AdminHeader from './components/AdminHeader'
 import AdvancedFiltersSheet from './SubPages/AdvancedFiltersSheet'
 import AdminModal from './components/AdminModal'
 
+import { useNavigate } from 'react-router-dom'
+
 const getRoomStatusForDates = (room, startDate, endDate) => {
   if (room.bookings && room.bookings.length > 0) {
     for (const booking of room.bookings) {
@@ -51,9 +53,10 @@ const getRoomStatusForDates = (room, startDate, endDate) => {
 function AdminRoomsList() {
   const APIConn = `${localStorage.url}admin.php`
   // Compute normalized role once to use for permissions
-  const userTypeRaw = (localStorage.getItem('userType') || '').toLowerCase().replace(/[\s_-]/g, '')
-  const userLevelRaw = (localStorage.getItem('userLevel') || '').toLowerCase().replace(/[\s_-]/g, '')
+  const userTypeRaw = (localStorage.getItem('userType') || '').toLowerCase().replace(/[,\s_-]/g, '')
+  const userLevelRaw = (localStorage.getItem('userLevel') || '').toLowerCase().replace(/[,\s_-]/g, '')
   const normalizedRole = userLevelRaw || userTypeRaw
+  const navigate = useNavigate()
 
   const [rooms, setRooms] = useState([])
   const [isLoading, setIsLoading] = useState(false)
@@ -765,6 +768,16 @@ function AdminRoomsList() {
                     {!selectedRoomType ? roomTypes.length : selectedRoomType.rooms.length}
                   </span> {!selectedRoomType ? 'room types' : 'rooms'}
                 </div>
+
+                {normalizedRole === 'admin' && (
+                  <Button
+                    size="sm"
+                    className="ml-auto bg-[#34699a] hover:bg-[#2a5580] text-white"
+                    onClick={() => navigate('/admin/new-room-number')}
+                  >
+                    New Room Number
+                  </Button>
+                )}
               </div>
             </div>
           </div>

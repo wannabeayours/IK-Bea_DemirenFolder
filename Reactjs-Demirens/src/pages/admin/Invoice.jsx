@@ -317,7 +317,7 @@ function CreateInvoice() {
                       ) : (
                         <Badge variant="destructive" className="text-xs">
                           <XCircle className="h-3 w-3 mr-1" />
-                          <span className="hidden sm:inline">Not Created</span>
+                          <span className="hidden sm:inline">Invoice Not Created</span>
                           <span className="sm:hidden">✗</span>
                         </Badge>
                       )}

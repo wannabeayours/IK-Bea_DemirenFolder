@@ -289,7 +289,7 @@ function Moreinfo({ room }) {
                                   <Clock className="w-4 h-4 text-green-600" />
                                   <h3 className="font-bold text-green-800">CHECK-IN</h3>
                                 </div>
-                                <p className="text-sm text-green-700 font-medium">From 10:00 AM to 11:00 AM</p>
+                                <p className="text-sm text-green-700 font-medium">From 2:00 PM to 12:00 PM</p>
                               </div>
 
                               <div className="p-4 bg-gradient-to-r from-red-50 to-rose-50 rounded-xl border border-red-200/60">
@@ -297,7 +297,7 @@ function Moreinfo({ room }) {
                                   <Clock className="w-4 h-4 text-red-600" />
                                   <h3 className="font-bold text-red-800">CHECK-OUT</h3>
                                 </div>
-                                <p className="text-sm text-red-700 font-medium">From 12:00 PM to 1:00 PM</p>
+                                <p className="text-sm text-red-700 font-medium">From 12:00 PM to 2:00 PM</p>
                               </div>
                             </div>
                           </div>

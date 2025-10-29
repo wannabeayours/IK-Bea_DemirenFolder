@@ -1271,8 +1271,8 @@ function BookingNoaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber
 
       <SheetTrigger asChild>
         <Button
-          variant="outline"
-          className="bg-[#113F67] text-white hover:bg-[#0d2f4f] border-[#113F67]"
+          
+          className="w-full bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white"
         >
           Book Now
         </Button>

@@ -81,11 +81,27 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
   }
 
   // 🔹 Update quantity & total per amenity
-  const handleQuantityChange = (index, quantity) => {
+  // Allow clearing while typing; compute totals safely
+  const handleQuantityChange = (index, rawValue) => {
     const updated = [...selectedAmenities];
-    if (quantity < 1 || isNaN(quantity)) quantity = 1;
-    updated[index].quantity = quantity;
-    updated[index].total = updated[index].price * quantity;
+    // Keep raw string to allow clearing input
+    const value = rawValue;
+    updated[index].quantity = value;
+
+    const parsed = typeof value === 'number' ? value : parseInt(value, 10);
+    const qtyNum = isNaN(parsed) ? 0 : parsed;
+    updated[index].total = qtyNum < 1 ? 0 : updated[index].price * qtyNum;
+    setSelectedAmenities(updated);
+  };
+
+  // On blur, normalize empty/invalid to 1
+  const handleQuantityBlur = (index) => {
+    const updated = [...selectedAmenities];
+    const value = updated[index].quantity;
+    const parsed = typeof value === 'number' ? value : parseInt(value, 10);
+    const normalized = isNaN(parsed) || parsed < 1 ? 1 : parsed;
+    updated[index].quantity = normalized;
+    updated[index].total = updated[index].price * normalized;
     setSelectedAmenities(updated);
   };
 
@@ -135,6 +151,11 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
       if (res.data === 1) {
         getBookingSummary();
         toast.success("Amenities added successfully");
+        
+        // ✅ Reset form state after successful submission
+        setSelectedItems([]);
+        setSelectedAmenities([]);
+        setNotes("");
       } else {
         toast.error("Failed to add amenities");
       }
@@ -223,9 +244,11 @@ function RequestAmenities({ bookingId, bookingRoomId, getBookingSummary, isAddBe
                   // ✅ Other amenities: editable quantity
                   <Input
                     type="number"
-                    min="1"
-                    value={item.quantity}
-                    onChange={(e) => handleQuantityChange(index, parseInt(e.target.value))}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={item.quantity === '' ? '' : String(item.quantity)}
+                    onChange={(e) => handleQuantityChange(index, e.target.value)}
+                    onBlur={() => handleQuantityBlur(index)}
                     className="w-20"
                   />
                 )}

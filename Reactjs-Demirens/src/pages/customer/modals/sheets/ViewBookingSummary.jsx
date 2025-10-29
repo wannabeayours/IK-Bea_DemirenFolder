@@ -67,17 +67,19 @@ function ViewBookingSummary({ getBookingSummary, bookingData }) {
       header: 'Status',
       cell: (row) => (
         <div className="flex items-center justify-center">
-          <Badge className={`flex items-center gap-1 ${row.charges_status_name === "Delivered"
-            ? "bg-green-100 text-green-700"
-            : row.charges_status_name === "Pending"
-              ? "bg-yellow-100 text-yellow-700"
-              : "bg-gray-100 text-gray-700"
-            }`}>
-            {row.charges_status_name === "Delivered" && <CheckCircle2 className="h-3 w-3" />}
-            {row.charges_status_name === "Pending" && <Clock className="h-3 w-3" />}
-            {row.charges_status_name !== "Delivered" && row.charges_status_name !== "Pending" && <XCircle className="h-3 w-3" />}
-            {row.charges_status_name}
-          </Badge>
+          {row.charges_master_id === 12 ? "-" :
+            <Badge className={`flex items-center gap-1 ${row.charges_status_name === "Delivered"
+              ? "bg-green-100 text-green-700"
+              : row.charges_status_name === "Pending"
+                ? "bg-yellow-100 text-yellow-700"
+                : "bg-gray-100 text-gray-700"
+              }`}>
+              {row.charges_status_name === "Delivered" && <CheckCircle2 className="h-3 w-3" />}
+              {row.charges_status_name === "Pending" && <Clock className="h-3 w-3" />}
+              {row.charges_status_name !== "Delivered" && row.charges_status_name !== "Pending" && <XCircle className="h-3 w-3" />}
+              {row.charges_status_name}
+            </Badge>
+          }
         </div>
       )
     },
@@ -124,7 +126,7 @@ function ViewBookingSummary({ getBookingSummary, bookingData }) {
     }
   }
 
-  useEffect(() => { 
+  useEffect(() => {
     if (isOpen === true) {
       const bookingList = bookingData.roomsList;
       setData(bookingData);
@@ -140,7 +142,7 @@ function ViewBookingSummary({ getBookingSummary, bookingData }) {
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger>
-        <Button className= "bg-gradient-to-r from-[#113f67] to-[#226597] hover:from-[#0d2f4f] hover:to-[#1a4f7a]">
+        <Button className="bg-gradient-to-r from-[#113f67] to-[#226597] hover:from-[#0d2f4f] hover:to-[#1a4f7a]">
           <Eye className="mr-2 h-4 w-4" />
           View Details
         </Button>
@@ -210,8 +212,10 @@ function ViewBookingSummary({ getBookingSummary, bookingData }) {
                       <DataTable
                         columns={columns}
                         data={room.charges}
+                        itemsPerPage={5}
                         hideSearch
                         showNoData={false}
+                        li
                         className="w-full text-xs sm:text-sm"
                         headerAction={
                           <div className="p-3 bg-gray-50 border-t">

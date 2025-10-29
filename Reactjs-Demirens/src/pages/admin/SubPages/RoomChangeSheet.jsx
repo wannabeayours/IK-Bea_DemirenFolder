@@ -43,6 +43,7 @@ function RoomChangeSheet({
   const [step, setStep] = useState(1);
   const [selectedRoomType, setSelectedRoomType] = useState(null);
   const [allRooms, setAllRooms] = useState([]);
+  const [visibleRows, setVisibleRows] = useState(3);
 
   useEffect(() => { if (isOpen) setStep(1); }, [isOpen]);
 
@@ -140,6 +141,16 @@ function RoomChangeSheet({
     );
     return matchesType && matchesSearch;
   });
+
+  // Pagination controls for available rooms grid
+  const roomsPerRow = 5;
+  const totalVisible = visibleRows * roomsPerRow;
+  const roomsToShow = filteredRooms.slice(0, totalVisible);
+
+  // Reset visible rows when search or selected room type changes
+  useEffect(() => {
+    setVisibleRows(3);
+  }, [searchQuery, selectedRoomType]);
 
   // Fetch available discounts
   const fetchDiscounts = useCallback(async () => {
@@ -440,7 +451,7 @@ function RoomChangeSheet({
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">
-                      Available Rooms {selectedRoomType ? `• ${selectedRoomType.name}` : ''} ({filteredRooms.length}{searchQuery && ` of ${availableRooms.length}`})
+                      Available Rooms ni siya {selectedRoomType ? `• ${selectedRoomType.name}` : ''} ({filteredRooms.length}{searchQuery && ` of ${availableRooms.length}`})
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -472,8 +483,8 @@ function RoomChangeSheet({
                     </div>
 
                     <div className="max-h-64 sm:max-h-80 md:max-h-96 overflow-y-auto">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 sm:gap-4">
-                        {filteredRooms.map((room, index) => (
+                      <div className="grid grid-cols-5 gap-3 sm:gap-4">
+                        {roomsToShow.map((room, index) => (
                           <div
                             key={index}
                             className="border rounded-lg p-3 cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors min-h-[140px] flex flex-col justify-between"
@@ -523,6 +534,16 @@ function RoomChangeSheet({
                           ) : (
                             <p className="text-gray-500 text-sm">No available rooms found</p>
                           )}
+                        </div>
+                      )}
+                      {roomsToShow.length < filteredRooms.length && (
+                        <div className="flex justify-center mt-4">
+                          <Button
+                            onClick={() => setVisibleRows(prev => prev + 3)}
+                            className="bg-[#113f67] hover:bg-[#0d2a4a] text-white"
+                          >
+                            Show More Rooms
+                          </Button>
                         </div>
                       )}
                     </div>

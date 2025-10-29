@@ -388,7 +388,7 @@ function BookingCreateInvoice() {
                 {b.invoice_id ? (
                   <span style={{ color: 'green' }}>✅ Created</span>
                 ) : (
-                  <span style={{ color: 'red' }}>❌ Not Created</span>
+                  <span style={{ color: 'red' }}>❌ Invoice Not Created</span>
                 )}
               </td>
               <td>

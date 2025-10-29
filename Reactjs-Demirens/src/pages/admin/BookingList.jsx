@@ -106,13 +106,32 @@ function AdminBookingList() {
   const [billingData, setBillingData] = useState([]);
   const [bookingChargesTotal, setBookingChargesTotal] = useState(null);
   const [bookingAmenitiesTotal, setBookingAmenitiesTotal] = useState(null);
+  // State to store amenities data for all bookings
+  const [allBookingCharges, setAllBookingCharges] = useState({});
+  
+  // Prefer API-computed charges total (rooms + approved amenities). Fallback to base + amenities.
   const finalTotalAmount = useMemo(() => {
-    const sumBillingTotals = Array.isArray(billingData) && billingData.length > 0
-      ? billingData.reduce((sum, bill) => sum + (parseFloat(bill.billing_total_amount) || 0), 0)
-      : 0;
+    if (bookingChargesTotal != null) {
+      return bookingChargesTotal;
+    }
+    const baseBookingTotal = parseFloat(selectedBooking?.total_amount ?? selectedBooking?.booking_totalAmount ?? 0) || 0;
     const amenitiesTotal = (bookingAmenitiesTotal != null) ? bookingAmenitiesTotal : 0;
-    return sumBillingTotals + amenitiesTotal;
-  }, [billingData, bookingAmenitiesTotal]);
+    return baseBookingTotal + amenitiesTotal;
+  }, [selectedBooking, bookingAmenitiesTotal, bookingChargesTotal]);
+
+  // Helper function to calculate correct balance for any booking including amenities
+  const calculateBookingBalance = useCallback((booking) => {
+    const baseTotal = parseFloat(booking.total_amount || booking.booking_totalAmount || 0) || 0;
+    const bookingCharges = allBookingCharges[booking.booking_id];
+    const amenitiesTotal = bookingCharges?.amenitiesTotal || 0;
+    const finalTotal = baseTotal + amenitiesTotal;
+    
+    // Calculate total paid amount
+    const totalPaidAmount = parseFloat(booking.downpayment || 0) || 0;
+    
+    // Return the remaining balance
+    return Math.max(finalTotal - totalPaidAmount, 0);
+  }, [allBookingCharges]);
   // Image viewer state
   const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
   const [imageViewerSrc, setImageViewerSrc] = useState('');
@@ -131,6 +150,184 @@ function AdminBookingList() {
     }, 1000);
     return () => clearInterval(timer);
   }, [showAntedateWarning]);
+
+  // Cancel booking warning state and countdown
+const [showCancelWarning, setShowCancelWarning] = useState(false);
+const [cancelCountdown, setCancelCountdown] = useState(5);
+// Check-out confirmation and invoice/email states
+const [showCheckOutWarning, setShowCheckOutWarning] = useState(false);
+const [checkOutCountdown, setCheckOutCountdown] = useState(5);
+const [checkOutTargetBooking, setCheckOutTargetBooking] = useState(null);
+const [showInvoiceDelivery, setShowInvoiceDelivery] = useState(false);
+const [invoiceDeliveryBooking, setInvoiceDeliveryBooking] = useState(null);
+// Check-in confirmation state and countdown (3 seconds)
+const [showCheckInWarning, setShowCheckInWarning] = useState(false);
+const [checkInCountdown, setCheckInCountdown] = useState(3);
+const [checkInTargetBooking, setCheckInTargetBooking] = useState(null);
+// Control dropdown open to avoid overlay blocking clicks
+const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
+  const [cancelTargetBooking, setCancelTargetBooking] = useState(null);
+  useEffect(() => {
+    if (!showCancelWarning) return;
+    setCancelCountdown(5);
+    const timer = setInterval(() => {
+      setCancelCountdown(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [showCancelWarning]);
+
+  useEffect(() => {
+    if (!showCheckOutWarning) return;
+    setCheckOutCountdown(5);
+    const timer = setInterval(() => {
+      setCheckOutCountdown(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [showCheckOutWarning]);
+
+  // Handle countdown for Check-In confirmation modal
+  useEffect(() => {
+    if (!showCheckInWarning) return;
+    setCheckInCountdown(3);
+    const timer = setInterval(() => {
+      setCheckInCountdown(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [showCheckInWarning]);
+
+  const handleConfirmCheckOutClick = () => {
+    if (!selectedBooking) return;
+    // Use DB-provided remaining balance to decide the flow
+    const remaining = checkRemainingBalance(selectedBooking);
+    if (remaining > 0) {
+      // Warn and redirect to Invoice when not fully paid
+      setValidationBooking(selectedBooking);
+      setShowPaymentValidation(true);
+      return;
+    }
+    // Fully paid — proceed with the standard confirmation dialog
+    setCheckOutTargetBooking(selectedBooking);
+    setShowCheckOutWarning(true);
+  };
+
+  const handleDownloadInvoice = async () => {
+    try {
+      if (!invoiceDeliveryBooking) {
+        setShowInvoiceDelivery(false);
+        return;
+      }
+      const baseUrl = localStorage.getItem('url') || '';
+      const empRaw = localStorage.getItem('employee_id') || localStorage.getItem('userId') || '1';
+      const employee_id = parseInt(empRaw) || 1;
+      const params = new URLSearchParams({
+        booking_id: String(invoiceDeliveryBooking.booking_id),
+        delivery_mode: 'pdf',
+        stream: '1',
+        employee_id: String(employee_id),
+      });
+      const url = baseUrl + 'generate-invoice.php?' + params.toString();
+      window.location.href = url;
+    } catch (e) {
+      console.error('Download invoice failed:', e);
+    } finally {
+      setShowInvoiceDelivery(false);
+    }
+  };
+
+  const handleSendInvoiceEmail = async () => {
+    try {
+      if (!invoiceDeliveryBooking) {
+        setShowInvoiceDelivery(false);
+        return;
+      }
+      const baseUrl = localStorage.getItem('url') || '';
+      const empRaw = localStorage.getItem('employee_id') || localStorage.getItem('userId') || '1';
+      const employee_id = parseInt(empRaw) || 1;
+
+      // Kick off generator to stream and email using server-side defaults
+      const genParams = new URLSearchParams({
+        booking_id: String(invoiceDeliveryBooking.booking_id),
+        delivery_mode: 'both',
+        stream: '1',
+        employee_id: String(employee_id),
+      });
+      const genUrl = baseUrl + 'generate-invoice.php?' + genParams.toString();
+      window.location.href = genUrl;
+
+      // Also record the invoice in DB via transactions endpoint (mirrors InvoiceManagementSubpage)
+      const jsonData = {
+        booking_id: invoiceDeliveryBooking.booking_id,
+        employee_id,
+        payment_method_id: 2,
+        invoice_status_id: 1,
+        discount_id: null,
+        vat_rate: 0,
+        downpayment: 0,
+        delivery_mode: 'both',
+      };
+
+      const formData = new FormData();
+      formData.append('operation', 'createInvoice');
+      formData.append('json', JSON.stringify(jsonData));
+
+      try {
+        const txUrl = baseUrl + 'transactions.php';
+        const res = await axios.post(txUrl, formData);
+        if (res.data?.success) {
+          toast.success(res.data.message || 'Invoice created successfully!');
+        } else {
+          console.warn('Invoice creation failed:', res.data?.message);
+        }
+      } catch (err) {
+        console.warn('Error creating invoice via transactions:', err?.message || err);
+      }
+    } catch (e) {
+      console.error('Send invoice email failed:', e);
+    } finally {
+      setShowInvoiceDelivery(false);
+    }
+  };
+
+  // Create final invoice record only when remaining balance is zero
+  const createInvoiceForBooking = async (booking) => {
+    try {
+      if (!booking?.booking_id) {
+        toast.error('Missing booking_id');
+        return false;
+      }
+      const baseUrl = localStorage.getItem('url') || '';
+      const empRaw = localStorage.getItem('employee_id') || localStorage.getItem('userId') || '1';
+      const employee_id = parseInt(empRaw) || 1;
+
+      const jsonData = {
+        booking_id: booking.booking_id,
+        employee_id,
+        payment_method_id: 2,
+        invoice_status_id: 1,
+        discount_id: null,
+        vat_rate: 0,
+        downpayment: 0,
+        delivery_mode: 'pdf',
+      };
+
+      const formData = new FormData();
+      formData.append('operation', 'createInvoice');
+      formData.append('json', JSON.stringify(jsonData));
+
+      const txUrl = baseUrl + 'transactions.php';
+      const res = await axios.post(txUrl, formData);
+      if (res.data?.success) {
+        toast.success(res.data.message || 'Invoice created successfully!');
+        return true;
+      }
+      toast.error(res.data?.message || 'Failed to create invoice');
+      return false;
+    } catch (err) {
+      console.warn('Error creating invoice via transactions:', err?.message || err);
+      toast.error('Failed to connect while creating invoice');
+      return false;
+    }
+  };
 
   const getAllStatus = useCallback(async () => {
     const formData = new FormData();
@@ -225,6 +422,9 @@ function AdminBookingList() {
     fetchRoomData();
   }, [getBookings, getAllStatus, fetchRoomData]);
 
+  // Fetch amenities data for all bookings after bookings are loaded
+  // Moved below fetchAllBookingCharges declaration to avoid temporal dead zone
+
   // Auto-open booking modal if coming from Invoice Management
   useEffect(() => {
     try {
@@ -291,7 +491,7 @@ function AdminBookingList() {
     // Apply sorting
     filtered.sort((a, b) => {
       let comparison = 0;
-
+      
       if (sortBy === 'booking_created_at' || sortBy === 'booking_checkin_dateandtime' || sortBy === 'booking_checkout_dateandtime') {
         // Date sorting
         const aValue = new Date(a[sortBy]);
@@ -308,7 +508,7 @@ function AdminBookingList() {
         const bValue = (b[sortBy] || '').toLowerCase();
         comparison = aValue.localeCompare(bValue);
       }
-
+      
       return sortOrder === 'asc' ? comparison : -comparison;
     });
 
@@ -402,12 +602,12 @@ function AdminBookingList() {
           const resp = await axios.post(APIConn, fd);
           let rows = resp?.data;
           if (typeof rows === 'string') {
-            try { rows = JSON.parse(rows); } catch { }
+            try { rows = JSON.parse(rows); } catch {}
           }
           const roomIds = Array.isArray(rows)
             ? rows
-              .map(r => Number(r?.roomnumber_id))
-              .filter(n => Number.isFinite(n) && n > 0)
+                .map(r => Number(r?.roomnumber_id))
+                .filter(n => Number.isFinite(n) && n > 0)
             : [];
           if (roomIds.length > 0) {
             jsonData.room_ids = roomIds;
@@ -463,7 +663,7 @@ function AdminBookingList() {
     setSelectedBooking(booking);
 
     // Check if booking status allows room changes
-    const allowedStatuses = ['Checked-In', 'Confirmed'];
+    const allowedStatuses = ['Approved', 'Checked-In', 'Checked In', 'Confirmed'];
     if (!allowedStatuses.includes(booking.booking_status)) {
       toast.error('Room changes are only allowed for bookings with "Approved" or "Checked-In" status');
       return;
@@ -479,7 +679,7 @@ function AdminBookingList() {
     setSelectedBooking(booking);
     setIsRoomDetailsExpanded(false); // Reset dropdown state when opening modal
     setShowCustomerDetails(true);
-
+    
     // Fetch invoice, billing data, and comprehensive charges total
     fetchInvoiceData(booking);
     fetchBillingData(booking);
@@ -526,9 +726,50 @@ function AdminBookingList() {
 
   // Payment validation function
   const checkRemainingBalance = (booking) => {
-    // ONLY use balance from database - no calculations
-    const balance = parseFloat(booking.balance);
-    return balance || 0;
+    // If we're checking the currently selected booking and have up-to-date billing data,
+    // compute remaining using the UI's source of truth (finalTotalAmount - sum of bill payments).
+    if (selectedBooking && booking?.booking_id === selectedBooking.booking_id) {
+      if (Array.isArray(billingData) && billingData.length > 0) {
+        const totalPaidAmount = billingData.reduce((sum, bill) => sum + (parseFloat(bill?.billing_downpayment) || 0), 0);
+        const totalAll = Number.isFinite(finalTotalAmount) ? finalTotalAmount : (calculateBookingBalance(booking) || 0);
+        const remainingFromBills = Math.max(totalAll - totalPaidAmount, 0);
+        return remainingFromBills;
+      }
+
+      // If an invoice exists and is incomplete, block checkout by reporting a positive remaining
+      if (invoiceData && booking?.reference_no === selectedBooking.reference_no) {
+        const invoiceTotal = parseFloat(invoiceData?.invoice_total_amount);
+        const hasInvoiceTotal = Number.isFinite(invoiceTotal) && invoiceTotal >= 0;
+        const isComplete = invoiceData?.invoice_status_id === 1;
+        if (!isComplete) {
+          // Without reliable paid breakdown here, conservatively block
+          return Number.POSITIVE_INFINITY;
+        }
+        // Complete invoice implies no remaining balance
+        if (isComplete && hasInvoiceTotal) {
+          return 0;
+        }
+      }
+    }
+
+    // Prefer DB-provided balance; guard against undefined/NaN
+    const dbBalance = parseFloat(booking?.balance);
+    if (Number.isFinite(dbBalance) && dbBalance >= 0) {
+      return dbBalance;
+    }
+
+    // Fallback: compute using known totals (rooms + approved amenities) and payments (downpayment field)
+    try {
+      const computed = calculateBookingBalance(booking);
+      if (Number.isFinite(computed) && computed >= 0) {
+        return computed;
+      }
+    } catch (e) {
+      // ignore and use conservative default below
+    }
+
+    // Conservative default: treat as unpaid to prevent accidental checkout
+    return Number.POSITIVE_INFINITY;
   };
 
   const isValidForCheckOut = (booking) => {
@@ -604,8 +845,9 @@ function AdminBookingList() {
       if (res.data?.success) {
         const charges = Array.isArray(res.data.charges) ? res.data.charges : [];
         const totalAll = charges.reduce((sum, charge) => sum + (parseFloat(charge.total_amount) || 0), 0);
+        // Sum only approved additional charges from tbl_booking_charges
         const amenitiesTotal = charges
-          .filter(c => String(c.category).toLowerCase().includes("amenity"))
+          .filter(c => String(c.charge_type) === 'Additional Charges')
           .reduce((sum, c) => sum + (parseFloat(c.total_amount) || 0), 0);
         setBookingChargesTotal(totalAll);
         setBookingAmenitiesTotal(amenitiesTotal);
@@ -619,6 +861,52 @@ function AdminBookingList() {
       setBookingAmenitiesTotal(null);
     }
   };
+
+  // Function to fetch amenities data for all bookings (use function declaration for hoisting)
+  async function fetchAllBookingCharges() {
+    if (!bookings || bookings.length === 0) return;
+
+    try {
+      const url = localStorage.getItem("url") + "transactions.php";
+      const chargesData = {};
+
+      // Fetch charges for all bookings in parallel
+      const promises = bookings.map(async (booking) => {
+        try {
+          const formData = new FormData();
+          formData.append("operation", "getBookingCharges");
+          formData.append("json", JSON.stringify({ booking_id: booking.booking_id }));
+
+          const res = await axios.post(url, formData);
+          if (res.data?.success) {
+            const charges = Array.isArray(res.data.charges) ? res.data.charges : [];
+            const amenitiesTotal = charges
+              .filter(c => String(c.charge_type) === 'Additional Charges')
+              .reduce((sum, c) => sum + (parseFloat(c.total_amount) || 0), 0);
+
+            chargesData[booking.booking_id] = {
+              amenitiesTotal: amenitiesTotal
+            };
+          }
+        } catch (err) {
+          console.error(`Error fetching charges for booking ${booking.booking_id}:`, err);
+          chargesData[booking.booking_id] = { amenitiesTotal: 0 };
+        }
+      });
+
+      await Promise.all(promises);
+      setAllBookingCharges(chargesData);
+    } catch (err) {
+      console.error("Error fetching all booking charges:", err);
+    }
+  }
+
+  // Fetch amenities data for all bookings after bookings are loaded
+  useEffect(() => {
+    if (bookings && bookings.length > 0) {
+      fetchAllBookingCharges();
+    }
+  }, [bookings]);
 
   const handleUpdateStatus = async () => {
     if (!selectedBooking || !newStatus) {
@@ -813,7 +1101,7 @@ function AdminBookingList() {
     if (!selectedBooking) return;
 
     const currentCheckout = new Date(selectedBooking.booking_checkout_dateandtime);
-
+    
     // Normalize dates to compare only the date part (ignore time)
     const currentDateOnly = new Date(currentCheckout.getFullYear(), currentCheckout.getMonth(), currentCheckout.getDate());
     const selectedDateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -859,11 +1147,11 @@ function AdminBookingList() {
 
       // Validate that new checkout date is after current checkout date
       const currentCheckout = new Date(selectedBooking.booking_checkout_dateandtime);
-
+      
       // Normalize dates to compare only the date part (ignore time)
       const currentDateOnly = new Date(currentCheckout.getFullYear(), currentCheckout.getMonth(), currentCheckout.getDate());
       const newDateOnly = new Date(newCheckoutDate.getFullYear(), newCheckoutDate.getMonth(), newCheckoutDate.getDate());
-
+      
       console.log('Current Checkout:', currentCheckout);
       console.log('Current Date Only:', currentDateOnly);
       console.log('New Checkout:', newCheckoutDate);
@@ -996,15 +1284,15 @@ function AdminBookingList() {
         const roomInfo = isMultiRoomBooking && selectedRoomsForExtension.length > 0
           ? ` for ${selectedRoomsForExtension.length} room(s): ${selectedRoomsForExtension.map(r => r.roomnumber_id).join(', ')}`
           : '';
-
+        
         console.log('Extension successful!', responseData);
-
+        
         // Show success message with new reference number
         let successMessage = `Booking extended successfully${roomInfo} for ${selectedBooking.reference_no}`;
         if (responseData.extension_reference_no) {
           successMessage += `\nNew Extension Reference: ${responseData.extension_reference_no}`;
         }
-
+        
         toast.success(successMessage);
         setShowExtendBooking(false);
         setSelectedBooking(null);
@@ -1016,7 +1304,7 @@ function AdminBookingList() {
         setPaymentAmount('0');
         setPaymentMethod('2');
         setExtendedRooms([]); // Clear extended rooms state
-
+        
         // Refresh bookings list
         await getBookings();
       } else {
@@ -1070,19 +1358,14 @@ function AdminBookingList() {
       console.log('Customer has outstanding payments, navigating to Invoice');
       showPaymentValidationModal(booking);
     } else {
-      // Customer is fully paid - check if they have a complete invoice
-      console.log('Customer is fully paid, checking invoice status...');
-      const hasCompleteInvoice = await checkInvoiceStatus(booking);
-
-      if (hasCompleteInvoice) {
-        // Customer has complete invoice - proceed with check-out
-        console.log('Customer has complete invoice, proceeding with check-out');
-        await proceedWithCheckOut(booking);
-      } else {
-        // Customer is fully paid but no complete invoice - navigate to Invoice
-        console.log('Customer is fully paid but no complete invoice, navigating to Invoice');
-        showPaymentValidationModal(booking);
+      // Customer fully paid: create invoice, allow delivery actions, then proceed with check-out
+      console.log('Customer fully paid. Creating final invoice and proceeding with check-out...');
+      const created = await createInvoiceForBooking(booking);
+      if (created) {
+        setInvoiceDeliveryBooking(booking);
+        setShowInvoiceDelivery(true);
       }
+      await proceedWithCheckOut(booking);
     }
   };
 
@@ -1316,7 +1599,7 @@ function AdminBookingList() {
       const res = await axios.post(APIConn, formData);
       let data = res.data;
       if (typeof data === 'string') {
-        try { data = JSON.parse(data); } catch { }
+        try { data = JSON.parse(data); } catch {}
       }
       if (data && (data.success || data.status === 'ok' || data.updated)) {
         toast.success('Booking dates updated.');
@@ -1512,11 +1795,11 @@ function AdminBookingList() {
             {sortBy && (
               <span className="text-sm font-normal text-blue-600 dark:text-blue-400 md:ml-auto flex items-center gap-1">
                 Sorted by: {sortBy === 'booking_created_at' ? 'Created Date' :
-                  sortBy === 'booking_checkin_dateandtime' ? 'Check-in Date' :
-                    sortBy === 'booking_checkout_dateandtime' ? 'Check-out Date' :
-                      sortBy === 'customer_name' ? 'Customer Name' :
-                        sortBy === 'reference_no' ? 'Reference No' :
-                          sortBy === 'total_amount' ? 'Balance' : sortBy}
+                           sortBy === 'booking_checkin_dateandtime' ? 'Check-in Date' :
+                           sortBy === 'booking_checkout_dateandtime' ? 'Check-out Date' :
+                           sortBy === 'customer_name' ? 'Customer Name' :
+                           sortBy === 'reference_no' ? 'Reference No' :
+                           sortBy === 'total_amount' ? 'Balance' : sortBy}
                 ({sortOrder === 'asc' ? (
                   <>
                     <ClockArrowUp className="w-3 h-3" />
@@ -1692,12 +1975,12 @@ function AdminBookingList() {
                     A comprehensive list of all hotel bookings
                     {sortBy && (
                       <span className="block mt-1 text-sm font-medium text-blue-600 dark:text-blue-400 flex items-center justify-center gap-1">
-                        📊 Currently sorted by: {sortBy === 'booking_created_at' ? 'Created Date' :
-                          sortBy === 'booking_checkin_dateandtime' ? 'Check-in Date' :
-                            sortBy === 'booking_checkout_dateandtime' ? 'Check-out Date' :
-                              sortBy === 'customer_name' ? 'Customer Name' :
-                                sortBy === 'reference_no' ? 'Reference No' :
-                                  sortBy === 'total_amount' ? 'Balance' : sortBy}
+                        📊 Currently sorted by: {sortBy === 'booking_created_at' ? 'Created Date' : 
+                                                 sortBy === 'booking_checkin_dateandtime' ? 'Check-in Date' :
+                                                 sortBy === 'booking_checkout_dateandtime' ? 'Check-out Date' :
+                                                 sortBy === 'customer_name' ? 'Customer Name' :
+                                                 sortBy === 'reference_no' ? 'Reference No' :
+                                                 sortBy === 'total_amount' ? 'Balance' : sortBy} 
                         ({sortOrder === 'asc' ? (
                           <>
                             <ClockArrowUp className="w-3 h-3" />
@@ -1813,15 +2096,16 @@ function AdminBookingList() {
                         </TableCell>
                         <TableCell className="text-gray-700 dark:text-gray-300 text-center py-3">
                           <div className="space-y-1">
-                            <div className={`font-semibold text-xs ${(() => {
-                                // ONLY use balance from database
-                                const balance = parseFloat(b.balance);
+                            <div className={`font-semibold text-xs ${
+                              (() => {
+                                // Calculate balance including amenities
+                                const balance = calculateBookingBalance(b);
                                 return balance === 0 ? "text-green-600 dark:text-green-400" : "text-orange-600 dark:text-orange-400";
                               })()
-                              }`}>
+                            }`}>
                               {(() => {
-                                // ONLY use balance from database
-                                const balance = parseFloat(b.balance);
+                                // Calculate balance including amenities
+                                const balance = calculateBookingBalance(b);
                                 if (balance === 0) {
                                   return "Fully Paid";
                                 } else if (balance > 0) {
@@ -1832,7 +2116,14 @@ function AdminBookingList() {
                               })()}
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                              Total: {NumberFormatter.formatCurrency(b.total_amount || 0)}
+                              {(() => {
+                                // Show total including amenities
+                                const baseTotal = parseFloat(b.total_amount || 0) || 0;
+                                const bookingCharges = allBookingCharges[b.booking_id];
+                                const amenitiesTotal = bookingCharges?.amenitiesTotal || 0;
+                                const finalTotal = baseTotal + amenitiesTotal;
+                                return `Total: ${NumberFormatter.formatCurrency(finalTotal)}`;
+                              })()}
                             </div>
                           </div>
                         </TableCell>
@@ -1841,7 +2132,7 @@ function AdminBookingList() {
                         </TableCell>
                         <TableCell className="text-center py-3">
                           {b.booking_status === 'Checked-In' ? (
-                            <DropdownMenu>
+                            <DropdownMenu open={openActionsForBookingId === b.booking_id} onOpenChange={(open) => setOpenActionsForBookingId(open ? b.booking_id : null)}>
                               <DropdownMenuTrigger asChild>
                                 <Button
                                   size="sm"
@@ -1853,13 +2144,13 @@ function AdminBookingList() {
                                   <ChevronDown className="w-2 h-2 sm:w-3 sm:h-3 ml-1" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="min-w-[180px]">
-                                <DropdownMenuItem onClick={() => handleViewCustomerDetails(b)}>
+                              <DropdownMenuContent align="end" className="min-w-[180px] z-50">
+                                <DropdownMenuItem onClick={() => { handleViewCustomerDetails(b); setOpenActionsForBookingId(null); }}>
                                   <Eye className="w-3 h-3 mr-2 text-purple-600" />
                                   View Details
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  onClick={() => handleExtendBooking(b)}
+                                  onClick={() => { handleExtendBooking(b); setOpenActionsForBookingId(null); }}
                                   disabled={b.booking_status === 'Pending'}
                                   className="disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -1867,7 +2158,7 @@ function AdminBookingList() {
                                   Extend Booking
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  onClick={() => handleChangeRoom(b)}
+                                  onClick={() => { handleChangeRoom(b); setOpenActionsForBookingId(null); }}
                                   disabled={b.booking_status === 'Pending'}
                                   className="disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -1937,17 +2228,13 @@ function AdminBookingList() {
                     </div>
                     <div className="text-right">
                       {(() => {
-                        const billingTotal = Array.isArray(billingData) && billingData.length > 0
-                          ? billingData.reduce((sum, bill) => sum + (parseFloat(bill.billing_total_amount) || 0), 0)
-                          : 0;
-                        const amenities = (bookingAmenitiesTotal != null) ? bookingAmenitiesTotal : 0;
-                        const total = billingTotal + amenities;
+                        const finalTotal = finalTotalAmount;
                         return (
                           <>
                             <div className="text-2xl font-bold text-[#34699a] dark:text-[#34699a]">
-                              {NumberFormatter.formatCurrency(total)}
+                              {NumberFormatter.formatCurrency(finalTotal)}
                             </div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">Total Amount {amenities > 0 ? '(includes amenities)' : ''}</div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">Total Amount</div>
                           </>
                         );
                       })()}
@@ -2016,21 +2303,16 @@ function AdminBookingList() {
                     <div className="md:col-span-2">
                       <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Remaining Balance</label>
                       {(() => {
-                        const checkInDate = new Date(selectedBooking.booking_checkin_dateandtime);
-                        const checkOutDate = new Date(selectedBooking.booking_checkout_dateandtime);
-                        const msPerDay = 1000 * 60 * 60 * 24;
-                        const nights = Math.max(0, Math.ceil((checkOutDate - checkInDate) / msPerDay));
-                        const roomPrice = parseFloat(selectedBooking.roomtype_price) || 0;
-                        const roomTotal = roomPrice * nights; // room type price × nights only
+                        const finalTotal = finalTotalAmount;
                         const totalPaidAmount = Array.isArray(billingData) && billingData.length > 0
                           ? billingData.reduce((sum, bill) => sum + (parseFloat(bill.billing_downpayment) || 0), 0)
                           : (parseFloat(selectedBooking.downpayment) || 0);
-                        const balance = Math.max(roomTotal - totalPaidAmount, 0);
+                        const balance = Math.max(finalTotal - totalPaidAmount, 0);
                         return (
                           <div className="mt-1 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 p-3">
                             <div className="grid grid-cols-2 text-sm mb-1">
                               <span className="text-gray-600 dark:text-gray-400">Total Amount</span>
-                              <span className="text-right text-gray-900 dark:text-white font-medium">{NumberFormatter.formatCurrency(roomTotal)}</span>
+                              <span className="text-right text-gray-900 dark:text-white font-medium">{NumberFormatter.formatCurrency(finalTotal)}</span>
                             </div>
                             <div className="grid grid-cols-2 text-sm">
                               <span className="text-gray-600 dark:text-gray-400">Payment</span>
@@ -2159,7 +2441,7 @@ function AdminBookingList() {
                   {(() => {
                     const hasInvoice = invoiceData !== null;
                     const hasBills = billingData && billingData.length > 0;
-
+                    
                     if (hasInvoice) {
                       // Customer has an invoice
                       return (
@@ -2198,16 +2480,7 @@ function AdminBookingList() {
                             <div className="grid grid-cols-2 gap-4 text-sm mb-3">
                               <div>
                                 <span className="text-gray-600 dark:text-gray-400">Total Bill Amount:</span>
-                                <p className="font-medium text-gray-900 dark:text-white">
-                                  {(() => {
-                                    const sumBillingTotals = Array.isArray(billingData) && billingData.length > 0
-                                      ? billingData.reduce((sum, bill) => sum + (parseFloat(bill.billing_total_amount) || 0), 0)
-                                      : 0;
-                                    const amenitiesTotal = (bookingAmenitiesTotal != null) ? bookingAmenitiesTotal : 0;
-                                    const finalTotal = sumBillingTotals + amenitiesTotal;
-                                    return NumberFormatter.formatCurrency(finalTotal);
-                                  })()}
-                                </p>
+                                <p className="font-medium text-gray-900 dark:text-white">{NumberFormatter.formatCurrency(finalTotalAmount)}</p>
                               </div>
                               <div>
                                 <span className="text-gray-600 dark:text-gray-400">Total Paid:</span>
@@ -2221,13 +2494,8 @@ function AdminBookingList() {
                                 <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Remaining Balance:</span>
                                 <span className="font-bold text-lg text-green-700 dark:text-green-400">
                                   {(() => {
-                                    const sumBillingTotals = Array.isArray(billingData) && billingData.length > 0
-                                      ? billingData.reduce((sum, bill) => sum + (parseFloat(bill.billing_total_amount) || 0), 0)
-                                      : 0;
-                                    const amenitiesTotal = (bookingAmenitiesTotal != null) ? bookingAmenitiesTotal : 0;
-                                    const finalTotal = sumBillingTotals + amenitiesTotal;
                                     const totalPaidAmount = billingData.reduce((sum, bill) => sum + (parseFloat(bill.billing_downpayment) || 0), 0);
-                                    const balance = Math.max(finalTotal - totalPaidAmount, 0);
+                                    const balance = Math.max(finalTotalAmount - totalPaidAmount, 0);
                                     return NumberFormatter.formatCurrency(balance);
                                   })()}
                                 </span>
@@ -2263,12 +2531,9 @@ function AdminBookingList() {
                       );
                     } else if (hasBills) {
                       // Customer has no invoice but has bills
-                      const sumBillingTotals = billingData.reduce((sum, bill) => sum + (parseFloat(bill.billing_total_amount) || 0), 0);
-                      const amenitiesTotal = (bookingAmenitiesTotal != null) ? bookingAmenitiesTotal : 0;
-                      const finalTotal = sumBillingTotals + amenitiesTotal;
                       const totalPaidAmount = billingData.reduce((sum, bill) => sum + (parseFloat(bill.billing_downpayment) || 0), 0);
-                      const totalBalance = Math.max(finalTotal - totalPaidAmount, 0);
-
+                      const totalBalance = Math.max(finalTotalAmount - totalPaidAmount, 0);
+                      
                       return (
                         <div className="space-y-3">
                           <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
@@ -2292,13 +2557,13 @@ function AdminBookingList() {
                             <p className="text-xs text-orange-600 dark:text-orange-400 mb-3">
                               Customer has bills but no invoice has been generated yet.
                             </p>
-
+                            
                             {/* Bill Summary */}
                             <div className="bg-white dark:bg-gray-800 rounded border border-orange-200 dark:border-orange-700 p-3">
                               <div className="grid grid-cols-2 gap-4 text-sm mb-3">
                                 <div>
                                   <span className="text-gray-600 dark:text-gray-400">Total Bill Amount:</span>
-                                  <p className="font-medium text-gray-900 dark:text-white">{NumberFormatter.formatCurrency(finalTotal)}</p>
+                                  <p className="font-medium text-gray-900 dark:text-white">{NumberFormatter.formatCurrency(finalTotalAmount)}</p>
                                 </div>
                                 <div>
                                   <span className="text-gray-600 dark:text-gray-400">Total Paid:</span>
@@ -2314,7 +2579,7 @@ function AdminBookingList() {
                                 </div>
                               </div>
                             </div>
-
+                            
                             {/* Individual Bills */}
                             <div className="mt-3">
                               <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -2371,24 +2636,23 @@ function AdminBookingList() {
                   }}>
                     Close
                   </Button>
-                  <Button
-                    onClick={() => {
-                      handleCancelBooking(selectedBooking);
-                      setShowCustomerDetails(false);
-                      setInvoiceData(null);
-                      setBillingData([]);
-                      setBookingChargesTotal(null);
-                    }}
-                    className="bg-orange-600 hover:bg-red-600"
-                  >
-                    <XCircle className="w-4 h-4 mr-2" />
-                    Cancel Booking
-                  </Button>
+                  {selectedBooking.booking_status !== 'Cancelled' && (
+                    <Button
+                      onClick={() => {
+                        setCancelTargetBooking(selectedBooking);
+                        setShowCancelWarning(true);
+                      }}
+                      className="bg-orange-600 hover:bg-red-600"
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Cancel Booking
+                    </Button>
+                  )}
                   {selectedBooking.booking_status !== 'Checked-In' && (
                     <Button
                       onClick={() => {
-                        handleConfirmCheckIn(selectedBooking);
-                        setShowCustomerDetails(false);
+                        setCheckInTargetBooking(selectedBooking);
+                        setShowCheckInWarning(true);
                       }}
                       disabled={selectedBooking.booking_status !== 'Confirmed'}
                       className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -2400,7 +2664,7 @@ function AdminBookingList() {
                   {/* Confirm Check-Out Button - Only shows for Checked-In status */}
                   {selectedBooking.booking_status === 'Checked-In' && (
                     <Button
-                      onClick={() => handleConfirmCheckOut(selectedBooking)}
+                      onClick={handleConfirmCheckOutClick}
                       className="bg-blue-600 hover:bg-green-700 flex items-center gap-2"
                     >
                       <CalendarIcon className="w-4 h-4" />
@@ -2408,17 +2672,19 @@ function AdminBookingList() {
                     </Button>
                   )}
                   {/* Recalculate Bills moved to Invoice & Billing Information card header */}
-                  <Button
-                    onClick={() => {
-                      handleChangeRoom(selectedBooking);
-                      setShowCustomerDetails(false);
-                    }}
-                    disabled={selectedBooking.booking_status === 'Pending'}
-                    className="bg-[#34699a] hover:bg-[#2a5580] disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ArrowRightLeft className="w-4 h-4 mr-2" />
-                    Change Room
-                  </Button>
+                  {selectedBooking.booking_status !== 'Cancelled' && (
+                    <Button
+                      onClick={() => {
+                        handleChangeRoom(selectedBooking);
+                        setShowCustomerDetails(false);
+                      }}
+                      disabled={selectedBooking.booking_status === 'Pending'}
+                      className="bg-[#34699a] hover:bg-[#2a5580] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ArrowRightLeft className="w-4 h-4 mr-2" />
+                      Change Room
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
@@ -2523,11 +2789,11 @@ function AdminBookingList() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Check-in Date</label>
-                    <Input type="date" value={editCheckInDate || ''} onChange={(e) => setEditCheckInDate(e.target.value)} />
+                    <Input type="date" value={editCheckInDate || ''} onChange={(e)=>setEditCheckInDate(e.target.value)} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Check-out Date</label>
-                    <Input type="date" value={editCheckOutDate || ''} onChange={(e) => setEditCheckOutDate(e.target.value)} />
+                    <Input type="date" value={editCheckOutDate || ''} onChange={(e)=>setEditCheckOutDate(e.target.value)} />
                   </div>
                 </div>
 
@@ -2538,7 +2804,7 @@ function AdminBookingList() {
                 )}
 
                 <div className="flex justify-end gap-3 pt-2">
-                  <Button variant="outline" onClick={() => setIsEditDatesOpen(false)}>Cancel</Button>
+                  <Button variant="outline" onClick={()=>setIsEditDatesOpen(false)}>Cancel</Button>
                   <Button onClick={handleSaveDatesClick} className="bg-blue-600 hover:bg-blue-700">
                     <Settings className="w-4 h-4 mr-2" />
                     {(() => {
@@ -2630,8 +2896,8 @@ function AdminBookingList() {
                         {extendedRooms && extendedRooms.length > 0
                           ? `${extendedRooms[0].roomtype_name} • #${extendedRooms[0].roomnumber_id}`
                           : (selectedBooking.roomtype_name && selectedBooking.room_numbers
-                            ? `${selectedBooking.roomtype_name} • #${selectedBooking.room_numbers}`
-                            : 'N/A')}
+                              ? `${selectedBooking.roomtype_name} • #${selectedBooking.room_numbers}`
+                              : 'N/A')}
                       </span>
                     </p>
                     <p className="text-sm text-gray-900 dark:text-white">
@@ -2679,7 +2945,8 @@ function AdminBookingList() {
                                       }
                                     }}
                                     disabled={extendableRooms.length === 0}
-                                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${extendableRooms.length === 0
+                                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                      extendableRooms.length === 0
                                         ? 'border-gray-300 bg-gray-100 cursor-not-allowed'
                                         : allSelected
                                           ? 'bg-blue-600 border-blue-600 text-white'
@@ -2720,7 +2987,8 @@ function AdminBookingList() {
                                     <div
                                       key={roomIndex}
                                       onClick={() => canExtend && toggleRoomSelection(roomInfo)}
-                                      className={`p-3 rounded border transition-all duration-200 ${isExtended
+                                      className={`p-3 rounded border transition-all duration-200 ${
+                                        isExtended 
                                           ? 'bg-gray-100 border-gray-400 cursor-not-allowed opacity-60 dark:bg-gray-700 dark:border-gray-500'
                                           : isSelected
                                             ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-200 cursor-pointer dark:bg-blue-900/20 dark:border-blue-400 dark:ring-blue-800'
@@ -2728,7 +2996,8 @@ function AdminBookingList() {
                                         }`}
                                     >
                                       <div className="flex items-center gap-3">
-                                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${isExtended
+                                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                                          isExtended
                                             ? 'border-gray-400 bg-gray-300 dark:border-gray-500 dark:bg-gray-600'
                                             : isSelected
                                               ? 'bg-blue-600 border-blue-600 text-white'
@@ -2746,7 +3015,8 @@ function AdminBookingList() {
                                           )}
                                         </div>
                                         <div className="flex-1">
-                                          <div className={`text-sm font-medium ${isExtended
+                                          <div className={`text-sm font-medium ${
+                                            isExtended
                                               ? 'text-gray-600 dark:text-gray-400'
                                               : isSelected
                                                 ? 'text-blue-700 dark:text-blue-300'
@@ -2754,7 +3024,8 @@ function AdminBookingList() {
                                             }`}>
                                             Room #{roomNum}
                                           </div>
-                                          <div className={`text-xs ${isExtended
+                                          <div className={`text-xs ${
+                                            isExtended
                                               ? 'text-red-600 dark:text-red-400'
                                               : isSelected
                                                 ? 'text-blue-600 dark:text-blue-400'
@@ -3245,6 +3516,132 @@ function AdminBookingList() {
             </div>
           )}
         </WarningDialog>
+
+        {/* Cancel Booking Warning Modal */}
+        <WarningDialog
+          open={showCancelWarning}
+          onOpenChange={setShowCancelWarning}
+          title="You are about to cancel this booking request, are you sure?"
+          icon={<AlertTriangle className="h-5 w-5 text-orange-500" />}
+          confirmText={cancelCountdown > 0 ? `Cancel Booking (${cancelCountdown})` : "Cancel Booking"}
+          cancelText="Go Back"
+          confirmDisabled={cancelCountdown > 0}
+          onCancel={() => {
+            setShowCancelWarning(false);
+            setCancelTargetBooking(null);
+          }}
+          onConfirm={async () => {
+            if (cancelTargetBooking) {
+              await handleCancelBooking(cancelTargetBooking);
+            }
+            setShowCancelWarning(false);
+            setCancelTargetBooking(null);
+            setShowCustomerDetails(false);
+            setInvoiceData(null);
+            setBillingData([]);
+            setBookingChargesTotal(null);
+          }}
+          contentClassName="max-w-[95vw] sm:max-w-md mx-4"
+          confirmClassName="bg-orange-600 hover:bg-red-600 px-6 flex items-center gap-2"
+        >
+          {cancelTargetBooking && (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-700 dark:text-gray-300">
+                Please wait {cancelCountdown} second{cancelCountdown !== 1 ? 's' : ''} before you can cancel.
+              </div>
+              <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-medium text-orange-700 dark:text-orange-300">Reference:</span>
+                  <span className="px-2 py-1 bg-orange-100 dark:bg-orange-800 text-orange-800 dark:text-orange-200 rounded text-sm font-mono">
+                    {cancelTargetBooking.reference_no}
+                  </span>
+                </div>
+                <div className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                  Customer: {cancelTargetBooking.customer_name}
+                </div>
+              </div>
+            </div>
+          )}
+        </WarningDialog>
+
+        {/* Check-Out Warning Modal */}
+        <WarningDialog
+          open={showCheckOutWarning}
+          onOpenChange={setShowCheckOutWarning}
+          title="You are about to confirm the visitor's check-out, are you sure you want to continue?"
+          icon={<AlertTriangle className="h-5 w-5 text-orange-500" />}
+          confirmText={checkOutCountdown > 0 ? `Confirm (${checkOutCountdown})` : "Confirm"}
+          cancelText="Go Back"
+          confirmDisabled={checkOutCountdown > 0}
+          onCancel={() => {
+            setShowCheckOutWarning(false);
+            setCheckOutTargetBooking(null);
+          }}
+          onConfirm={async () => {
+            setShowCheckOutWarning(false);
+            if (checkOutTargetBooking) {
+              // Prefer the balance-aware handler first
+              if (typeof handleConfirmCheckOut === 'function') {
+                await handleConfirmCheckOut(checkOutTargetBooking);
+              } else if (typeof proceedWithCheckOut === 'function') {
+                await proceedWithCheckOut(checkOutTargetBooking);
+              }
+            }
+            setCheckOutTargetBooking(null);
+          }}
+          contentClassName="max-w-[95vw] sm:max-w-md mx-4"
+          confirmClassName="bg-green-600 hover:bg-green-700 px-6"
+        />
+
+        {/* Fully Paid Invoice/Email Modal */}
+        <Dialog open={showInvoiceDelivery} onOpenChange={setShowInvoiceDelivery}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Invoice Actions</DialogTitle>
+              <DialogDescription>
+                The customer has fully paid the Total Amount. You can download the invoice and send an email.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              {invoiceDeliveryBooking && (
+                <div className="text-sm text-gray-700 dark:text-gray-300">
+                  Reference: <span className="font-mono">{invoiceDeliveryBooking.reference_no}</span><br />
+                  Customer: {invoiceDeliveryBooking.customer_name}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <Button variant="outline" onClick={handleDownloadInvoice}>Download Invoice</Button>
+                <Button onClick={handleSendInvoiceEmail} className="bg-blue-600 hover:bg-blue-700 text-white">Send Email</Button>
+              </div>
+              <Button variant="secondary" onClick={() => setShowInvoiceDelivery(false)} className="w-full">Close</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Check-In Confirmation Modal (3-second countdown) */}
+        <WarningDialog
+          open={showCheckInWarning}
+          onOpenChange={setShowCheckInWarning}
+          title="Are you sure this customer is going to check-in?"
+          icon={<AlertTriangle className="h-5 w-5 text-orange-500" />}
+          confirmText={checkInCountdown > 0 ? `Confirm (${checkInCountdown})` : "Confirm"}
+          cancelText="Go Back"
+          confirmDisabled={checkInCountdown > 0}
+          onCancel={() => {
+            setShowCheckInWarning(false);
+            setCheckInTargetBooking(null);
+          }}
+          onConfirm={async () => {
+            setShowCheckInWarning(false);
+            if (checkInTargetBooking) {
+              await handleConfirmCheckIn(checkInTargetBooking);
+              setShowCustomerDetails(false);
+            }
+            setCheckInTargetBooking(null);
+          }}
+          contentClassName="max-w-[95vw] sm:max-w-md mx-4"
+          confirmClassName="bg-blue-600 hover:bg-blue-700 px-6"
+        />
 
         {/* Full Image Viewer Modal */}
         <Dialog open={isImageViewerOpen} onOpenChange={setIsImageViewerOpen}>

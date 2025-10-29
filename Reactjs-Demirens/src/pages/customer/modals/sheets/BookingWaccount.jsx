@@ -121,7 +121,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
       console.log("selected rooms", selectedRooms)
       console.log("adultCounts", adultCounts)
       console.log("childrenCounts", childrenCounts)
-      
+
 
       const roomDetails = selectedRooms.map((room) => {
         const rk = room.selectionKey || room.room_type;
@@ -536,7 +536,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
       setAdultCounts(prev => { const copy = { ...prev }; delete copy[roomToRemove.selectionKey || roomToRemove.room_type]; return copy; });
       setChildrenCounts(prev => { const copy = { ...prev }; delete copy[roomToRemove.selectionKey || roomToRemove.room_type]; return copy; });
       setGuestCounts(prev => { const copy = { ...prev }; delete copy[roomToRemove.selectionKey || roomToRemove.room_type]; return copy; });
-      
+
     }
 
     if (updated.length === 0) {
@@ -1055,7 +1055,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
                       </div>
                     </>
                   )}
-                  
+
                   <Separator />
                   <div className="flex justify-between items-center font-semibold">
                     <span>Total Amount:</span>
@@ -1089,8 +1089,7 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
     }}>
       <SheetTrigger asChild>
         <Button
-          variant="outline"
-          className="bg-[#113F67] text-white hover:bg-[#0d2f4f] border-[#113F67]"
+          className="w-full bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white"
         >
           Book Now
         </Button>

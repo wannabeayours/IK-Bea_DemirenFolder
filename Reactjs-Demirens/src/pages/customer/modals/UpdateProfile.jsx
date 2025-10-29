@@ -34,7 +34,7 @@ const schema = z.object({
     username: z.string().min(1, { message: "Username is required" }),
     phone: z.string().min(1, { message: "Contact number is required" }).refine((val) => !isNaN(val), { message: "This field must be a number" }),
     nationality: z.number().min(1, { message: "Please select a nationality" }),
-    dob:z.string().min(1, { message: "Date of birth is required" }),
+    dob: z.string().min(1, { message: "Date of birth is required" }),
 })
 
 function UpdateProfile({ data, getProfile }) {
@@ -138,7 +138,8 @@ function UpdateProfile({ data, getProfile }) {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger>
-                <Button className="mr-2 ">
+                <Button className=" mr-2w-full bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white"
+                >
                     <LucideEdit className="w-4 h-4 mr-2 " />
                     <h1 >Edit Profile</h1>
                 </Button>
@@ -267,7 +268,8 @@ function UpdateProfile({ data, getProfile }) {
                                         Cancel
                                     </Button>
                                 </DialogClose>
-                                <Button type="submit" className="ml-2 " >
+                                <Button type="submit" className=" ml-2 bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white"
+                                >
                                     Update
                                 </Button>
                             </div>

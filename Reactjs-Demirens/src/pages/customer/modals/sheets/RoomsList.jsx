@@ -83,12 +83,17 @@ function RoomsList({ selectedRooms, setSelectedRooms }) {
   // --- Add a room (user clicked Add Room) ---
   const handleBookedRoom = (room) => {
     // create the selected room object (same shape you used previously)
+    // ensure each added room gets a unique selectionKey so counts don't collide
+    const selectionKey = `${room.roomtype_id}-${Date.now()}-${Math.random().toString(36).slice(2,6)}`
     const selectedObj = {
       roomtype_capacity: room.roomtype_capacity,
       room_type: room.roomtype_id,
       roomtype_price: room.roomtype_price,
       roomtype_description: room.roomtype_description,
       roomtype_name: room.roomtype_name,
+      // include max extra beds so guest limit matches other flows
+      roomtype_maxbeds: room.roomtype_maxbeds,
+      selectionKey,
     }
 
     // Update selectedRooms (parent state)

@@ -301,7 +301,7 @@ function CustomerRoomView() {
             </h3>
             <div className="flex items-center gap-2 text-gray-700">
               <Check size={16} className="text-blue-600" />
-              <span>From 3:00 PM to 12:00 PM</span>
+              <span>From 2:00 PM to 12:00 PM</span>
             </div>
           </div>
           <div className="bg-gray-50 rounded-lg p-6 border">

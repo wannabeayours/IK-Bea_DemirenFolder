@@ -32,16 +32,8 @@ function AmenitySelection() {
       fd.append('operation', 'getAmenitiesMaster');
       const res = await axios.post(APIConn, fd);
       const arr = Array.isArray(res.data) ? res.data : [];
-
-      // Exclude restricted items and "Room Extended Stay"
-      const filteredBase = arr.filter((a) => {
-        const name = String(a?.charges_master_name || '').trim().toLowerCase();
-        const restrictedRaw = a?.charge_name_isRestricted;
-        const isRestricted = restrictedRaw === 1 || restrictedRaw === '1' || restrictedRaw === true || String(restrictedRaw).toLowerCase() === 'true';
-        return name !== 'room extended stay' && !isRestricted;
-      });
-
-      setAmenities(filteredBase);
+      // Show all items from master without client-side filtering
+      setAmenities(arr);
     } catch (e) {
       console.error('Error fetching amenities:', e);
       setAmenities([]);

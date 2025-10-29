@@ -19,6 +19,8 @@ import {
   Search,
   Eye,
   CheckCircle2,
+  RotateCcw,
+  Undo,
   Plus
 } from 'lucide-react';
 import axios from 'axios';
@@ -34,7 +36,7 @@ function AdminRequestedAmenities() {
   const [stats, setStats] = useState({});
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
-  const [actionType, setActionType] = useState(''); // 'approve' or 'reject'
+  const [actionType, setActionType] = useState(''); // 'approve' | 'reject' | 'cancel' | 'pending' | 'return'
   const [adminNotes, setAdminNotes] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -55,8 +57,12 @@ function AdminRequestedAmenities() {
   const [selectedBookingRoomsFromNavigation, setSelectedBookingRoomsFromNavigation] = useState([]);
   const [selectedAmenitiesFromNavigation, setSelectedAmenitiesFromNavigation] = useState([]);
 
+  // +1 Day confirmation modal state
+  const [plusOneDialogOpen, setPlusOneDialogOpen] = useState(false);
+  const [plusOneCountdown, setPlusOneCountdown] = useState(3);
+
   const location = useLocation();
-  const APIConn = `${localStorage.getItem('url')}admin.php`;
+  const APIConn = `${localStorage.url}admin.php`;
 
   // Datetime parsing helper for 'YYYY-MM-DD HH:mm:ss' and ISO strings
   const parseDateTime = (val) => {
@@ -85,12 +91,7 @@ function AdminRequestedAmenities() {
       
       // Ensure we have an array and add default values for missing fields
       const requests = Array.isArray(response.data) ? response.data : [];
-      // Show ALL amenities from tbl_booking_charges, including PENDING ones
-      const amenityOnly = requests.filter(request => {
-        const category = String(request?.charges_category_name || '').toLowerCase();
-        return category.includes('amenity');
-      });
-      const processedRequests = amenityOnly.map(request => ({
+      const processedRequests = requests.map(request => ({
         ...request,
         request_status: request.request_status || 'pending',
         customer_name: request.customer_name || 'Unknown Customer',
@@ -225,8 +226,17 @@ function AdminRequestedAmenities() {
     if (!selectedRequest) return;
 
     try {
+      const methodMap = {
+        approve: 'approve_amenity_request',
+        reject: 'reject_amenity_request',
+        cancel: 'reject_amenity_request',
+        pending: 'set_pending_amenity_request',
+        return: 'return_amenity_request'
+      };
+      const apiMethod = methodMap[actionType] || 'reject_amenity_request';
+
       const formData = new FormData();
-      formData.append('method', actionType === 'approve' ? 'approve_amenity_request' : 'reject_amenity_request');
+      formData.append('method', apiMethod);
       formData.append('json', JSON.stringify({
         request_id: selectedRequest.request_id,
         employee_id: 1, // Default admin ID
@@ -235,19 +245,22 @@ function AdminRequestedAmenities() {
 
       const response = await axios.post(APIConn, formData);
       
-      if (response.data === 1) {
-        toast.success(`Amenity request ${actionType}d successfully!`);
+      if (Number(response.data) === 1 || response.data?.success === true) {
+        const verb = actionType === 'pending' ? 'set to pending' : (actionType === 'return' ? 'marked as returned' : `${actionType}d`);
+        toast.success(`Amenity request ${verb} successfully!`);
         fetchAmenityRequests();
         fetchStats();
         setActionDialogOpen(false);
         // Trigger notification refresh
         setNotificationRefreshTrigger(prev => prev + 1);
       } else {
-        toast.error(`Failed to ${actionType} amenity request`);
+        const verb = actionType === 'pending' ? 'set to pending' : (actionType === 'return' ? 'mark as returned' : actionType);
+        toast.error(`Failed to ${verb} amenity request`);
       }
     } catch (error) {
-      console.error(`Error ${actionType}ing amenity request:`, error);
-      toast.error(`Failed to ${actionType} amenity request`);
+      const verb = actionType === 'pending' ? 'setting to pending' : (actionType === 'return' ? 'marking as returned' : `${actionType}ing`);
+      console.error(`Error ${verb} amenity request:`, error);
+      toast.error(`Failed ${verb} amenity request`);
     }
   };
 
@@ -261,6 +274,7 @@ function AdminRequestedAmenities() {
       pending: { color: 'bg-yellow-100 text-yellow-800', icon: Clock },
       approved: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
       rejected: { color: 'bg-red-100 text-red-800', icon: XCircle },
+      return: { color: 'bg-blue-100 text-blue-800', icon: RotateCcw },
       mixed: { color: 'bg-gray-100 text-gray-800', icon: Package }
     };
 
@@ -336,6 +350,22 @@ function AdminRequestedAmenities() {
     filterRequests();
   }, [filterRequests]);
 
+  // Handle countdown for +1 Day confirmation
+  useEffect(() => {
+    if (!plusOneDialogOpen) return;
+    setPlusOneCountdown(3);
+    const interval = setInterval(() => {
+      setPlusOneCountdown((c) => {
+        if (c <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [plusOneDialogOpen]);
+
   // Group filtered requests by booking reference number (merged), track earliest and latest times
   const groupedRequests = useMemo(() => {
     if (!groupView) return [];
@@ -356,7 +386,7 @@ function AdminRequestedAmenities() {
           booking_id: req.booking_id,
           requested_at: req.requested_at,
           requests: [req],
-          total_amount: Number(req.request_total) || 0,
+          total_amount: ['pending','approved'].includes(String(req.request_status).toLowerCase()) ? (Number(req.request_total) || 0) : 0,
           total_items: Number(req.request_quantity) || 0,
           status: req.request_status,
           status_mixed: false,
@@ -366,7 +396,7 @@ function AdminRequestedAmenities() {
       } else {
         const g = map.get(key);
         g.requests.push(req);
-        g.total_amount += Number(req.request_total) || 0;
+        g.total_amount += ['pending','approved'].includes(String(req.request_status).toLowerCase()) ? (Number(req.request_total) || 0) : 0;
         g.total_items += Number(req.request_quantity) || 0;
         if (g.status !== req.request_status) g.status_mixed = true;
   
@@ -458,6 +488,15 @@ function AdminRequestedAmenities() {
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Amenity Request
+            </Button>
+            <Button 
+              onClick={() => {
+                // Global mode: allow +1 Day for all Checked-In customers
+                setPlusOneDialogOpen(true);
+              }}
+              className="ml-2 bg-[#113f67] hover:bg-[#0d2a4a] dark:bg-blue-700 dark:hover:bg-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+            >
+              +1 Day
             </Button>
           </div>
         </div>
@@ -746,11 +785,43 @@ function AdminRequestedAmenities() {
                                       <Button
                                         size="sm"
                                         variant="destructive"
-                                        onClick={() => handleAction(request, 'reject')}
+                                        onClick={() => handleAction(request, 'cancel')}
                                         className="bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600"
                                       >
                                         <XCircle className="h-4 w-4" />
                                       </Button>
+                                      {String(request.charges_master_name || '').toLowerCase().includes('bed') && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleAction(request, 'return')}
+                                          className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                                        >
+                                          <Undo className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </>
+                                  )}
+                                  {request.request_status !== 'pending' && (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleAction(request, 'pending')}
+                                        className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                                      >
+                                        Set Pending
+                                      </Button>
+                                      {String(request.charges_master_name || '').toLowerCase().includes('bed') && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleAction(request, 'return')}
+                                          className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                                        >
+                                          Return
+                                        </Button>
+                                      )}
                                     </>
                                   )}
                                   <Button
@@ -838,10 +909,10 @@ function AdminRequestedAmenities() {
                 )}
 
                 {/* Action Form */}
-                {actionType && selectedRequest.request_status === 'pending' && (
+                {actionType && (
                   <div>
                     <Label htmlFor="adminNotes" className="text-sm font-medium text-gray-600">
-                      Admin Notes {actionType === 'approve' ? '(Optional)' : '(Required)'}
+                      Admin Notes {actionType === 'approve' ? '(Optional)' : '(Optional)'}
                     </Label>
                     <Textarea
                       id="adminNotes"
@@ -862,14 +933,20 @@ function AdminRequestedAmenities() {
                   >
                     Cancel
                   </Button>
-                  {actionType && selectedRequest.request_status === 'pending' && (
+                  {actionType && (
                     <Button
                       onClick={confirmAction}
-                      className={actionType === 'approve' 
-                        ? 'bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white' 
-                        : 'bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600 text-white'}
+                      className={
+                        actionType === 'approve' ?
+                          'bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white' :
+                        actionType === 'cancel' ?
+                          'bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600 text-white' :
+                        actionType === 'pending' ?
+                          'bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white' :
+                        'bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white'
+                      }
                     >
-                      {actionType === 'approve' ? 'Approve' : 'Reject'}
+                      {actionType === 'approve' ? 'Approve' : actionType === 'cancel' ? 'Cancel' : actionType === 'pending' ? 'Set Pending' : 'Return'}
                     </Button>
                   )}
                 </div>
@@ -893,13 +970,6 @@ function AdminRequestedAmenities() {
                 {/* Modal header */}
                 <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b bg-white text-gray-900 border-gray-200 dark:bg-gray-900 dark:text-white dark:border-gray-700">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Request Group Details</h2>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setGroupDialogOpen(false)}
-                    className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  >
-                    Close
-                  </Button>
                 </div>
 
                 {/* Modal content */}
@@ -982,7 +1052,13 @@ function AdminRequestedAmenities() {
                           </TableRow>
                           <TableRow>
                             <TableCell className="text-right font-bold text-gray-900 dark:text-white" colSpan={5}>Total Amount</TableCell>
-                            <TableCell className="font-bold text-gray-900 dark:text-white">{formatCurrency((selectedGroup?.requests || []).reduce((sum, req) => sum + (Number(req.request_total) || 0), 0))}</TableCell>
+                            <TableCell className="font-bold text-gray-900 dark:text-white">{formatCurrency((selectedGroup?.requests || []).reduce((sum, req) => {
+                              const st = String(req.request_status).toLowerCase();
+                              if (st === 'pending' || st === 'approved') {
+                                return sum + (Number(req.request_total) || 0);
+                              }
+                              return sum;
+                            }, 0))}</TableCell>
                           </TableRow>
                         </TableBody>
                       </Table>
@@ -1003,6 +1079,81 @@ function AdminRequestedAmenities() {
             </div>
           </div>
         )}
+
+        {/* +1 Day Confirmation Modal */}
+        <Dialog open={plusOneDialogOpen} onOpenChange={setPlusOneDialogOpen}>
+          <DialogContent className="w-[95vw] max-w-md bg-white text-gray-900 dark:bg-gray-900 dark:text-white">
+            <DialogHeader>
+              <DialogTitle>Increase by +1 Day</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm">Are you sure you want to increase by 1 day?</p>
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setPlusOneDialogOpen(false)}
+                  className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={plusOneCountdown > 0}
+                  onClick={async () => {
+                    try {
+                      // 1) Load all bookings
+                      const fd = new FormData();
+                      fd.append('method', 'viewBookingsEnhanced');
+                      const res = await axios.post(APIConn, fd);
+                      const bookings = Array.isArray(res.data) ? res.data : [];
+
+                      // 2) Filter to Checked-In bookings only
+                      const checkedInIds = bookings
+                        .filter(b => String(b.booking_status || '').toLowerCase() === 'checked-in')
+                        .map(b => b.booking_id)
+                        .filter(Boolean);
+
+                      if (!checkedInIds.length) {
+                        toast.info('No customers are currently Checked-In.');
+                        return;
+                      }
+
+                      // 3) Apply +1 Day to each Checked-In booking sequentially
+                      const amenityNames = ['Bed', 'Extra Guest', 'Towels', 'Ttowels'];
+                      let successCount = 0;
+                      let failCount = 0;
+
+                      for (const bid of checkedInIds) {
+                        const formData = new FormData();
+                        formData.append('method', 'increment_amenity_day');
+                        formData.append('json', JSON.stringify({ amenity_names: amenityNames, booking_id: bid }));
+                        try {
+                          const resp = await axios.post(APIConn, formData);
+                          if (resp?.data?.success) successCount++; else failCount++;
+                        } catch (err) {
+                          console.error('Failed to apply +1 Day for booking', bid, err);
+                          failCount++;
+                        }
+                      }
+
+                      // 4) Feedback and refresh
+                      toast.success(`+1 Day processed for ${checkedInIds.length} Checked-In booking(s). Success: ${successCount}, Failed: ${failCount}.`);
+                      fetchAmenityRequests();
+                      fetchStats();
+                    } catch (e) {
+                      console.error('Batch increment_amenity_day error', e);
+                      toast.error('Failed to apply +1 Day to Checked-In customers');
+                    } finally {
+                      setPlusOneDialogOpen(false);
+                    }
+                  }}
+                  className="bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white"
+                >
+                  {plusOneCountdown > 0 ? `Confirm in ${plusOneCountdown}s` : 'Confirm'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
 
         {/* Add Amenity Request Modal */}
