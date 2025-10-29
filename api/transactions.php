@@ -625,71 +625,71 @@ class Transactions
                 $refNo = $customerRow['reference_no'] ?? '';
 
                 $invoiceHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-body { font-family: DejaVu Sans, Arial, Helvetica, sans-serif; color:#2b2b2b; background:#ffffff; line-height:1.5; }
-.wrapper { max-width:860px; margin:0 auto; padding:40px; }
-.header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
-.logo { font-size:12px; color:#6b7280; letter-spacing:1px; text-transform:uppercase; }
-.invno { font-size:12px; color:#6b7280; text-transform:uppercase; }
-.doc-title { font-size:48px; font-weight:800; letter-spacing:2px; margin:8px 0 20px; }
-.meta-line { font-size:13px; margin-bottom:16px; }
-.meta-line .label { font-weight:700; margin-right:8px; }
-.party { display:grid; grid-template-columns:1fr 1fr; gap:28px; margin-bottom:24px; }
-.party .h6 { font-size:12px; font-weight:700; color:#111827; text-transform:uppercase; margin-bottom:6px; }
-.party .small { font-size:13px; color:#374151; line-height:1.6; }
-.table { width:100%; border-collapse:collapse; margin-top:10px; }
-.table thead th { background:#e5e7eb; color:#111827; padding:12px; font-size:12px; text-transform:uppercase; letter-spacing:.5px; text-align:left; }
-.table thead th:nth-child(2), .table thead th:nth-child(3), .table thead th:nth-child(4) { text-align:right; }
-.table tbody td { border-bottom:1px solid #e5e7eb; padding:12px; font-size:13px; }
-.table tbody td:nth-child(2), .table tbody td:nth-child(3), .table tbody td:nth-child(4){ text-align:right; }
-.table tfoot td { padding:12px; font-size:13px; }
-.table tfoot tr.total-row td { border-top:2px solid #d1d5db; font-weight:bold; }
-.footer-notes { margin-top:24px; font-size:13px; }
-.footer-notes .label { font-weight:700; margin-right:8px; }
-</style></head><body>
-<div class="wrapper">
-  <div class="header">
-    <div class="logo">YOUR LOGO</div>
-    <div class="invno">NO. ' . str_pad($invoice_id, 6, '0', STR_PAD_LEFT) . '</div>
-  </div>
+                        body { font-family: DejaVu Sans, Arial, Helvetica, sans-serif; color:#2b2b2b; background:#ffffff; line-height:1.5; }
+                        .wrapper { max-width:860px; margin:0 auto; padding:40px; }
+                        .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+                        .logo { font-size:12px; color:#6b7280; letter-spacing:1px; text-transform:uppercase; }
+                        .invno { font-size:12px; color:#6b7280; text-transform:uppercase; }
+                        .doc-title { font-size:48px; font-weight:800; letter-spacing:2px; margin:8px 0 20px; }
+                        .meta-line { font-size:13px; margin-bottom:16px; }
+                        .meta-line .label { font-weight:700; margin-right:8px; }
+                        .party { display:grid; grid-template-columns:1fr 1fr; gap:28px; margin-bottom:24px; }
+                        .party .h6 { font-size:12px; font-weight:700; color:#111827; text-transform:uppercase; margin-bottom:6px; }
+                        .party .small { font-size:13px; color:#374151; line-height:1.6; }
+                        .table { width:100%; border-collapse:collapse; margin-top:10px; }
+                        .table thead th { background:#e5e7eb; color:#111827; padding:12px; font-size:12px; text-transform:uppercase; letter-spacing:.5px; text-align:left; }
+                        .table thead th:nth-child(2), .table thead th:nth-child(3), .table thead th:nth-child(4) { text-align:right; }
+                        .table tbody td { border-bottom:1px solid #e5e7eb; padding:12px; font-size:13px; }
+                        .table tbody td:nth-child(2), .table tbody td:nth-child(3), .table tbody td:nth-child(4){ text-align:right; }
+                        .table tfoot td { padding:12px; font-size:13px; }
+                        .table tfoot tr.total-row td { border-top:2px solid #d1d5db; font-weight:bold; }
+                        .footer-notes { margin-top:24px; font-size:13px; }
+                        .footer-notes .label { font-weight:700; margin-right:8px; }
+                        </style></head><body>
+                        <div class="wrapper">
+                        <div class="header">
+                            <div class="logo">YOUR LOGO</div>
+                            <div class="invno">NO. ' . str_pad($invoice_id, 6, '0', STR_PAD_LEFT) . '</div>
+                        </div>
 
-  <div class="doc-title">INVOICE</div>
+                        <div class="doc-title">INVOICE</div>
 
-  <div class="meta-line"><span class="label">Date:</span> ' . $issueDate . '</div>
+                        <div class="meta-line"><span class="label">Date:</span> ' . $issueDate . '</div>
 
-  <div class="party">
-    <div>
-      <div class="h6">Billed to:</div>
-      <div class="small">' . htmlspecialchars($customerRow['customer_fullname'] ?? 'Guest') . '</div>
-      <div class="small">' . htmlspecialchars($customerRow['customers_email'] ?? '-') . '</div>
-    </div>
-    <div>
-      <div class="h6">From:</div>
-      <div class="small">Demiren Hotel & Restaurant</div>
-      <div class="small">123 Anywhere St., Any City</div>
-      <div class="small">hello@demiren.local</div>
-    </div>
-  </div>
+                        <div class="party">
+                            <div>
+                            <div class="h6">Billed to:</div>
+                            <div class="small">' . htmlspecialchars($customerRow['customer_fullname'] ?? 'Guest') . '</div>
+                            <div class="small">' . htmlspecialchars($customerRow['customers_email'] ?? '-') . '</div>
+                            </div>
+                            <div>
+                            <div class="h6">From:</div>
+                            <div class="small">Demiren Hotel & Restaurant</div>
+                            <div class="small">123 Anywhere St., Any City</div>
+                            <div class="small">hello@demiren.local</div>
+                            </div>
+                        </div>
 
-  <table class="table">
-    <thead>
-      <tr><th>Item</th><th>Quantity</th><th>Price</th><th>Amount</th></tr>
-    </thead>
-    <tbody>' . $rows . '</tbody>
-    <tfoot>
-      <tr><td colspan="3" style="text-align:right">Subtotal</td><td style="text-align:right">&#8369; ' . $subtotal . '</td></tr>
-       <tr><td colspan="3" style="text-align:right">VAT (12%)</td><td style="text-align:right">&#8369; ' . $vatFmt . '</td></tr>
-       ' . ($discountAmount > 0 ? '<tr><td colspan="3" style="text-align:right">Discount</td><td style="text-align:right">(&#8369; ' . $discountFmt . ')</td></tr>' : '') . '
-       <tr class="total-row"><td colspan="3" style="text-align:right">Total</td><td style="text-align:right">&#8369; ' . $finalTotalFmt . '</td></tr>
-    </tfoot>
-  </table>
+                        <table class="table">
+                            <thead>
+                            <tr><th>Item</th><th>Quantity</th><th>Price</th><th>Amount</th></tr>
+                            </thead>
+                            <tbody>' . $rows . '</tbody>
+                            <tfoot>
+                            <tr><td colspan="3" style="text-align:right">Subtotal</td><td style="text-align:right">&#8369; ' . $subtotal . '</td></tr>
+                            <tr><td colspan="3" style="text-align:right">VAT (12%)</td><td style="text-align:right">&#8369; ' . $vatFmt . '</td></tr>
+                            ' . ($discountAmount > 0 ? '<tr><td colspan="3" style="text-align:right">Discount</td><td style="text-align:right">(&#8369; ' . $discountFmt . ')</td></tr>' : '') . '
+                            <tr class="total-row"><td colspan="3" style="text-align:right">Total</td><td style="text-align:right">&#8369; ' . $finalTotalFmt . '</td></tr>
+                            </tfoot>
+                        </table>
 
-  <div class="footer-notes">
-    <div><span class="label">Payment method:</span> ' . htmlspecialchars($paymentMethodName) . '</div>
-    <div><span class="label">Note:</span> Thank you for choosing us!</div>
-    <div>If you liked our services, give us your feedback in /customer/CustomerFeedback</div>
-  </div>
-</div>
-</body></html>';
+                        <div class="footer-notes">
+                            <div><span class="label">Payment method:</span> ' . htmlspecialchars($paymentMethodName) . '</div>
+                            <div><span class="label">Note:</span> Thank you for choosing us!</div>
+                            <div>We value your opinion — please share your feedback: <a href="http://localhost:3000/feedback" target="_blank" rel="noopener noreferrer">http://localhost:3000/feedback</a></div>
+                        </div>
+                        </div>
+                        </body></html>';
 
 
 
@@ -811,6 +811,9 @@ body { font-family: DejaVu Sans, Arial, Helvetica, sans-serif; color:#2b2b2b; ba
                             . 'Email: ' . htmlspecialchars($customerRow['customers_email'] ?? '-') . '<br>'
                             . 'Reference No: ' . htmlspecialchars($refNo) . '</p>'
                             . '<p>Your invoice is attached as a PDF.</p>'
+                            . '<p style="margin-top:8px">We value your feedback. Please share it here: '
+                            . '<a href="http://localhost:3000/feedback" target="_blank" rel="noopener noreferrer">http://localhost:3000/feedback</a>'
+                            . '</p>'
                             . '</div>';
                         $mail->Body    = $emailBody;
                         $mail->AltBody = 'Dear ' . ($customerRow['customer_fullname'] ?? 'Guest') . "\n\n"
@@ -824,7 +827,8 @@ body { font-family: DejaVu Sans, Arial, Helvetica, sans-serif; color:#2b2b2b; ba
                             . 'Name: ' . ($customerRow['customer_fullname'] ?? 'Guest') . "\n"
                             . 'Email: ' . ($customerRow['customers_email'] ?? '-') . "\n"
                             . 'Reference No: ' . $refNo . "\n\n"
-                            . 'Your invoice is attached as a PDF.';
+                            . 'Your invoice is attached as a PDF.' . "\n\n"
+                            . 'We value your feedback. Share it here: http://localhost:3000/feedback';
                         if ($pdfPath && file_exists($pdfPath)) {
                             $mail->addAttachment($pdfPath, 'invoice.pdf');
                         }
@@ -1448,7 +1452,7 @@ body { font-family: DejaVu Sans, Arial, Helvetica, sans-serif; color:#2b2b2b; ba
 
             // Add charge to booking
             $total = intval($charge_price) * intval($quantity);
-            $addCharge = $conn->prepare("\n                INSERT INTO tbl_booking_charges (booking_room_id, charges_master_id, booking_charges_price, booking_charges_quantity, booking_charges_total, \n                booking_charge_status, booking_charge_datetime, modified_date)\n                VALUES (:booking_room_id, :charges_master_id, :charge_price, :quantity, :total, 2, NOW(), NOW())\n            ");
+            $addCharge = $conn->prepare("\n                INSERT INTO tbl_booking_charges (booking_room_id, charges_master_id, booking_charges_price, booking_charges_quantity, booking_charges_total, \n                booking_charge_status, booking_charge_datetime, booking_return_datetime)\n                VALUES (:booking_room_id, :charges_master_id, :charge_price, :quantity, :total, 2, NOW(), NOW())\n            ");
             $addCharge->bindParam(':booking_room_id', $booking_room_id);
             $addCharge->bindParam(':charges_master_id', $charges_master_id);
             $addCharge->bindParam(':charge_price', $charge_price);
