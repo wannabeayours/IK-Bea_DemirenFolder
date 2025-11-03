@@ -172,8 +172,8 @@ function InvoiceManagementSubpage({
       formData.append("json", JSON.stringify({ 
         booking_id: bookingId,
         discount_id: invoiceForm.discount_id,
-        vat_rate: 0,
-        downpayment: 0
+        vat_rate: 12, // 12% VAT applied to charges only (default if not provided in backend)
+        downpayment: 0 // Backend will calculate sum of all billing_downpayment from tbl_billing
       }));
       
       console.log("Calculating billing breakdown for booking:", bookingId);
@@ -293,27 +293,12 @@ function InvoiceManagementSubpage({
   };
 
   const handleAddCharge = async () => {
-    // Safety check: ensure selectedBooking exists
-    if (!selectedBooking || !selectedBooking.booking_id) {
-      toast.error("No booking selected. Please select a booking first.");
-      console.error("handleAddCharge: selectedBooking is missing", selectedBooking);
-      return;
-    }
-
     if (!newChargeForm.charge_name || !newChargeForm.charge_price) {
       toast.error("Please fill in charge name and price");
       return;
     }
 
     try {
-      // Get employee_id using the existing helper function
-      const employeeId = getCurrentEmployeeId();
-      if (!employeeId || employeeId <= 0) {
-        toast.error("Employee ID not found. Please log in again.");
-        console.error("handleAddCharge: employee_id is missing or invalid", employeeId);
-        return;
-      }
-
       const url = localStorage.getItem("url") + "transactions.php";
       const formData = new FormData();
       formData.append("operation", "addBookingCharge");
@@ -321,13 +306,11 @@ function InvoiceManagementSubpage({
         booking_id: selectedBooking.booking_id,
         charge_name: newChargeForm.charge_name,
         charge_price: parseFloat(newChargeForm.charge_price),
-        quantity: parseInt(newChargeForm.quantity) || 1,
-        category_id: newChargeForm.category_id || 4,
-        employee_id: employeeId
+        quantity: parseInt(newChargeForm.quantity),
+        category_id: newChargeForm.category_id
       }));
       
       console.log("Adding charge:", newChargeForm);
-      console.log("Selected booking:", selectedBooking);
       const res = await axios.post(url, formData);
       console.log("Add charge response:", res.data);
       
@@ -450,7 +433,7 @@ function InvoiceManagementSubpage({
         }
         // Secondary path: if generator failed, try direct server download
         if (info?.pdf_url) {
-          const filenameFromUrl = (`info.pdf_url.split("/").pop() || invoice_${selectedBooking.booking_id}_${info.invoice_id}.pdf).replace(/\?.*$/, ""`);
+          const filenameFromUrl = (info.pdf_url.split("/").pop() || `invoice_${selectedBooking.booking_id}_${info.invoice_id}.pdf`).replace(/\?.*$/, "");
           const dlUrl = baseUrl + "download_invoice.php?file=" + encodeURIComponent(filenameFromUrl);
           console.log("Invoice PDF URL:", info.pdf_url);
           console.log("Server download URL:", dlUrl);
@@ -759,7 +742,7 @@ function InvoiceManagementSubpage({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <DollarSign className="h-5 w-5" />
-              Current Charges
+              Current Charges (Billing Only - Room Charges Excluded)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -776,20 +759,22 @@ function InvoiceManagementSubpage({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {bookingCharges.map((charge, index) => (
+                  {bookingCharges
+                    .filter(charge => charge.charge_type !== 'Room Charges') // Exclude room charges from billing
+                    .map((charge, index) => (
                     <TableRow key={index}>
                       <TableCell>{charge.charge_type}</TableCell>
                       <TableCell>{charge.charge_name}</TableCell>
                       <TableCell>{charge.category}</TableCell>
-<TableCell className="text-right font-mono">{NumberFormatter.formatCurrency(charge.unit_price)}</TableCell>
-<TableCell className="text-center">{charge.quantity}</TableCell>
-<TableCell className="text-right font-mono font-bold">{NumberFormatter.formatCurrency(charge.total_amount)}</TableCell>
+                      <TableCell className="text-right font-mono">{NumberFormatter.formatCurrency(charge.unit_price)}</TableCell>
+                      <TableCell className="text-center">{charge.quantity}</TableCell>
+                      <TableCell className="text-right font-mono font-bold">{NumberFormatter.formatCurrency(charge.total_amount)}</TableCell>
                     </TableRow>
                   ))}
-                  {bookingCharges.length === 0 && (
+                  {bookingCharges.filter(charge => charge.charge_type !== 'Room Charges').length === 0 && (
                     <TableRow>
                       <TableCell colSpan="6" className="text-center text-muted-foreground">
-                        No charges found for this booking
+                        No additional charges found for this booking
                       </TableCell>
                     </TableRow>
                   )}
@@ -797,12 +782,19 @@ function InvoiceManagementSubpage({
               </Table>
             </div>
             
-            {/* Total Summary */}
-            {bookingCharges.length > 0 && (
+            {/* Total Summary - Only additional charges, excluding room charges */}
+            {bookingCharges.filter(charge => charge.charge_type !== 'Room Charges').length > 0 && (
               <div className="mt-4 p-4 bg-muted rounded-lg text-right">
                 <span className="font-bold text-xl">
-                  Current Total: {NumberFormatter.formatCurrency(bookingCharges.reduce((sum, charge) => sum + (parseFloat(charge.total_amount) || 0), 0))}
+                  Current Total: {NumberFormatter.formatCurrency(
+                    bookingCharges
+                      .filter(charge => charge.charge_type !== 'Room Charges')
+                      .reduce((sum, charge) => sum + (parseFloat(charge.total_amount) || 0), 0)
+                  )}
                 </span>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Room charges excluded (already paid in booking)
+                </p>
               </div>
             )}
           </CardContent>
@@ -860,15 +852,8 @@ function InvoiceManagementSubpage({
               </div>
               <div>
                 <Button 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log("Add Charge button clicked", { selectedBooking, newChargeForm });
-                    handleAddCharge();
-                  }}
-                  disabled={!selectedBooking || !selectedBooking.booking_id || loading}
+                  onClick={handleAddCharge}
                   className="w-full"
-                  type="button"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add Charge
@@ -882,7 +867,7 @@ function InvoiceManagementSubpage({
         <div className="flex justify-end gap-4 mt-6 pb-6">
           <Button 
             onClick={proceedToInvoice}
-            disabled={bookingCharges.length === 0}
+            disabled={bookingCharges.filter(charge => charge.charge_type !== 'Room Charges').length === 0}
             className="flex items-center gap-2"
           >
             <Receipt className="h-4 w-4" />
@@ -958,10 +943,7 @@ function InvoiceManagementSubpage({
                 <div className="space-y-4">
                   {/* Arrange as a single vertical calculation list */}
                   <div className="grid grid-cols-1 gap-2">
-                    <div className="flex justify-between items-center py-3 border-b">
-                      <span className="font-medium">Room Charges with VAT(12%):</span>
-                      <span className="font-mono font-semibold">{NumberFormatter.formatCurrency(billingBreakdown.room_total)}</span>
-                    </div>
+                    {/* Room charges excluded from billing (already paid in booking_totalAmount) */}
                     {(parseFloat(billingBreakdown.charge_total) || 0) > 0 && (
                       <div className="flex justify-between items-center py-3 border-b-2 border-gray-300 dark:border-gray-700">
                         <span className="font-medium">Additional Charges:</span>
@@ -984,6 +966,12 @@ function InvoiceManagementSubpage({
                         <span className="font-mono font-semibold">{NumberFormatter.formatCurrency(billingBreakdown.amount_after_discount)}</span>
                       </div>
                     )}
+                    {(parseFloat(billingBreakdown.vat_amount) || 0) > 0 && (
+                      <div className="flex justify-between items-center py-3 border-b-2 border-gray-300 dark:border-gray-700">
+                        <span className="font-medium">VAT (12%):</span>
+                        <span className="font-mono font-semibold">{NumberFormatter.formatCurrency(billingBreakdown.vat_amount)}</span>
+                      </div>
+                    )}
                     
                   </div>
                   
@@ -993,7 +981,7 @@ function InvoiceManagementSubpage({
                         <span className="font-mono font-bold text-xl">{NumberFormatter.formatCurrency(billingBreakdown.final_total)}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="font-semibold">Total Paid:</span>
+                        <span className="font-semibold">Total Paid (Charges Only):</span>
                         <span className="font-mono font-semibold text-blue-600 dark:text-blue-400">{NumberFormatter.formatCurrency(billingBreakdown.downpayment)}</span>
                       </div>
                       <div className="flex justify-between items-center">
@@ -1005,7 +993,7 @@ function InvoiceManagementSubpage({
                     <div className="grid grid-cols-1 gap-4">
                       <div className="flex justify-between items-center py-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 border border-yellow-200 dark:border-yellow-800">
                         <span className="font-bold text-lg">Balance Due:</span>
-                        <span className="font-mono font-bold text-lg text-yellow-800 dark:text-yellow-200">{NumberFormatter.formatCurrency(billingBreakdown.balance || ((billingBreakdown.final_total || 0) - (billingBreakdown.downpayment || 0)))}</span>
+                        <span className="font-mono font-bold text-lg text-yellow-800 dark:text-yellow-200">{NumberFormatter.formatCurrency(billingBreakdown.balance || ( (billingBreakdown.downpayment || 0) - (billingBreakdown.final_total || 0) ))}</span>
                       </div>
                     </div>
                 </div>
@@ -1037,7 +1025,7 @@ function InvoiceManagementSubpage({
                       {detailedCharges.room_charges && detailedCharges.room_charges.length > 0 && (
                         <div className="mb-6">
                           <h5 className="text-blue-600 dark:text-blue-400 mb-4 pb-2 border-b-2 border-blue-200 dark:border-blue-800 font-semibold">
-                            🏨 Room Charges Details
+                            🏨 Room Charges Details (Excluded from Billing - Already Paid)
                           </h5>
                           <div className="rounded-md border overflow-hidden">
                             <Table>
@@ -1128,8 +1116,8 @@ function InvoiceManagementSubpage({
                             <h6 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">Subtotal Breakdown</h6>
                             <div className="space-y-1 text-sm">
                               <div className="flex justify-between">
-                                <span>Room Charges:</span>
-                                <span>{NumberFormatter.formatCurrency(detailedCharges.summary.room_total)}</span>
+                                <span>Room Charges (Excluded):</span>
+                                <span className="text-gray-400 line-through">{NumberFormatter.formatCurrency(detailedCharges.summary.room_total)}</span>
                               </div>
                               {(detailedCharges.summary.charges_total || 0) > 0 && (
                                 <div className="flex justify-between">

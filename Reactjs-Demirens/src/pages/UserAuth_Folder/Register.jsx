@@ -145,6 +145,12 @@ const Register = () => {
       toast.error("Username can only contain letters, numbers, and underscores");
       return false;
     }
+    // Ensure username includes at least 5 letters (a-z, A-Z)
+    const letterCount = (formData.username.match(/[a-zA-Z]/g) || []).length;
+    if (letterCount < 5) {
+      toast.error("Username must contain at least 5 letters");
+      return false;
+    }
     if (formData.username.trim().length < 3) {
       toast.error("Username must be at least 3 characters");
       return false;

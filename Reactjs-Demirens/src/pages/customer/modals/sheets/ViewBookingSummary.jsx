@@ -44,8 +44,10 @@ function ViewBookingSummary({ getBookingSummary, bookingData }) {
     },
     {
       header: 'Qty',
-      accessor: 'booking_charges_quantity',
-      className: 'text-center'
+      // accessor: 'booking_charges_quantity',
+      className: 'text-center',
+      cell: (row) => row.charges_master_id === 2 ? row.booking_charges_quantity + ` day${row.booking_charges_quantity > 1 ? 's' : ''}` : row.booking_charges_quantity
+
     },
     {
       header: 'Price',
