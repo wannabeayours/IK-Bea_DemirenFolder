@@ -1008,7 +1008,28 @@ class Demiren_customer
             $stmt->bindParam(':customers_phone', $phone);
             $stmt->bindParam(':customers_birthdate', $dob);
             $stmt->execute();
-            $this->linkWalkInBookingsToCustomer($email);
+
+            $registeredCustomerId = $conn->lastInsertId();
+
+            $sql = "SELECT customers_walk_in_id 
+            FROM tbl_customers_walk_in 
+            WHERE customers_walk_in_email = :email 
+            LIMIT 1";
+            $stmt = $conn->prepare($sql);
+            $stmt->bindParam(':email', $email);
+            $stmt->execute();
+            $walkInId = $stmt->fetchColumn();
+
+            $sql = "UPDATE tbl_booking
+            SET customers_id = :newCustomerId,
+                customers_walk_in_id = NULL
+            WHERE customers_walk_in_id = :walkInId";
+            $stmt = $conn->prepare($sql);
+            $stmt->bindParam(':newCustomerId', $registeredCustomerId);
+            $stmt->bindParam(':walkInId', $walkInId);
+            $stmt->execute();
+
+            // $this->linkWalkInBookingsToCustomer($email);
             $conn->commit();
             return 1;
         } catch (PDOException $e) {
@@ -2751,21 +2772,11 @@ class Demiren_customer
         echo "email: " . $email . "<br>";
 
         // 1. Find walk-in customer record using the SAME email
-        $sql = "SELECT customers_walk_in_id 
-            FROM tbl_customers_walk_in 
-            WHERE customers_walk_in_email = :email 
-            LIMIT 1";
-        $stmt = $conn->prepare($sql);
-        $stmt->bindParam(':email', $email);
-        $stmt->execute();
-
-        echo "first stmt: " . $stmt->rowCount() . "<br>";
 
         if ($stmt->rowCount() == 0) {
             return -2; // no walk-in bookings to migrate
         }
 
-        $walkInId = $stmt->fetchColumn();
 
         echo "walkInId: " . $walkInId . "<br>";
 
@@ -2779,7 +2790,7 @@ class Demiren_customer
         $stmt->execute();
 
         echo "second stmt: " . $stmt->rowCount() . "<br>";
-        
+
 
         if ($stmt->rowCount() == 0) {
             return -3; // should not happen, but safe check
@@ -2789,15 +2800,97 @@ class Demiren_customer
         echo "registeredCustomerId: " . $registeredCustomerId . "<br>";
 
         // 3. Update all past bookings to link to the registered account
-        $sql = "UPDATE tbl_booking
-            SET customers_id = :newCustomerId,
-                customers_walk_in_id = NULL
-            WHERE customers_walk_in_id = :walkInId";
-        $stmt = $conn->prepare($sql);
-        $stmt->bindParam(':newCustomerId', $registeredCustomerId);
-        $stmt->bindParam(':walkInId', $walkInId);
-        $stmt->execute();
+
         echo "third stmt: " . $stmt->rowCount() . "<br>";
+    }
+
+    // without comment
+    // function linkWalkInBookingsToCustomer($email)
+    // {
+    //     include "connection.php";
+
+    //     // echo "email: " . $email . "<br>";
+
+    //     // 1. Find walk-in customer record using the SAME email
+    //     $sql = "SELECT customers_walk_in_id 
+    //         FROM tbl_customers_walk_in 
+    //         WHERE customers_walk_in_email = :email 
+    //         LIMIT 1";
+    //     $stmt = $conn->prepare($sql);
+    //     $stmt->bindParam(':email', $email);
+    //     $stmt->execute();
+
+    //     // echo "first stmt: " . $stmt->rowCount() . "<br>";
+
+    //     if ($stmt->rowCount() == 0) {
+    //         return -2; // no walk-in bookings to migrate
+    //     }
+
+    //     $walkInId = $stmt->fetchColumn();
+
+    //     // echo "walkInId: " . $walkInId . "<br>";
+
+    //     // 2. Get the newly registered customer ID
+    //     $sql = "SELECT customers_id 
+    //         FROM tbl_customers 
+    //         WHERE customers_email = :email
+    //         LIMIT 1";
+    //     $stmt = $conn->prepare($sql);
+    //     $stmt->bindParam(':email', $email);
+    //     $stmt->execute();
+
+    //     // echo "second stmt: " . $stmt->rowCount() . "<br>";
+
+
+    //     if ($stmt->rowCount() == 0) {
+    //         return -3; // should not happen, but safe check
+    //     }
+
+    //     $registeredCustomerId = $stmt->fetchColumn();
+    //     // echo "registeredCustomerId: " . $registeredCustomerId . "<br>";
+
+    //     // 3. Update all past bookings to link to the registered account
+    //     $sql = "UPDATE tbl_booking
+    //         SET customers_id = :newCustomerId,
+    //             customers_walk_in_id = NULL
+    //         WHERE customers_walk_in_id = :walkInId";
+    //     $stmt = $conn->prepare($sql);
+    //     $stmt->bindParam(':newCustomerId', $registeredCustomerId);
+    //     $stmt->bindParam(':walkInId', $walkInId);
+    //     $stmt->execute();
+    //     // echo "third stmt: " . $stmt->rowCount() . "<br>";
+    // }
+
+    function isEmailUnique($data)
+    {
+        include "connection.php";
+        $data = json_decode($data, true);
+        $email = $data["email"];
+        // Check in tbl_customers
+        $stmt = $conn->prepare("SELECT 1 FROM tbl_customers WHERE customers_email = :email LIMIT 1");
+        $stmt->bindParam(":email", $email);
+        $stmt->execute();
+        if ($stmt->rowCount() > 0) {
+            return 0;
+        }
+
+        // Check in tbl_customers_online
+        $stmt = $conn->prepare("SELECT 1 FROM tbl_customers_online WHERE customers_online_email = :email LIMIT 1");
+        $stmt->bindParam(":email", $email);
+        $stmt->execute();
+        if ($stmt->rowCount() > 0) {
+            return 0;
+        }
+
+        // Check in tbl_customers_walk_in
+        $stmt = $conn->prepare("SELECT 1 FROM tbl_customers_walk_in WHERE customers_walk_in_email = :email LIMIT 1");
+        $stmt->bindParam(":email", $email);
+        $stmt->execute();
+        if ($stmt->rowCount() > 0) {
+            return -1;
+        }
+
+        return 1; // ✅ no duplicates found
     }
 } //customer
 
@@ -3009,6 +3102,9 @@ switch ($operation) {
         break;
     case "getAllRoomAmenities":
         echo json_encode($demiren_customer->getAllRoomAmenities());
+        break;
+    case "isEmailUnique":
+        echo json_encode($demiren_customer->isEmailUnique($json));
         break;
     default:
         echo json_encode(["error" => "Invalid operation"]);
