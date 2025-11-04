@@ -343,14 +343,16 @@ class Demiren_customer
         return $stmt->rowCount() > 0 ? 1 : 0;
     }
 
-    // New Method
+    // New Method MAIN NO ACCOUNT
     function customerBookingNoAccount($json)
     {
         include "connection.php";
         include "send_email.php";
         $json = json_decode($json, true);
+
         try {
             $conn->beginTransaction();
+
             // ✅ Step 1: Insert walk-in customer
             $stmt = $conn->prepare("
             INSERT INTO tbl_customers_walk_in 
@@ -376,6 +378,7 @@ class Demiren_customer
 
             // ✅ Step 3: Insert booking
             $referenceNo = "REF" . date("YmdHis") . rand(100, 999);
+
             $stmt = $conn->prepare("
             INSERT INTO tbl_booking 
                 (customers_id, customers_walk_in_id, guests_amnt, booking_payment,
@@ -386,6 +389,7 @@ class Demiren_customer
                 :checkin, :checkout, NOW(), 
                 :totalAmount, 0, :reference_no, :payment_method_id)
         ");
+
             $stmt->bindParam(":walkin_id", $walkInCustomerId);
             $stmt->bindParam(":guestTotal", $totalGuests);
             $stmt->bindParam(":downpayment", $bookingDetails["downpayment"]);
@@ -395,12 +399,13 @@ class Demiren_customer
             $stmt->bindParam(":reference_no", $referenceNo);
             $stmt->bindParam(":payment_method_id", $paymentMethod);
             $stmt->execute();
+
             $bookingId = $conn->lastInsertId();
 
-            // ✅ Step 4: Assign available rooms and handle charges
+            // ✅ Step 4: Assign rooms + extra guest charges
             foreach ($roomDetails as $room) {
                 $roomTypeId = $room["roomTypeId"];
-                // Find available room for this type and date range
+
                 $availabilityStmt = $conn->prepare("
                 SELECT r.roomnumber_id
                 FROM tbl_rooms r
@@ -426,176 +431,170 @@ class Demiren_customer
                 $availabilityStmt->execute();
 
                 $availableRoom = $availabilityStmt->fetch(PDO::FETCH_ASSOC);
-
                 if (!$availableRoom) {
                     $conn->rollBack();
-                    return -1; // No room available
+                    return -1;
                 }
 
-                $selectedRoomNumberId = $availableRoom['roomnumber_id'];
-
-                // Insert booking room
+                // ✅ Insert booking room
                 $sql = "INSERT INTO tbl_booking_room 
                 (booking_id, roomtype_id, roomnumber_id, bookingRoom_adult, bookingRoom_children) 
                 VALUES 
-                (:booking_id, :roomtype_id, :roomnumber_id, :bookingRoom_adult, :bookingRoom_children)";
+                (:booking_id, :roomtype_id, NULL, :adultCount, :childrenCount)";
                 $stmt = $conn->prepare($sql);
                 $stmt->bindParam(":booking_id", $bookingId);
                 $stmt->bindParam(":roomtype_id", $roomTypeId);
-                $stmt->bindParam(":roomnumber_id", $selectedRoomNumberId);
-                $stmt->bindParam(":bookingRoom_adult", $room["adultCount"]);
-                $stmt->bindParam(":bookingRoom_children", $room["childrenCount"]);
+                $stmt->bindParam(":adultCount", $room["adultCount"]);
+                $stmt->bindParam(":childrenCount", $room["childrenCount"]);
                 $stmt->execute();
-                $bookingRoomId = $conn->lastInsertId(); // ✅ Keep this separate
-                $bedPrice = $this->getBedPrice();
+
+                $bookingRoomId = $conn->lastInsertId();
                 $extraGuestPrice = $this->getExtraGuestPrice();
                 $now = date("Y-m-d H:i:s");
 
-                // Add extra bed charge if applicable
-                if (isset($room["bedCount"]) && $room["bedCount"] > 0) {
-                    // $totalCharges = $room["bedCount"] * 420;
-                    $totalCharges = $numberOfNights * $bedPrice;
-                    $sql = "INSERT INTO tbl_booking_charges(charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, booking_charges_total, booking_charge_status, booking_charge_datetime)
-                    VALUES (2, :booking_room_id, :bedPrice, :booking_charges_quantity, :booking_charges_total, 2, :now)";
-                    $stmt = $conn->prepare($sql);
-                    $stmt->bindParam(":booking_room_id", $bookingRoomId);
-                    $stmt->bindParam(":booking_charges_quantity", $numberOfNights);
-                    $stmt->bindParam(":booking_charges_total", $totalCharges);
-                    $stmt->bindParam(":bedPrice", $bedPrice);
-                    $stmt->bindParam(":now", $now);
-                    $stmt->execute();
-                }
-
-                // add extra guest
-
                 if ($room["extraGuestCharges"] > 0) {
-                    // $totalCharges = $room["extraGuestCharges"] * 420;
                     $totalCharges = $numberOfNights * $extraGuestPrice;
-                    $sql = "INSERT INTO tbl_booking_charges(charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, booking_charges_total, booking_charge_status, booking_charge_datetime)
-                    VALUES (12, :booking_room_id, :extraGuestPrice, :booking_charges_quantity, :booking_charges_total, 2, :now)";
+
+                    $sql = "INSERT INTO tbl_booking_charges
+                    (charges_master_id, booking_room_id, booking_charges_price, 
+                    booking_charges_quantity, booking_charges_total, booking_charge_status, booking_charge_datetime)
+                    VALUES 
+                    (12, :booking_room_id, :price, :qty, :total, 5, :now)";
                     $stmt = $conn->prepare($sql);
-                    $stmt->bindParam(":now", $now);
                     $stmt->bindParam(":booking_room_id", $bookingRoomId);
-                    $stmt->bindParam(":booking_charges_quantity", $numberOfNights);
-                    $stmt->bindParam(":booking_charges_total", $totalCharges);
-                    $stmt->bindParam(":extraGuestPrice", $extraGuestPrice);
+                    $stmt->bindParam(":price", $extraGuestPrice);
+                    $stmt->bindParam(":qty", $numberOfNights);
+                    $stmt->bindParam(":total", $totalCharges);
+                    $stmt->bindParam(":now", $now);
                     $stmt->execute();
                 }
             }
 
-            // ✅ Step 5: Booking history (Pending)
+            // ✅ Step 5: Booking History
             $sql = "INSERT INTO tbl_booking_history
-            (booking_id, employee_id, status_id, updated_at) 
-            VALUES 
-            (:booking_id, NULL, 2, NOW())";
+                (booking_id, employee_id, status_id, updated_at) 
+                VALUES (:booking_id, NULL, 2, NOW())";
             $stmt = $conn->prepare($sql);
             $stmt->bindParam(":booking_id", $bookingId);
             $stmt->execute();
 
-            if ($bookingDetails["payment_method_id"] == 1) {
-                $balance = $bookingDetails["totalAmount"] - $bookingDetails["totalPay"];
-            } else {
-                $balance = $bookingDetails["totalAmount"] - $bookingDetails["downpayment"];
-            }
+            // ✅ Step 6: Billing
+            $balance = ($paymentMethod == 1)
+                ? $bookingDetails["totalAmount"] - $bookingDetails["totalPay"]
+                : $bookingDetails["totalAmount"] - $bookingDetails["downpayment"];
 
-            // ✅ Step 6: Billing record
             $sql = "INSERT INTO tbl_billing
-            (booking_id, payment_method_id, billing_total_amount, billing_dateandtime, billing_vat, billing_balance, billing_downpayment) 
-            VALUES 
-            (:booking_id, :payment_method_id, :total_amount, NOW(), :billing_vat, :billing_balance, :billing_downpayment)";
+                (booking_id, payment_method_id, billing_total_amount, billing_dateandtime, 
+                billing_vat, billing_balance, billing_downpayment) 
+                VALUES 
+                (:booking_id, :method, :total, NOW(), :vat, :bal, :down)";
             $stmt = $conn->prepare($sql);
             $stmt->bindParam(":booking_id", $bookingId);
-            $stmt->bindParam(":payment_method_id", $bookingDetails["payment_method_id"]);
-            $stmt->bindParam(":total_amount", $bookingDetails["totalAmount"]);
-            $stmt->bindParam(":billing_vat", $bookingDetails["displayedVat"]);
-            $stmt->bindParam(":billing_balance", $balance);
-            $stmt->bindParam(":billing_downpayment", $bookingDetails["downpayment"]);
+            $stmt->bindParam(":method", $paymentMethod);
+            $stmt->bindParam(":total", $bookingDetails["totalAmount"]);
+            $stmt->bindParam(":vat", $bookingDetails["displayedVat"]);
+            $stmt->bindParam(":bal", $balance);
+            $stmt->bindParam(":down", $bookingDetails["downpayment"]);
             $stmt->execute();
 
             $conn->commit();
-            $emailSubject = 'Demiren Hotel — Booking Request Details';
 
-            // Prepare dynamic values for summary
-            $paymentMethodName = ($bookingDetails["payment_method_id"] == 1) ? "GCash" : "Paypal";
-            $checkInFmt = date('F j, Y', strtotime($bookingDetails["checkIn"])) . ' 2:00 PM';
-            $checkOutFmt = date('F j, Y', strtotime($bookingDetails["checkOut"])) . ' 12:00 PM';
-            $nights = max(1, (int)ceil((strtotime($bookingDetails["checkOut"]) - strtotime($bookingDetails["checkIn"])) / 86400));
+            // ✅ EMAIL SUBJECT = Reference Number
+            $emailSubject = $referenceNo;
+
+            // ✅ Guest name
+            $guestName = $json["walkinfirstname"] . " " . $json["walkinlastname"];
+
+            // ✅ Format Details
+            $paymentMethodName = ($paymentMethod == 1) ? "GCash" : "Paypal";
+            $checkInFmt = date('F j, Y', strtotime($checkIn)) . ' 2:00 PM';
+            $checkOutFmt = date('F j, Y', strtotime($checkOut)) . ' 12:00 PM';
+            $nights = max(1, (int)ceil((strtotime($checkOut) - strtotime($checkIn)) / 86400));
             $totalAmountFmt = number_format((float)$bookingDetails["totalAmount"], 2);
 
-
-            // Build room list HTML with names
+            // ✅ Room List
             $roomsListHtml = '';
             foreach ($roomDetails as $room) {
                 $stmtRt = $conn->prepare("SELECT roomtype_name FROM tbl_roomtype WHERE roomtype_id = :id");
                 $stmtRt->bindParam(':id', $room["roomTypeId"]);
                 $stmtRt->execute();
                 $rtName = $stmtRt->fetchColumn();
-                if (!$rtName) {
-                    $rtName = 'Room Type #' . (int)$room["roomTypeId"];
-                }
-                $roomsListHtml .= '<li><strong>' . htmlspecialchars($rtName) . '</strong> — Adults: ' . (int)$room["adultCount"] . ', Children: ' . (int)$room["childrenCount"] . '</li>';
+                if (!$rtName) $rtName = 'Room Type #' . (int)$room["roomTypeId"];
+
+                $roomsListHtml .= '<li><strong>' . htmlspecialchars($rtName) . '</strong> — Adults: '
+                    . (int)$room["adultCount"] . ', Children: ' . (int)$room["childrenCount"] . '</li>';
             }
 
+            // ✅ Room Amenities
+            $amenities = $this->getAllRoomAmenities();
+            $amenityHtml = '';
+            foreach ($amenities as $a) {
+                $amenityHtml .= "<li>" . htmlspecialchars($a["room_amenities_master_name"]) . "</li>";
+            }
+
+            // ✅ EMAIL BODY UPDATED
             $emailBody = '
-                    <html>
-                    <head>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <style>
-                        body { margin: 0; padding: 0; font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f6f8; color: #333; }
-                        .email-wrapper { width: 100%; background-color: #f4f6f8; padding: 40px 0; }
-                        .email-container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08); border: 1px solid #e6ebf1; }
-                        .email-header { background: linear-gradient(135deg, #1a73e8, #4285f4); color: white; text-align: center; padding: 25px 20px; }
-                        .email-header h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0.3px; }
-                        .email-body { padding: 35px 40px; }
-                        .email-body h2 { font-size: 20px; font-weight: 600; color: #1a73e8; margin-top: 0; margin-bottom: 15px; }
-                        .email-body p { font-size: 15px; line-height: 1.7; color: #444; margin: 10px 0; }
-                        .summary-card { background-color: #f8fbff; border: 1px solid #e6ebf1; border-radius: 8px; padding: 16px; margin: 18px 0; }
-                        .summary-item { display: flex; justify-content: space-between; margin: 6px 0; font-size: 14px; }
-                        .summary-item .label { color: #555; }
-                        .rooms-list { margin: 10px 0 0; padding-left: 18px; }
-                        .email-footer { font-size: 12px; color: #777; text-align: center; border-top: 1px solid #eaeaea; padding: 20px 10px; background-color: #fafafa; }
-                        @media only screen and (max-width: 600px) { .email-body { padding: 25px 20px; } .email-header h1 { font-size: 20px; } }
-                    </style>
-                    </head>
-                    <body>
-                        <div class="email-wrapper">
-                            <div class="email-container">
-                                <div class="email-header">
-                                    <h1>Demiren Hotel & Restaurant</h1>
-                                </div>
-                                <div class="email-body">
-                                    <h2>Booking Request Received — Summary</h2>
-                                    <p>Hi there,</p>
-                                    <p>Thank you for choosing Demiren Hotel and Restaurant for your stay. We truly appreciate your trust and confidence in us. It is our pleasure to have you as our valued guest, and we hope that your experience with us was both comfortable and enjoyable. 
-                                    We’ve received your booking request. Below are the full details for your records:</p>
+        <html><body style="font-family:Segoe UI,Arial;margin:0;padding:0;background:#f4f6f8;">
+        <div style="max-width:600px;margin:auto;background:white;border-radius:12px;overflow:hidden;
+        box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+        
+            <div style="background:#1a73e8;color:white;padding:25px;text-align:center;">
+                <h1 style="margin:0;font-size:22px;">Demiren Hotel & Restaurant</h1>
+            </div>
 
-                                    <div class="summary-card">
-                                        <div class="summary-item"><span class="label">Check-in:</span><span>' . $checkInFmt . '</span></div>
-                                        <div class="summary-item"><span class="label">Check-out:</span><span>' . $checkOutFmt . '</span></div>
-                                        <div class="summary-item"><span class="label">Room Number:</span><span>' . $selectedRoomNumberId . '</span></div>
-                                        <div class="summary-item"><span class="label">Nights:</span><span>' . $nights . '</span></div>
-                                         <div class="summary-item"><span class="label">Payment Method:</span><span>' . $paymentMethodName . '</span></div>
-                                        <div class="summary-item"><span class="label">Total Amount:</span><span>₱' . $totalAmountFmt . '</span></div>
-                                        <div class="summary-item"><span class="label">Rooms:</span><span></span></div>
-                                        <ul class="rooms-list">' . $roomsListHtml . '</ul>
-                                    </div>
-                                    <p>Warm regards,<br><strong>The Demiren Team</strong></p>
-                                </div>
-                                <div class="email-footer">This is an automated message from Demiren Hotel & Restaurant.<br>Please do not reply directly to this email.</div>
-                            </div>
-                        </div>
-                    </body>
-                    </html>';
+            <div style="padding:30px;">
+                <h2 style="color:#1a73e8;margin-top:0;">Booking Details</h2>
 
+                <p>Hi <strong>' . $guestName . '</strong>,</p>
+
+                <p>Thank you for booking with Demiren Hotel and Restaurant. Below are the full details of your reservation.</p>
+
+                <div style="background:#f8fbff;border:1px solid #e6ebf1;border-radius:8px;padding:16px;margin-top:18px;">
+                    <div><strong>Reference Number:</strong> ' . $referenceNo . '</div>
+                    <div><strong>Check-in:</strong> ' . $checkInFmt . '</div>
+                    <div><strong>Check-out:</strong> ' . $checkOutFmt . '</div>
+                    <div><strong>Nights:</strong> ' . $nights . '</div>
+                    <div><strong>Payment Method:</strong> ' . $paymentMethodName . '</div>
+                    <div><strong>Total Amount:</strong> ₱' . $totalAmountFmt . '</div>
+                    <br>
+                    <div><strong>Rooms:</strong></div>
+                    <ul>' . $roomsListHtml . '</ul>
+
+                    <br>
+                    <div><strong>Room Amenities:</strong></div>
+                    <ul>' . $amenityHtml . '</ul>
+                </div>
+
+                <br>
+
+                <p><strong>Cancellation Policy:</strong><br>
+
+                You may cancel within 24 hours, but the payment is non-refundable.</p>
+
+                <p>If you have any concerns, feel free to contact us:</p>
+                <p><strong>📞 0906 231 4236</strong></p>
+
+                <p>Warm regards,<br><strong>The Demiren Team</strong></p>
+            </div>
+
+            <div style="background:#fafafa;padding:15px;text-align:center;font-size:12px;color:#777;">
+                This is an automated message. Please do not reply.
+            </div>
+
+        </div>
+        </body></html>';
+
+            // ✅ SEND EMAIL
             $sendEmail = new SendEmail();
-
             $sendEmail->sendEmail($json["email"], $emailSubject, $emailBody);
+
             return 1;
         } catch (PDOException $e) {
             $conn->rollBack();
             return $e->getMessage();
         }
     }
+
 
 
     function customerViewBookings($json)
@@ -1009,7 +1008,7 @@ class Demiren_customer
             $stmt->bindParam(':customers_phone', $phone);
             $stmt->bindParam(':customers_birthdate', $dob);
             $stmt->execute();
-
+            $this->linkWalkInBookingsToCustomer($email);
             $conn->commit();
             return 1;
         } catch (PDOException $e) {
@@ -2043,7 +2042,7 @@ class Demiren_customer
         // Compute per-booking sum of all UNPAID amenity charges
         // Paid status is 4; we count statuses 1 (Pending) and 2 (Delivered), and exclude cancelled (3)
         try {
-            $unpaidStmt = $conn->prepare("\n                SELECT \n                    b.booking_id,\n                    COALESCE(SUM(bc.booking_charges_total), 0) AS unpaid_total\n                FROM tbl_booking b\n                INNER JOIN (\n                    SELECT bh1.booking_id\n                    FROM tbl_booking_history bh1\n                    INNER JOIN (\n                        SELECT booking_id, MAX(updated_at) AS latest_update\n                        FROM tbl_booking_history\n                        GROUP BY booking_id\n                    ) bh2 ON bh1.booking_id = bh2.booking_id AND bh1.updated_at = bh2.latest_update\n                    WHERE bh1.status_id = 5\n                ) latest ON latest.booking_id = b.booking_id\n                INNER JOIN tbl_booking_room br ON br.booking_id = b.booking_id\n                INNER JOIN tbl_booking_charges bc ON bc.booking_room_id = br.booking_room_id\n                WHERE b.customers_id = :bookingCustomerId\n                  AND bc.booking_charge_status IN (1,2)\n                GROUP BY b.booking_id\n            ");
+            $unpaidStmt = $conn->prepare("\n                SELECT \n                    b.booking_id,\n                    COALESCE(SUM(bc.booking_charges_total), 0) AS unpaid_total\n                FROM tbl_booking b\n                INNER JOIN (\n                    SELECT bh1.booking_id\n                    FROM tbl_booking_history bh1\n                    INNER JOIN (\n                        SELECT booking_id, MAX(updated_at) AS latest_update\n                        FROM tbl_booking_history\n                        GROUP BY booking_id\n                    ) bh2 ON bh1.booking_id = bh2.booking_id AND bh1.updated_at = bh2.latest_update\n                    WHERE bh1.status_id = 5\n                ) latest ON latest.booking_id = b.booking_id\n                INNER JOIN tbl_booking_room br ON br.booking_id = b.booking_id\n                INNER JOIN tbl_booking_charges bc ON bc.booking_room_id = br.booking_room_id\n                WHERE b.customers_id = :bookingCustomerId\n                  AND bc.booking_charge_status IN (1,2,4)\n                GROUP BY b.booking_id\n            ");
             $unpaidStmt->bindParam(':bookingCustomerId', $bookingCustomerId, PDO::PARAM_INT);
             $unpaidStmt->execute();
             $unpaidRows = $unpaidStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -2743,6 +2742,62 @@ class Demiren_customer
         $stmt = $conn->prepare($sql);
         $stmt->execute();
         return $stmt->rowCount() > 0 ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+    }
+
+    function linkWalkInBookingsToCustomer($email)
+    {
+        include "connection.php";
+
+        echo "email: " . $email . "<br>";
+
+        // 1. Find walk-in customer record using the SAME email
+        $sql = "SELECT customers_walk_in_id 
+            FROM tbl_customers_walk_in 
+            WHERE customers_walk_in_email = :email 
+            LIMIT 1";
+        $stmt = $conn->prepare($sql);
+        $stmt->bindParam(':email', $email);
+        $stmt->execute();
+
+        echo "first stmt: " . $stmt->rowCount() . "<br>";
+
+        if ($stmt->rowCount() == 0) {
+            return -2; // no walk-in bookings to migrate
+        }
+
+        $walkInId = $stmt->fetchColumn();
+
+        echo "walkInId: " . $walkInId . "<br>";
+
+        // 2. Get the newly registered customer ID
+        $sql = "SELECT customers_id 
+            FROM tbl_customers 
+            WHERE customers_email = :email
+            LIMIT 1";
+        $stmt = $conn->prepare($sql);
+        $stmt->bindParam(':email', $email);
+        $stmt->execute();
+
+        echo "second stmt: " . $stmt->rowCount() . "<br>";
+        
+
+        if ($stmt->rowCount() == 0) {
+            return -3; // should not happen, but safe check
+        }
+
+        $registeredCustomerId = $stmt->fetchColumn();
+        echo "registeredCustomerId: " . $registeredCustomerId . "<br>";
+
+        // 3. Update all past bookings to link to the registered account
+        $sql = "UPDATE tbl_booking
+            SET customers_id = :newCustomerId,
+                customers_walk_in_id = NULL
+            WHERE customers_walk_in_id = :walkInId";
+        $stmt = $conn->prepare($sql);
+        $stmt->bindParam(':newCustomerId', $registeredCustomerId);
+        $stmt->bindParam(':walkInId', $walkInId);
+        $stmt->execute();
+        echo "third stmt: " . $stmt->rowCount() . "<br>";
     }
 } //customer
 
