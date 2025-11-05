@@ -30,10 +30,12 @@ import RoomChangeSheet from "./SubPages/RoomChangeSheet"
 import { useNavigate } from 'react-router-dom'
 import AdminCustomModal from "./Function_Files/AdminCustomModal"
 import WarningDialog from "./Function_Files/WarningDialog"
+import { useApproval } from './Online_Folder/ApprovalContext'
 
 function AdminBookingList() {
   const APIConn = `${localStorage.url}admin.php`;
   const navigate = useNavigate();
+  const { setState: setApprovalState } = useApproval();
 
   const [bookings, setBookings] = useState([]);
   const [filteredBookings, setFilteredBookings] = useState([]);
@@ -621,75 +623,47 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
     }
   };
 
-  // New: Confirm check-in (adds a Checked-In status history and marks rooms occupied)
+  // New: Confirm check-in navigates to ApproveRooms for Confirmed bookings
   const handleConfirmCheckIn = async (booking) => {
     try {
-      const checkedInStatus = status.find(item => item.booking_status_name === 'Checked-In');
-      if (!checkedInStatus) {
-        toast.error('Checked-In status not found');
-        return;
-      }
-      // Only allow confirm check-in from Confirmed state
       if (booking.booking_status !== 'Confirmed') {
         toast.error('Check-in can only be confirmed from Confirmed status');
         return;
       }
-
-      const currentEmployeeId = localStorage.getItem('employeeId') || 1;
-      const jsonData = {
-        booking_id: booking.booking_id,
-        employee_id: currentEmployeeId,
-        booking_status_id: checkedInStatus.booking_status_id,
+      // Prefill ApprovalContext for ApproveRooms
+      const name = booking.customer_name || '';
+      const checkIn = booking.booking_checkin_dateandtime || '';
+      const checkOut = booking.booking_checkout_dateandtime || '';
+      const toDateVal = (s) => {
+        try { const d = new Date(String(s).replace(' ', 'T')); return isNaN(d) ? null : d; } catch { return null; }
       };
-
-      const candidateRoomIds = Array.isArray(booking?.room_ids) ? booking.room_ids : undefined;
-      if (Array.isArray(candidateRoomIds)) {
-        jsonData.room_ids = candidateRoomIds;
-      }
-
-      // Fallback: fetch assigned rooms for this booking if room_ids are missing/empty
-      if (!jsonData.room_ids || !Array.isArray(jsonData.room_ids) || jsonData.room_ids.length === 0) {
-        try {
-          const fd = new FormData();
-          fd.append('method', 'get_booking_rooms_by_booking');
-          fd.append('json', JSON.stringify({ booking_id: booking.booking_id }));
-          const resp = await axios.post(APIConn, fd);
-          let rows = resp?.data;
-          if (typeof rows === 'string') {
-            try { rows = JSON.parse(rows); } catch {}
-          }
-          const roomIds = Array.isArray(rows)
-            ? rows
-                .map(r => Number(r?.roomnumber_id))
-                .filter(n => Number.isFinite(n) && n > 0)
-            : [];
-          if (roomIds.length > 0) {
-            jsonData.room_ids = roomIds;
-          } else {
-            toast.warning('No assigned rooms found; room occupancy will not change.');
-          }
-        } catch (e) {
-          console.error('Failed to fetch booking rooms for check-in:', e);
+      const inD = toDateVal(checkIn);
+      const outD = toDateVal(checkOut);
+      const nights = inD && outD ? Math.max(1, Math.round((outD - inD) / (1000*60*60*24))) : 1;
+      const roomNumbersStr = booking.room_numbers || '';
+      const requestedRoomCount = roomNumbersStr ? roomNumbersStr.split(',').filter(Boolean).length : 1;
+      // Store in ApprovalContext if available in this component
+      // Prefill approval state via context
+      try {
+        if (typeof setApprovalState === 'function') {
+          setApprovalState(prev => ({
+            ...prev,
+            bookingId: booking.booking_id,
+            customerName: name,
+            checkIn: (checkIn || '').toString().slice(0, 10),
+            checkOut: (checkOut || '').toString().slice(0, 10),
+            nights,
+            requestedRoomTypes: booking.roomtype_name ? [{ name: booking.roomtype_name }] : prev.requestedRoomTypes || [],
+            requestedRoomCount,
+            selectedRooms: [],
+          }));
         }
-      }
+      } catch {}
 
-      const formData = new FormData();
-      formData.append('method', 'changeBookingStatus');
-      formData.append('json', JSON.stringify(jsonData));
-
-      const res = await axios.post(APIConn, formData);
-      if (res?.data?.success) {
-        toast.success(`Booking ${booking.reference_no} marked as Checked-In`);
-        setShowCustomerDetails(false);
-        setSelectedBooking(null);
-        getBookings();
-      } else {
-        const errMsg = res?.data?.message || res?.data?.error || 'Failed to confirm check-in';
-        toast.error(errMsg);
-      }
+      navigate(`/admin/approve-rooms/${booking.booking_id}`);
     } catch (err) {
-      console.error('Confirm check-in error:', err);
-      toast.error('Failed to connect');
+      console.error('Confirm check-in navigation error:', err);
+      toast.error('Failed to navigate');
     }
   };
 

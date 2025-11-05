@@ -50,7 +50,7 @@ export default function OnlineReqList() {
     try {
       setIsLoading(true);
       const formData = new FormData();
-      formData.append("method", "reqBookingList");
+      formData.append("method", "viewBookingsEnhanced");
       const res = await axios.post(APIConn, formData);
       const raw = res?.data;
       let data;
@@ -59,12 +59,9 @@ export default function OnlineReqList() {
       } catch {
         data = raw;
       }
-      const rows = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.data)
-        ? data.data
-        : [];
-      setBookings(rows);
+      const rows = Array.isArray(data) ? data : [];
+      const confirmed = rows.filter(b => (b?.booking_status || '').toLowerCase() === 'confirmed');
+      setBookings(confirmed);
       if (!Array.isArray(rows)) {
         console.warn("reqBookingList returned non-array:", data);
       }
@@ -141,7 +138,15 @@ export default function OnlineReqList() {
   // Define openApproval earlier so it can be safely referenced in columns
   const openApproval = (b) => {
     const rooms = Array.isArray(b?.rooms) ? b.rooms : [];
-    const summary = summarizeRequested(rooms);
+    // Prefer enhanced fields when available
+    let summary = [];
+    const roomNumbersStr = b?.room_numbers || '';
+    const count = roomNumbersStr ? roomNumbersStr.split(',').filter(Boolean).length : 0;
+    if (b?.roomtype_name) {
+      summary = [{ name: b.roomtype_name, count: count || (rooms.length || 1) }];
+    } else {
+      summary = summarizeRequested(rooms);
+    }
 
     const checkIn = b?.booking_checkin_dateandtime || b?.checkin_date;
     const checkOut = b?.booking_checkout_dateandtime || b?.checkout_date;
@@ -160,6 +165,7 @@ export default function OnlineReqList() {
       if (v) { adminId = v; break; }
     }
 
+    const requestedRoomCount = summary.reduce((acc, s) => acc + (s.count || 0), 0) || rooms.length || 1;
     flushSync(() => {
       setState((prev) => ({
         ...prev,
@@ -170,7 +176,7 @@ export default function OnlineReqList() {
         checkOut: onlyDate(checkOut),
         nights,
         requestedRoomTypes: summary.map((s) => ({ name: s.name })),
-        requestedRoomCount: rooms.length,
+        requestedRoomCount,
         selectedRooms: [],
       }));
     });
@@ -294,7 +300,7 @@ export default function OnlineReqList() {
       <div className="lg:ml-72 p-6 max-w-6xl mx-auto">
         <h1 className="text-2xl font-bold mb-4 text-foreground text-center">Online Booking Requests</h1>
         {isLoading && (
-          <div className="text-sm text-muted-foreground mb-2">Loading pending requests…</div>
+          <div className="text-sm text-muted-foreground mb-2">Loading confirmed requests…</div>
         )}
 
         {/* Filter Card */}

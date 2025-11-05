@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 29, 2025 at 02:19 AM
+-- Generation Time: Nov 05, 2025 at 03:17 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -18,7 +18,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `dbdemiren`
+-- Database: `demirens`
 --
 
 -- --------------------------------------------------------
@@ -81,6 +81,28 @@ CREATE TABLE `tbl_billing` (
   `billing_balance` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `tbl_billing`
+--
+
+INSERT INTO `tbl_billing` (`billing_id`, `booking_id`, `booking_charges_id`, `employee_id`, `payment_method_id`, `discounts_id`, `billing_dateandtime`, `billing_invoice_number`, `billing_downpayment`, `billing_vat`, `billing_total_amount`, `billing_balance`) VALUES
+(54, 59, NULL, NULL, 1, NULL, '2025-10-29 17:36:03', NULL, 8900, 909, 8900, 0),
+(55, 60, NULL, NULL, 1, NULL, '2025-10-29 17:45:47', NULL, 2480, 221, 2480, 0),
+(56, 61, NULL, NULL, 1, NULL, '2025-10-29 17:58:16', NULL, 42570, 4156, 42570, 0),
+(57, 62, NULL, NULL, 1, NULL, '2025-10-29 18:17:06', NULL, 2480, 0, 2670, 190),
+(58, 63, NULL, NULL, 1, NULL, '2025-10-29 18:48:33', NULL, 30330, 3640, 33970, 3640),
+(59, 64, NULL, NULL, 2, NULL, '2025-10-29 19:00:50', NULL, 13480, 1084, 13480, 0),
+(60, 65, NULL, NULL, 2, NULL, '2025-10-29 19:22:59', NULL, 29600, 2811, 29600, 0),
+(61, 66, NULL, NULL, 2, NULL, '2025-10-29 19:40:01', NULL, 1180, 126, 1180, 0),
+(62, 67, NULL, NULL, 1, NULL, '2025-10-29 19:47:20', NULL, 21040, 2254, 21040, 0),
+(63, 68, NULL, NULL, 1, NULL, '2025-11-03 16:26:40', NULL, 3810, 408, 3810, 0),
+(64, 69, NULL, NULL, 2, NULL, '2025-11-03 16:35:13', NULL, 1180, 126, 1180, 0),
+(65, 70, NULL, NULL, 1, NULL, '2025-11-05 02:05:37', NULL, 1180, 126, 1180, 0),
+(66, 71, NULL, NULL, 2, NULL, '2025-11-05 02:27:25', NULL, 4310, 462, 4310, 0),
+(67, 72, NULL, NULL, 1, NULL, '2025-11-05 10:48:45', NULL, 2830, 303, 2830, 0),
+(68, 75, NULL, NULL, 1, NULL, '2025-11-05 11:08:42', NULL, 1600, 126, 1600, 0),
+(69, 76, NULL, NULL, 1, NULL, '2025-11-05 21:32:17', NULL, 2360, 253, 2360, 0);
+
 -- --------------------------------------------------------
 
 --
@@ -103,6 +125,14 @@ CREATE TABLE `tbl_booking` (
   `booking_isArchive` tinyint(1) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `tbl_booking`
+--
+
+INSERT INTO `tbl_booking` (`booking_id`, `customers_id`, `customers_walk_in_id`, `guests_amnt`, `booking_totalAmount`, `booking_payment`, `booking_paymentMethod`, `reference_no`, `booking_fileName`, `booking_checkin_dateandtime`, `booking_checkout_dateandtime`, `booking_created_at`, `booking_isArchive`) VALUES
+(75, 24, NULL, 1, 1600, 1600, 1, 'REF20251105110842165', '', '2025-11-06 14:00:00', '2025-11-07 12:00:00', '2025-11-05 11:08:42', 0),
+(76, 24, NULL, 1, 2360, 2360, 1, 'REF20251105213216201', '', '2025-11-06 14:00:00', '2025-11-07 12:00:00', '2025-11-05 21:32:16', 0);
+
 -- --------------------------------------------------------
 
 --
@@ -121,6 +151,13 @@ CREATE TABLE `tbl_booking_charges` (
   `booking_charge_datetime` datetime NOT NULL,
   `booking_return_datetime` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `tbl_booking_charges`
+--
+
+INSERT INTO `tbl_booking_charges` (`booking_charges_id`, `charges_master_id`, `booking_charges_notes_id`, `booking_room_id`, `booking_charges_price`, `booking_charges_quantity`, `booking_charges_total`, `booking_charge_status`, `booking_charge_datetime`, `booking_return_datetime`) VALUES
+(135, 12, NULL, 94, 420, 1, 420, 2, '2025-11-05 11:08:42', NULL);
 
 -- --------------------------------------------------------
 
@@ -148,6 +185,17 @@ CREATE TABLE `tbl_booking_history` (
   `updated_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `tbl_booking_history`
+--
+
+INSERT INTO `tbl_booking_history` (`booking_history_id`, `booking_id`, `employee_id`, `status_id`, `updated_at`) VALUES
+(112, 75, NULL, 2, '2025-11-05 11:08:42'),
+(113, 75, 1, 5, '2025-11-05 11:10:46'),
+(114, 76, NULL, 2, '2025-11-05 21:32:17'),
+(115, 76, 1, 2, '2025-11-05 22:10:02'),
+(116, 76, 1, 2, '2025-11-05 22:10:14');
+
 -- --------------------------------------------------------
 
 --
@@ -162,6 +210,15 @@ CREATE TABLE `tbl_booking_room` (
   `bookingRoom_adult` int(11) NOT NULL,
   `bookingRoom_children` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `tbl_booking_room`
+--
+
+INSERT INTO `tbl_booking_room` (`booking_room_id`, `booking_id`, `roomtype_id`, `roomnumber_id`, `bookingRoom_adult`, `bookingRoom_children`) VALUES
+(94, 75, 1, 3, 3, 0),
+(95, 76, 1, NULL, 1, 0),
+(96, 76, 3, NULL, 1, 0);
 
 -- --------------------------------------------------------
 
@@ -242,7 +299,8 @@ INSERT INTO `tbl_charges_master` (`charges_master_id`, `charges_category_id`, `c
 (13, 3, 'Beverage Service', 150, 'Order soft drinks, coffee, or tea', 0, 0),
 (14, 3, 'Food', 200, 'Orders from the customers during their stay (Only Lists the food)', 0, 0),
 (15, 3, 'Special Dietary Request', 500, 'Customized meals upon request', 1, 0),
-(16, 4, 'Luggage Assistance', 0, 'Bellboy service for carrying luggage', 0, 1);
+(16, 4, 'Luggage Assistance', 0, 'Bellboy service for carrying luggage', 0, 1),
+(21, 4, 'KD', 190, 'Added by frontdesk', 0, 0);
 
 -- --------------------------------------------------------
 
@@ -262,7 +320,9 @@ CREATE TABLE `tbl_charges_status` (
 INSERT INTO `tbl_charges_status` (`charges_status_id`, `charges_status_name`) VALUES
 (1, 'Pending'),
 (2, 'Delivered'),
-(3, 'Cancelled');
+(3, 'Cancelled'),
+(4, 'Return'),
+(5, 'Paid');
 
 -- --------------------------------------------------------
 
@@ -307,11 +367,7 @@ CREATE TABLE `tbl_customers` (
 --
 
 INSERT INTO `tbl_customers` (`customers_id`, `customers_online_id`, `customers_fname`, `customers_lname`, `customers_phone`, `customers_email`, `customers_address`, `customers_birthdate`, `customers_gender`, `identification_id`, `nationality_id`, `customers_created_at`, `customers_updated_at`, `customers_status`) VALUES
-(1, 1, 'Melky Wayne', 'Macario', '09539143839', 'xmelmacario@gmail.com', NULL, '2001-03-08', NULL, NULL, 3, '2025-10-25 20:11:03', NULL, 'pending'),
-(2, 2, 'Xyber Bean Malachi', 'Macario', '09878765432', 'beyasabellach@gmail.com', NULL, '1999-10-25', NULL, NULL, 1, '2025-10-26 04:12:33', NULL, 'pending'),
-(3, 3, 'Xyber Bean Malachi', 'Macario', '09878765432', 'xmoonlightboy@gmail.com', NULL, '1999-10-25', NULL, NULL, 1, '2025-10-26 07:54:02', NULL, 'pending'),
-(4, 4, 'Adel', 'Lausa', '09877876567', 'sevenevener@gmail.com', NULL, '2003-07-25', NULL, NULL, 1, '2025-10-28 22:25:06', NULL, 'pending'),
-(5, 5, 'Claire', 'Manolo', '09868585745', 'watermelonsugar540@gmail.com', NULL, '2000-01-02', NULL, NULL, 1, '2025-10-29 06:35:20', NULL, 'pending');
+(24, 24, 'Xyber Bean Malachi', 'Macario', '09878765432', 'xmelmacario@gmail.com', NULL, '2000-03-08', NULL, NULL, 2, '2025-11-05 02:28:37', NULL, 'pending');
 
 -- --------------------------------------------------------
 
@@ -326,13 +382,6 @@ CREATE TABLE `tbl_customersreviews` (
   `customersreviews_comment` text DEFAULT NULL,
   `customersreviews_date` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `tbl_customersreviews`
---
-
-INSERT INTO `tbl_customersreviews` (`customersreviews_id`, `customers_id`, `customersreviews_rating`, `customersreviews_comment`, `customersreviews_date`) VALUES
-(1, 1, 5, 'so good ', '2025-10-27 01:37:20');
 
 -- --------------------------------------------------------
 
@@ -357,11 +406,7 @@ CREATE TABLE `tbl_customers_online` (
 --
 
 INSERT INTO `tbl_customers_online` (`customers_online_id`, `customers_online_username`, `customers_online_password`, `customers_online_email`, `customers_online_phone`, `customers_online_created_at`, `customers_online_updated_at`, `customers_online_status`, `customers_online_profile_image`) VALUES
-(1, 'yang', 'yang', 'ivla.versoza.coc@phinmaed.com', '09539143839', '2025-10-25 20:11:03', NULL, 1, ''),
-(2, 'Kai', '$2y$10$pPIntC.ip7ODLstrRLZ4yuGSvPr3YqQTbqgYlwYx6trFZojDLgkJ2', 'beyasabellach@gmail.com', '09878765432', '2025-10-26 04:12:33', NULL, 0, ''),
-(3, 'Kai2', '$2y$10$9MYKARQd4y7nDnQE6W4RUes0cIYJ0iXyLdUF.BQ94oTPGZ6Zi6fCW', 'xmoonlightboy@gmail.com', '09878765432', '2025-10-26 07:54:02', NULL, 0, ''),
-(4, 'aiai', '$2y$10$J9pqfW3dAcUjmR/SEw/18e0XxOKyC4oACbCtPGlO9SGS6WxUrhArK', 'sevenevener@gmail.com', '09877876567', '2025-10-28 22:25:06', NULL, 0, ''),
-(5, 'Lili', '$2y$10$iD.oqKNP20Q5x8bbv/I9gexULPlnZUIFgc1a/yJCNx5/d2.HpXlwi', 'watermelonsugar540@gmail.com', '09868585745', '2025-10-29 06:35:20', NULL, 1, '');
+(24, 'yang', 'yang', 'xmelmacario@gmail.com', '09878765432', '2025-11-05 02:28:37', NULL, 0, '');
 
 -- --------------------------------------------------------
 
@@ -389,24 +434,7 @@ CREATE TABLE `tbl_customers_walk_in` (
 --
 
 INSERT INTO `tbl_customers_walk_in` (`customers_walk_in_id`, `customers_id`, `customers_walk_in_fname`, `customers_walk_in_lname`, `customers_walk_in_phone`, `customers_walk_in_email`, `customers_walk_in_address`, `customers_walk_in_birthdate`, `customers_walk_in_gender`, `customers_walk_in_created_at`, `customers_walk_in_updated_at`, `customers_walk_in_status`) VALUES
-(1, NULL, 'Melky Wayne', 'Macario', '09539143839', 'xmelmacario@gmail.com', NULL, NULL, NULL, '2025-10-25 16:41:09', NULL, 'Active'),
-(2, NULL, 'Melky Wayne', 'Macario', '09539143839', 'xmelmacario@gmail.com', NULL, NULL, NULL, '2025-10-25 19:00:03', NULL, 'Active'),
-(3, NULL, 'Melky Wayne', 'Macario', '09539143839', 'xmelmacario@gmail.com', NULL, NULL, NULL, '2025-10-25 19:23:14', NULL, 'Active'),
-(4, NULL, 'Melky Wayne', 'Macario', '09539143839', 'xmelmacario@gmail.com', NULL, NULL, NULL, '2025-10-25 19:25:34', NULL, 'Active'),
-(6, NULL, 'Melky Wayne', 'Macario', '09539143839', 'xmelmacario@gmail.com', NULL, NULL, NULL, '2025-10-25 19:31:43', NULL, 'Active'),
-(7, NULL, 'Melky Wayne', 'Macario', '09539143839', 'xmelmacario@gmail.com', NULL, NULL, NULL, '2025-10-25 19:44:54', NULL, 'Active'),
-(8, NULL, 'Melky Wayne', 'Macario', '09539143839', 'xmelmacario@gmail.com', NULL, NULL, NULL, '2025-10-25 19:48:35', NULL, 'Active'),
-(9, NULL, 'Melky Wayne', 'Macario', '09539143839', 'xmelmacario@gmail.com', NULL, NULL, NULL, '2025-10-25 19:52:57', NULL, 'Active'),
-(10, NULL, 'Melky Wayne', 'Macario', '09539143839', 'xmelmacario@gmail.com', NULL, NULL, NULL, '2025-10-25 19:54:24', NULL, 'Active'),
-(11, NULL, 'Melky Wayne', 'Macario', '09539143839', 'xmelmacario@gmail.com', NULL, NULL, NULL, '2025-10-25 19:55:45', NULL, 'Active'),
-(12, NULL, 'Melky Wayne', 'Macario', '09539143839', 'xmelmacario@gmail.com', NULL, NULL, NULL, '2025-10-25 19:59:59', NULL, 'Active'),
-(13, NULL, 'Realan', 'Fabrea', '09878765432', 'fabreasawyer@gmail.com', NULL, NULL, NULL, '2025-10-26 04:00:04', NULL, 'Active'),
-(14, NULL, 'C Jay', 'Macuse', '09539143839', 'xmelmacario@gmail.com', NULL, NULL, NULL, '2025-10-26 04:07:36', NULL, 'Active'),
-(15, NULL, 'John', 'Jaso', '09878989098', 'macusecjay25@gmail.com', NULL, NULL, NULL, '2025-10-27 05:17:05', NULL, 'Active'),
-(21, NULL, 'Ivan ', 'Versoza', '09878765432', 'ivla.versoza.coc@phinmaed.com', NULL, NULL, NULL, '2025-10-27 09:48:36', NULL, 'Active'),
-(22, NULL, 'Grizon ', 'Sacay', '09074585789', 'chsa.noynay.coc@phinmaed.com', NULL, NULL, NULL, '2025-10-28 22:19:41', NULL, 'Active'),
-(23, NULL, 'Grizon ', 'Sacay', '09074585789', 'chsa.noynay.coc@phinmaed.com', NULL, NULL, NULL, '2025-10-29 03:51:01', NULL, 'Active'),
-(24, NULL, 'Yvhone', 'Estanda', '09875652536', 'tokbe1162@gmail.com', NULL, NULL, NULL, '2025-10-29 06:30:31', NULL, 'Active');
+(28, NULL, 'Mel', 'Macario', '09539143839', 'xmelmacario@gmail.com', NULL, NULL, NULL, '2025-11-05 02:27:25', NULL, 'Active');
 
 -- --------------------------------------------------------
 
@@ -482,7 +510,7 @@ CREATE TABLE `tbl_employee` (
 --
 
 INSERT INTO `tbl_employee` (`employee_id`, `employee_user_level_id`, `employee_fname`, `employee_lname`, `employee_username`, `employee_phone`, `employee_email`, `employee_password`, `employee_address`, `employee_birthdate`, `employee_gender`, `employee_created_at`, `employee_updated_at`, `employee_status`, `employee_online_authentication_status`) VALUES
-(1, 1, 'Ivan Ky', 'Versoza', 'admin', '0962 818 3282', 'ikversoza@gmail.com', 'admin', 'Misamis Oriental, Cagayan de Oro', '2003-01-17', 'Male', '2025-09-30 22:32:38', '2025-10-27 20:03:39', 1, 0);
+(1, 1, 'Ivan Ky', 'Versoza', 'admin', '0962 818 3282', 'ikversoza@gmail.com', 'admin', 'Misamis Oriental, Cagayan de Oro', '2003-01-17', 'Male', '2025-09-30 22:32:38', '2025-11-05 10:11:44', 1, 0);
 
 -- --------------------------------------------------------
 
@@ -515,7 +543,8 @@ INSERT INTO `tbl_imagesroommaster` (`imagesroommaster_id`, `imagesroommaster_fil
 (12, 'familyb1.jpg', 7),
 (13, 'familyb2.jpg', 7),
 (14, 'familyc1.jpg', 8),
-(15, 'familyc2.jpg', 8);
+(15, 'familyc2.jpg', 8),
+(16, 'standardmain.jpg', 9);
 
 -- --------------------------------------------------------
 
@@ -550,7 +579,13 @@ INSERT INTO `tbl_invoice` (`invoice_id`, `billing_id`, `employee_id`, `payment_m
 (9, 34, 1, 2, '2025-10-28', '14:12:49', 16000, 1),
 (10, 34, 1, 2, '2025-10-28', '14:12:49', 17920, 1),
 (11, 39, 1, 2, '2025-10-28', '18:53:22', 11300, 1),
-(12, 39, 1, 2, '2025-10-28', '18:53:22', 12656, 1);
+(12, 39, 1, 2, '2025-10-28', '18:53:22', 12656, 1),
+(13, 48, 1, 2, '2025-10-29', '10:17:14', 5800, 1),
+(14, 48, 1, 2, '2025-10-29', '10:17:14', 6496, 1),
+(15, 57, 1, 2, '2025-10-29', '11:20:09', 2990, 1),
+(16, 57, 1, 2, '2025-10-29', '11:20:09', 2670, 1),
+(17, 58, 1, 2, '2025-10-29', '11:51:24', 30330, 1),
+(18, 58, 1, 2, '2025-10-29', '11:51:24', 33970, 1);
 
 -- --------------------------------------------------------
 
@@ -660,29 +695,32 @@ CREATE TABLE `tbl_rooms` (
 --
 
 INSERT INTO `tbl_rooms` (`roomnumber_id`, `roomtype_id`, `roomfloor`, `room_status_id`) VALUES
-(1, 2, 1, 1),
+(1, 2, 1, 3),
 (2, 3, 1, 3),
-(3, 1, 1, 3),
-(4, 4, 1, 1),
+(3, 1, 1, 1),
+(4, 4, 1, 3),
 (5, 5, 2, 3),
-(6, 6, 2, 1),
+(6, 6, 2, 3),
 (7, 7, 2, 3),
 (8, 2, 2, 3),
-(9, 3, 3, 1),
+(9, 3, 3, 3),
 (10, 1, 3, 3),
 (11, 4, 3, 3),
 (12, 8, 3, 3),
 (13, 5, 4, 3),
 (14, 6, 4, 3),
 (15, 7, 4, 3),
-(16, 2, 4, 1),
-(17, 3, 5, 1),
+(16, 2, 4, 3),
+(17, 3, 5, 3),
 (18, 1, 5, 3),
-(19, 4, 5, 1),
+(19, 4, 5, 3),
 (20, 8, 5, 3),
 (21, 1, 6, 3),
 (22, 2, 6, 3),
-(23, 3, 6, 3);
+(23, 3, 6, 3),
+(301, 9, 5, 3),
+(501, 9, 5, 3),
+(601, 9, 5, 3);
 
 -- --------------------------------------------------------
 
@@ -715,7 +753,8 @@ INSERT INTO `tbl_roomtype` (`roomtype_id`, `roomtype_name`, `max_capacity`, `roo
 (5, 'Quadruple Room', 5, 'Providing free toiletries, this quadruple room includes a private bathroom with a shower, a bidet and a hairdryer. This quadruple room is air-conditioned and features a flat-screen TV, a safe deposit box, an electric kettle and a tiled floor. The unit offers 4 beds.', 2100, 4, 4, '30 m²', 'quadruplemain.jpg', 1),
 (6, 'Family Room A', 6, 'Featuring free toiletries, this family room includes a private bathroom with a shower, a bidet and a hairdryer. The air-conditioned family room features a flat-screen TV, a safe deposit box, an electric kettle and a tiled floor. The unit has 5 beds.', 2630, 5, 5, '30 m²', 'familyamain.jpg', 1),
 (7, 'Family Room B', 7, 'Providing free toiletries, this family room includes a private bathroom with a shower, a bidet and a hairdryer. The air-conditioned family room provides a flat-screen TV, a safe deposit box, an electric kettle and a tiled floor. The unit offers 6 beds.', 3130, 6, 6, '30 m²', 'familybmain.jpg', 1),
-(8, 'Family Room C', 13, 'Featuring free toiletries, this family room includes a private bathroom with a shower, a bidet and a hairdryer. The family room features air conditioning, a safe deposit box, an electric kettle, a tiled floor, as well as a flat-screen TV. The unit has 12 beds.', 7300, 12, 12, '30 m²', 'familycmain.jpg', 1);
+(8, 'Family Room C', 13, 'Featuring free toiletries, this family room includes a private bathroom with a shower, a bidet and a hairdryer. The family room features air conditioning, a safe deposit box, an electric kettle, a tiled floor, as well as a flat-screen TV. The unit has 12 beds.', 7300, 12, 12, '30 m²', 'familycmain.jpg', 1),
+(9, 'Family Room D', 4, 'A room contain 20 people', 3200, 1, 2, 'Standard', 'standardmain.jpg', 0);
 
 -- --------------------------------------------------------
 
@@ -830,6 +869,16 @@ CREATE TABLE `tbl_visitorlogs` (
   `visitorlogs_checkin_time` datetime DEFAULT NULL,
   `visitorlogs_checkout_time` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `tbl_visitorlogs`
+--
+
+INSERT INTO `tbl_visitorlogs` (`visitorlogs_id`, `visitorapproval_id`, `booking_room_id`, `employee_id`, `visitorlogs_visitorname`, `visitorlogs_purpose`, `visitorlogs_checkin_time`, `visitorlogs_checkout_time`) VALUES
+(1, 1, 56, 1, 'Tyrone Smith', 'Chismis', '2025-10-29 06:00:00', NULL),
+(2, 4, 56, 1, 'James Smith', 'Chismis', '2025-10-29 06:00:00', '2025-10-29 16:52:10'),
+(3, 4, 56, 1, 'Tanya', 'Visit only', '2025-10-29 06:00:00', '2025-10-29 17:13:28'),
+(4, 4, 56, 1, 'Sofia', 'Visit only', '2025-10-29 06:00:00', '2025-10-29 17:12:36');
 
 --
 -- Indexes for dumped tables
@@ -1115,37 +1164,37 @@ ALTER TABLE `tbl_additional_customer`
 -- AUTO_INCREMENT for table `tbl_billing`
 --
 ALTER TABLE `tbl_billing`
-  MODIFY `billing_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=47;
+  MODIFY `billing_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=70;
 
 --
 -- AUTO_INCREMENT for table `tbl_booking`
 --
 ALTER TABLE `tbl_booking`
-  MODIFY `booking_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=52;
+  MODIFY `booking_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=77;
 
 --
 -- AUTO_INCREMENT for table `tbl_booking_charges`
 --
 ALTER TABLE `tbl_booking_charges`
-  MODIFY `booking_charges_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=93;
+  MODIFY `booking_charges_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=136;
 
 --
 -- AUTO_INCREMENT for table `tbl_booking_charges_notes`
 --
 ALTER TABLE `tbl_booking_charges_notes`
-  MODIFY `booking_c_notes_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `booking_c_notes_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `tbl_booking_history`
 --
 ALTER TABLE `tbl_booking_history`
-  MODIFY `booking_history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=69;
+  MODIFY `booking_history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=117;
 
 --
 -- AUTO_INCREMENT for table `tbl_booking_room`
 --
 ALTER TABLE `tbl_booking_room`
-  MODIFY `booking_room_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=55;
+  MODIFY `booking_room_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=97;
 
 --
 -- AUTO_INCREMENT for table `tbl_booking_status`
@@ -1163,13 +1212,13 @@ ALTER TABLE `tbl_charges_category`
 -- AUTO_INCREMENT for table `tbl_charges_master`
 --
 ALTER TABLE `tbl_charges_master`
-  MODIFY `charges_master_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
+  MODIFY `charges_master_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
 
 --
 -- AUTO_INCREMENT for table `tbl_charges_status`
 --
 ALTER TABLE `tbl_charges_status`
-  MODIFY `charges_status_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `charges_status_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `tbl_check_payment`
@@ -1181,7 +1230,7 @@ ALTER TABLE `tbl_check_payment`
 -- AUTO_INCREMENT for table `tbl_customers`
 --
 ALTER TABLE `tbl_customers`
-  MODIFY `customers_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `customers_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
 
 --
 -- AUTO_INCREMENT for table `tbl_customersreviews`
@@ -1193,13 +1242,13 @@ ALTER TABLE `tbl_customersreviews`
 -- AUTO_INCREMENT for table `tbl_customers_online`
 --
 ALTER TABLE `tbl_customers_online`
-  MODIFY `customers_online_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `customers_online_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
 
 --
 -- AUTO_INCREMENT for table `tbl_customers_walk_in`
 --
 ALTER TABLE `tbl_customers_walk_in`
-  MODIFY `customers_walk_in_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+  MODIFY `customers_walk_in_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT for table `tbl_customer_identification`
@@ -1223,13 +1272,13 @@ ALTER TABLE `tbl_employee`
 -- AUTO_INCREMENT for table `tbl_imagesroommaster`
 --
 ALTER TABLE `tbl_imagesroommaster`
-  MODIFY `imagesroommaster_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `imagesroommaster_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `tbl_invoice`
 --
 ALTER TABLE `tbl_invoice`
-  MODIFY `invoice_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `invoice_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `tbl_invoice_status`
@@ -1265,13 +1314,13 @@ ALTER TABLE `tbl_payment_method`
 -- AUTO_INCREMENT for table `tbl_rooms`
 --
 ALTER TABLE `tbl_rooms`
-  MODIFY `roomnumber_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+  MODIFY `roomnumber_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=602;
 
 --
 -- AUTO_INCREMENT for table `tbl_roomtype`
 --
 ALTER TABLE `tbl_roomtype`
-  MODIFY `roomtype_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `roomtype_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `tbl_room_amenities`
@@ -1307,7 +1356,7 @@ ALTER TABLE `tbl_visitorapproval`
 -- AUTO_INCREMENT for table `tbl_visitorlogs`
 --
 ALTER TABLE `tbl_visitorlogs`
-  MODIFY `visitorlogs_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `visitorlogs_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- Constraints for dumped tables

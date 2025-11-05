@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import AdminHeader from "../components/AdminHeader";
 import { useApproval } from "./ApprovalContext";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Carousel,
   CarouselContent,
@@ -28,6 +29,13 @@ export default function ApproveRooms() {
   const [search, setSearch] = useState("");
   const [checkIn, setCheckIn] = useState(state.checkIn || "");
   const [checkOut, setCheckOut] = useState(state.checkOut || "");
+  const [summary, setSummary] = useState({
+    reference_no: '',
+    customer_name: state.customerName || '',
+    customer_email: '',
+    customer_phone: '',
+    total_amount: 0,
+  });
 
   const bookingId = state.bookingId || Number(bookingIdParam);
 
@@ -39,6 +47,31 @@ export default function ApproveRooms() {
       // But we'll allow it; just proceed to fetch and let them pick.
     }
   }, [state.bookingId]);
+
+  // Fetch booking summary for Info Card
+  useEffect(() => {
+    const fetchSummary = async () => {
+      try {
+        const fd = new FormData();
+        fd.append('method', 'viewBookingsEnhanced');
+        const res = await axios.post(APIConn, fd);
+        let rows = Array.isArray(res?.data) ? res.data : [];
+        const match = rows.find(r => Number(r.booking_id) === Number(bookingId));
+        if (match) {
+          setSummary({
+            reference_no: match.reference_no || '',
+            customer_name: match.customer_name || state.customerName || '',
+            customer_email: match.customer_email || '',
+            customer_phone: match.customer_phone || '',
+            total_amount: Number(match.total_amount ?? match.booking_totalAmount ?? 0),
+          });
+        }
+      } catch (e) {
+        console.error('Failed to fetch booking summary', e);
+      }
+    };
+    if (bookingId) fetchSummary();
+  }, [APIConn, bookingId, state.customerName]);
 
   const fetchAvailableRooms = async () => {
     setLoading(true);
@@ -200,6 +233,36 @@ export default function ApproveRooms() {
     <>
       <AdminHeader />
       <div className="lg:ml-72 p-6 max-w-6xl mx-auto relative">
+        {/* Booking Info Card */}
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Booking Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <div className="text-muted-foreground">Reference Number</div>
+                <div className="font-medium text-foreground">{summary.reference_no || '-'}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Fullname</div>
+                <div className="font-medium text-foreground">{summary.customer_name || '-'}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Total Payment</div>
+                <div className="font-medium text-foreground">{currency(summary.total_amount)}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Phone Number</div>
+                <div className="font-medium text-foreground">{summary.customer_phone || '-'}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Email</div>
+                <div className="font-medium text-foreground">{summary.customer_email || '-'}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         {/* Floating Button */}
         <button
           type="button"

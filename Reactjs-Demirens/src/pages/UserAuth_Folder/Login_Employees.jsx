@@ -39,6 +39,9 @@ function EmployeeLogin() {
     const [isLocked, setIsLocked] = useState(false);
     const [lockRemaining, setLockRemaining] = useState(0);
 
+    // Password visibility
+    const [showPassword, setShowPassword] = useState(false);
+
     // 2FA OTP state
     const [pendingUser, setPendingUser] = useState(null);
     const [pendingUserType, setPendingUserType] = useState('');
@@ -269,16 +272,29 @@ function EmployeeLogin() {
                 toast.error(`Too many attempts. Try again in ${lockRemaining}s`);
                 return;
             }
+            // Relax CAPTCHA: warn but proceed instead of blocking
             if (isCaptchaValid === false) {
-                toast.error("Invalid CAPTCHA");
-                return;
+                toast.warning("CAPTCHA mismatch — proceeding with login");
             }
-            const url = localStorage.getItem('url') + "admin.php";
+            const base = localStorage.getItem('url') || 'http://localhost/IK-Bea_DemirenFolder/api/';
+            const url = base + "admin.php";
             const jsonData = { username: values.email, password: values.password };
             const formData = new FormData();
             formData.append("method", "login");
             formData.append("json", JSON.stringify(jsonData));
+            // Debug logs to help diagnose issues
+            try {
+                // Avoid logging raw password; log length only
+                console.log("=== EMPLOYEE LOGIN ATTEMPT ===");
+                console.log("API URL:", url);
+                console.log("Payload:", { username: values.email, passwordLen: values.password?.length || 0 });
+            } catch (_) {}
+
             const res = await axios.post(url, formData);
+            try {
+                console.log("Employee Login Response status:", res?.status);
+                console.log("Employee Login Raw Data:", res?.data);
+            } catch (_) {}
             const responseData = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
 
             if (responseData && responseData.success && responseData.user) {
@@ -291,6 +307,9 @@ function EmployeeLogin() {
                 }
 
                 const twoFAEnabled = Number(user.employee_online_authentication_status) === 1 || String(user.employee_online_authentication_status).toLowerCase() === '1' || user.employee_online_authentication_status === true;
+                try {
+                    console.log("2FA flag:", twoFAEnabled, "userType:", userType, "userLevel:", user.userlevel_name);
+                } catch (_) {}
                 if (twoFAEnabled) {
                     await initiateOtpProcess(user, userType);
                     setOtpDialogOpen(true);
@@ -404,16 +423,19 @@ function EmployeeLogin() {
                                         <FormControl>
                                             <div className="relative">
                                                 <Input
-                                                    type="password"
+                                                    type={showPassword ? "text" : "password"}
                                                     placeholder="Enter your password"
                                                     className="h-9 px-3 py-2 text-sm rounded-lg border-2 border-white/20 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all duration-300 bg-white/10 shadow-sm hover:shadow-md text-white placeholder:text-white/50"
                                                     {...field}
                                                 />
-                                                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                                    <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                                                    </svg>
-                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowPassword(prev => !prev)}
+                                                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-xs text-blue-200 hover:text-white"
+                                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                                >
+                                                    {showPassword ? 'Hide' : 'Show'}
+                                                </button>
                                             </div>
                                         </FormControl>
                                         <div className="flex justify-end">

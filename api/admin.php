@@ -572,29 +572,47 @@ class Admin_Functions
             $data = is_string($json) ? json_decode($json, true) : (is_array($json) ? $json : []);
             $required = ['employee_fname', 'employee_lname', 'employee_username', 'employee_email', 'employee_phone', 'employee_address', 'employee_birthdate', 'employee_gender', 'employee_password'];
             foreach ($required as $key) {
-                if (!isset($data[$key]) || trim($data[$key]) === '') {
-                    if (ob_get_length()) {
-                        ob_clean();
-                    }
+                if (!isset($data[$key]) || trim((string)$data[$key]) === '') {
+                    if (ob_get_length()) { ob_clean(); }
                     echo json_encode(['status' => 'error', 'message' => 'Missing required field: ' . $key]);
                     return;
                 }
             }
 
-            // Check uniqueness of username/email
-            $chk = $conn->prepare("SELECT employee_id FROM tbl_employee WHERE employee_username = :u OR employee_email = :e LIMIT 1");
-            $chk->bindParam(':u', $data['employee_username']);
-            $chk->bindParam(':e', $data['employee_email']);
+            // Normalize inputs
+            $fname = trim((string)$data['employee_fname']);
+            $lname = trim((string)$data['employee_lname']);
+            $username = trim((string)$data['employee_username']);
+            $email = trim((string)$data['employee_email']);
+            $phone = trim((string)$data['employee_phone']);
+            $address = trim((string)$data['employee_address']);
+            $birthdate = trim((string)$data['employee_birthdate']);
+            $gender = trim((string)$data['employee_gender']);
+            $plainPassword = trim((string)$data['employee_password']);
+
+            // Basic password quality guard (length only; UI should enforce more if needed)
+            if (strlen($plainPassword) < 8) {
+                if (ob_get_length()) { ob_clean(); }
+                echo json_encode(['status' => 'error', 'message' => 'Password must be at least 8 characters long']);
+                return;
+            }
+
+            // Check uniqueness of username/email (trimmed)
+            $chk = $conn->prepare("SELECT employee_id FROM tbl_employee WHERE TRIM(employee_username) = :u OR TRIM(employee_email) = :e LIMIT 1");
+            $chk->bindParam(':u', $username);
+            $chk->bindParam(':e', $email);
             $chk->execute();
             if ($chk->fetch(PDO::FETCH_ASSOC)) {
-                if (ob_get_length()) {
-                    ob_clean();
-                }
+                if (ob_get_length()) { ob_clean(); }
                 echo json_encode(['status' => 'error', 'message' => 'Username or email already exists']);
                 return;
             }
 
-            $hashed = password_hash($data['employee_password'], PASSWORD_DEFAULT);
+            // Strong, consistent password hashing: prefer Argon2id; fallback to bcrypt with cost 10
+            $algo = defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT;
+            $options = ($algo === PASSWORD_BCRYPT) ? ['cost' => 10] : [];
+            $hashed = password_hash($plainPassword, $algo, $options);
+
             $user_level = isset($data['employee_user_level_id']) ? intval($data['employee_user_level_id']) : 2; // default Front-Desk
             $status = isset($data['employee_status']) ? intval($data['employee_status']) : 1; // default Active
 
@@ -608,26 +626,22 @@ class Admin_Functions
                         :user_level, :status, NOW(), NOW()
                     )";
             $stmt = $conn->prepare($sql);
-            $stmt->bindParam(':fname', $data['employee_fname']);
-            $stmt->bindParam(':lname', $data['employee_lname']);
-            $stmt->bindParam(':username', $data['employee_username']);
-            $stmt->bindParam(':email', $data['employee_email']);
-            $stmt->bindParam(':phone', $data['employee_phone']);
+            $stmt->bindParam(':fname', $fname);
+            $stmt->bindParam(':lname', $lname);
+            $stmt->bindParam(':username', $username);
+            $stmt->bindParam(':email', $email);
+            $stmt->bindParam(':phone', $phone);
             $stmt->bindParam(':password', $hashed);
-            $stmt->bindParam(':address', $data['employee_address']);
-            $stmt->bindParam(':birthdate', $data['employee_birthdate']);
-            $stmt->bindParam(':gender', $data['employee_gender']);
+            $stmt->bindParam(':address', $address);
+            $stmt->bindParam(':birthdate', $birthdate);
+            $stmt->bindParam(':gender', $gender);
             $stmt->bindParam(':user_level', $user_level, PDO::PARAM_INT);
             $stmt->bindParam(':status', $status, PDO::PARAM_INT);
             $ok = $stmt->execute();
-            if (ob_get_length()) {
-                ob_clean();
-            }
+            if (ob_get_length()) { ob_clean(); }
             echo json_encode(['status' => $ok ? 'success' : 'error', 'message' => $ok ? 'Employee added successfully' : 'Failed to add employee']);
         } catch (Exception $e) {
-            if (ob_get_length()) {
-                ob_clean();
-            }
+            if (ob_get_length()) { ob_clean(); }
             echo json_encode(['status' => 'error', 'message' => 'Database error']);
         }
     }
@@ -2556,14 +2570,30 @@ class Admin_Functions
         }
 
         try {
+            $stage = 'init';
+            // Guard: ensure DB connection is available and is a PDO instance
+            if (!isset($conn) || !($conn instanceof PDO)) {
+                error_log("[admin.login] No PDO connection available");
+                throw new Exception('No database connection');
+            }
+            $stage = 'prepare';
             $sql = "SELECT e.*, ul.userlevel_name
                     FROM tbl_employee e
                     LEFT JOIN tbl_user_level ul ON ul.userlevel_id = e.employee_user_level_id
-                    WHERE e.employee_username = :u OR e.employee_email = :u
+                    WHERE TRIM(e.employee_username) = :u OR TRIM(e.employee_email) = :e
                     LIMIT 1";
             $stmt = $conn->prepare($sql);
-            $stmt->bindParam(':u', $username);
+            if ($stmt === false) {
+                error_log("[admin.login] PDO prepare returned false");
+                throw new Exception('Query prepare failed');
+            }
+            $stage = 'bind';
+            // Bind distinct parameters; some PDO drivers do not allow reusing the same named placeholder twice
+            $stmt->bindValue(':u', $username, PDO::PARAM_STR);
+            $stmt->bindValue(':e', $username, PDO::PARAM_STR);
+            $stage = 'execute';
             $stmt->execute();
+            $stage = 'fetch';
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$user) {
@@ -2574,11 +2604,36 @@ class Admin_Functions
                 return;
             }
 
-            $stored = $user['employee_password'] ?? '';
+            // Trim trailing whitespace/control characters from stored password to avoid verification failures
+            $storedRaw = $user['employee_password'] ?? '';
+            $stored = is_string($storedRaw) ? rtrim(trim($storedRaw), "\r\n\0\x0B") : '';
             $verified = false;
-            if (is_string($stored) && password_get_info($stored)['algo'] !== null) {
-                // Modern PHP password_hash formats (bcrypt/argon/etc.)
+            $hashInfo = is_string($stored) ? password_get_info($stored) : ['algo' => 0, 'algoName' => 'unknown'];
+            $isBcryptFormat = is_string($stored) && preg_match('/^\$(2y|2b|2a)\$/', $stored);
+            $prefix = is_string($stored) ? substr($stored, 0, 4) : '';
+            if (is_string($stored) && ($hashInfo['algo'] > 0 || $isBcryptFormat)) {
+                // Modern PHP password_hash formats (bcrypt/argon/etc.) or explicit $2y/$2b/$2a bcrypt formats
                 $verified = password_verify($password, $stored);
+                // If verification failed for $2b/$2a, normalize to $2y$ and try again (PHP expects $2y$ prefix)
+                if (!$verified && ($prefix === '$2b$' || $prefix === '$2a$')) {
+                    $normalized = '$2y$' . substr($stored, 4);
+                    $verified = password_verify($password, $normalized);
+                    if ($verified) {
+                        try { error_log("[admin.login] bcrypt prefix normalized " . $prefix . " -> $2y for user '" . $username . "'"); } catch (Exception $eN) {}
+                    }
+                }
+                // Fallback for legacy pre-hashing mistakes (bcrypt of md5/sha1 of password)
+                if (!$verified) {
+                    $md5p = md5($password);
+                    $sha1p = sha1($password);
+                    if (is_string($md5p) && password_verify($md5p, $stored)) {
+                        $verified = true;
+                        try { error_log("[admin.login] bcrypt prehash=md5 matched for user '" . $username . "'"); } catch (Exception $e3) {}
+                    } elseif (is_string($sha1p) && password_verify($sha1p, $stored)) {
+                        $verified = true;
+                        try { error_log("[admin.login] bcrypt prehash=sha1 matched for user '" . $username . "'"); } catch (Exception $e4) {}
+                    }
+                }
             } else {
                 // Legacy fallback: support MD5/SHA1 hex hashes, else compare plaintext
                 $storedLower = is_string($stored) ? strtolower($stored) : '';
@@ -2593,12 +2648,26 @@ class Admin_Functions
                     $verified = ($password === $stored);
                 }
             }
+            // Safe debug log (no plaintext password, only lengths and outcomes)
+            try {
+                $pl = is_string($password) ? strlen($password) : 0;
+                $sl = is_string($stored) ? strlen($stored) : 0;
+                error_log("[admin.login] user='" . $username . "' algo='" . ($hashInfo['algoName'] ?? 'unknown') . "' prefix='" . $prefix . "' bcryptFormat=" . ($isBcryptFormat ? '1' : '0') . " verified=" . ($verified ? '1' : '0') . " passLen=" . $pl . " storedLen=" . $sl);
+            } catch (Exception $e2) {}
 
             if (!$verified) {
                 if (ob_get_length()) {
                     ob_clean();
                 }
-                echo json_encode(['success' => false, 'message' => 'Invalid username or password']);
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Invalid username or password',
+                    'debug' => [
+                        'algo' => ($hashInfo['algoName'] ?? 'unknown'),
+                        'prefix' => $prefix,
+                        'storedLen' => (is_string($stored) ? strlen($stored) : 0)
+                    ]
+                ]);
                 return;
             }
 
@@ -2623,7 +2692,20 @@ class Admin_Functions
             if (ob_get_length()) {
                 ob_clean();
             }
-            echo json_encode(['success' => false, 'message' => 'Login error']);
+            // Log stage and error for troubleshooting
+            if (isset($stage)) {
+                error_log("[admin.login] stage=" . $stage . " error=" . $e->getMessage());
+            } else {
+                error_log("[admin.login] error=" . $e->getMessage());
+            }
+            // Return stage and a sanitized error code to aid debugging in dev
+            $resp = [
+                'success' => false,
+                'message' => 'Login error',
+                'stage' => isset($stage) ? $stage : null,
+                'error' => $e->getMessage(),
+            ];
+            echo json_encode($resp);
         }
     }
 
