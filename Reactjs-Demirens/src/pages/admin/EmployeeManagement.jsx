@@ -12,7 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Plus, Search, Edit, Trash2, Users, Eye, EyeOff } from "lucide-react";
+import { Plus, Search, Trash2, Users, Eye, EyeOff } from "lucide-react";
 import AdminHeader from "./components/AdminHeader";
 import { NumberFormatter } from './Function_Files/NumberFormatter';
 import { DateFormatter } from './Function_Files/DateFormatter';
@@ -33,10 +33,8 @@ const employeeSchema = z.object({
     .min(3, "Username must be at least 3 characters")
     .max(20, "Username must be less than 20 characters")
     .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
-  employee_phone: z.string()
-    .min(10, "Phone number must be at least 10 digits")
-    .max(15, "Phone number must be less than 15 digits")
-    .regex(/^[0-9+\-\s()]+$/, "Phone number can only contain numbers, +, -, spaces, and parentheses"),
+  // Hidden in add flow; send safe defaults
+  employee_phone: z.string().optional().default("0000000000"),
   employee_email: z.string()
     .email("Invalid email address")
     .max(100, "Email must be less than 100 characters")
@@ -46,21 +44,9 @@ const employeeSchema = z.object({
     .max(50, "Password must be less than 50 characters")
     .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "Password must contain at least one lowercase letter, one uppercase letter, and one number")
     .optional(),
-  employee_address: z.string()
-    .min(1, "Address is required")
-    .min(10, "Address must be at least 10 characters")
-    .max(255, "Address must be less than 255 characters"),
-  employee_birthdate: z.string()
-    .min(1, "Birthdate is required")
-    .refine((date) => {
-      const birthDate = new Date(date);
-      const today = new Date();
-      const age = today.getFullYear() - birthDate.getFullYear();
-      return age >= 18 && age <= 100;
-    }, "Employee must be between 18 and 100 years old"),
-  employee_gender: z.string()
-    .min(1, "Gender is required")
-    .refine((val) => ["Male", "Female", "Other"].includes(val), "Please select a valid gender"),
+  employee_address: z.string().optional().default("N/A"),
+  employee_birthdate: z.string().optional().default("2000-01-01"),
+  employee_gender: z.string().optional().default("Other"),
   employee_user_level_id: z.string()
     .min(1, "User level is required")
     .refine((val) => ["1", "2"].includes(val), "Please select a valid user level")
@@ -84,12 +70,12 @@ function EmployeeManagement() {
       employee_fname: "",
       employee_lname: "",
       employee_username: "",
-      employee_phone: "",
+      employee_phone: "0000000000",
       employee_email: "",
       employee_password: "",
-      employee_address: "",
-      employee_birthdate: "",
-      employee_gender: "",
+      employee_address: "N/A",
+      employee_birthdate: "2000-01-01",
+      employee_gender: "Other",
       employee_user_level_id: ""
     }
   });
@@ -142,25 +128,14 @@ function EmployeeManagement() {
     // Console logging for debugging
     console.log('=== EMPLOYEE FORM SUBMISSION ===');
     console.log('Form Data:', data);
-    console.log('Is Editing:', !!editingEmployee);
-    console.log('Editing Employee ID:', editingEmployee?.employee_id);
-    
+    console.log('Is Editing:', false);
+
     // Additional validation and data preparation
     const payload = { ...data };
-    
-    if (editingEmployee) {
-      payload.employee_id = editingEmployee.employee_id;
-      // Remove password if empty (for updates)
-      if (!data.employee_password) {
-        delete payload.employee_password;
-        console.log('Password field removed for update (empty)');
-      }
-    } else {
-      // For new employees, password is required
-      if (!data.employee_password) {
-        toast.error('Password is required for new employees');
-        return;
-      }
+    // For new employees, password is required
+    if (!data.employee_password) {
+      toast.error('Password is required for new employees');
+      return;
     }
 
     // Additional data validation
@@ -171,14 +146,9 @@ function EmployeeManagement() {
     console.log('User Level Info:', userLevel);
     
     // Show confirmation dialog for new employees
-    if (!editingEmployee) {
-      setPendingEmployeeData(payload);
-      setShowConfirmDialog(true);
-      return;
-    }
-    
-    // For updates, proceed directly
-    await submitEmployeeData(payload, 'updateEmployee');
+    setPendingEmployeeData(payload);
+    setShowConfirmDialog(true);
+    return;
   };
 
   // Submit employee data to API
@@ -222,22 +192,7 @@ function EmployeeManagement() {
   };
 
   // Handle edit
-  const handleEdit = (employee) => {
-    setEditingEmployee(employee);
-    form.reset({
-      employee_fname: employee.employee_fname,
-      employee_lname: employee.employee_lname,
-      employee_username: employee.employee_username,
-      employee_phone: employee.employee_phone,
-      employee_email: employee.employee_email,
-      employee_password: "",
-      employee_address: employee.employee_address,
-      employee_birthdate: employee.employee_birthdate,
-      employee_gender: employee.employee_gender,
-      employee_user_level_id: employee.employee_user_level_id.toString()
-    });
-    setIsDialogOpen(true);
-  };
+  // Edit disabled per requirements
 
   // Handle delete
   const handleDelete = async (employee) => {
@@ -381,27 +336,30 @@ function EmployeeManagement() {
                           </FormItem>
                         )}
                       />
-                      <FormField
-                        control={form.control}
-                        name="employee_phone"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Phone Number *</FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="Enter phone number (10-15 digits)" 
-                                {...field}
-                                maxLength={15}
-                                pattern="[0-9+\-\s()]+"
-                                onInput={(e) => {
-                                  e.target.value = e.target.value.replace(/[^0-9+\-\s()]/g, '');
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      {/* Hidden in add flow */}
+                      {editingEmployee && (
+                        <FormField
+                          control={form.control}
+                          name="employee_phone"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Phone Number *</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  placeholder="Enter phone number (10-15 digits)" 
+                                  {...field}
+                                  maxLength={15}
+                                  pattern="[0-9+\-\s()]+"
+                                  onInput={(e) => {
+                                    e.target.value = e.target.value.replace(/[^0-9+\-\s()]/g, '');
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
                     </div>
 
                     <FormField
@@ -463,66 +421,72 @@ function EmployeeManagement() {
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="employee_address"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Address *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="Enter full address (min 10 characters)" 
-                              {...field}
-                              maxLength={255}
-                              minLength={10}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {editingEmployee && (
                       <FormField
                         control={form.control}
-                        name="employee_birthdate"
+                        name="employee_address"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Birthdate *</FormLabel>
+                            <FormLabel>Address *</FormLabel>
                             <FormControl>
                               <Input 
-                                type="date" 
+                                placeholder="Enter full address (min 10 characters)" 
                                 {...field}
-                                max={new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().split('T')[0]}
-                                min={new Date(new Date().setFullYear(new Date().getFullYear() - 100)).toISOString().split('T')[0]}
+                                maxLength={255}
+                                minLength={10}
                               />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                      <FormField
-                        control={form.control}
-                        name="employee_gender"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Gender *</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {editingEmployee && (
+                        <FormField
+                          control={form.control}
+                          name="employee_birthdate"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Birthdate *</FormLabel>
                               <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select gender" />
-                                </SelectTrigger>
+                                <Input 
+                                  type="date" 
+                                  {...field}
+                                  max={new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().split('T')[0]}
+                                  min={new Date(new Date().setFullYear(new Date().getFullYear() - 100)).toISOString().split('T')[0]}
+                                />
                               </FormControl>
-                              <SelectContent>
-                                <SelectItem value="Male">Male</SelectItem>
-                                <SelectItem value="Female">Female</SelectItem>
-                                <SelectItem value="Other">Other</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                      {editingEmployee && (
+                        <FormField
+                          control={form.control}
+                          name="employee_gender"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Gender *</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select gender" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="Male">Male</SelectItem>
+                                  <SelectItem value="Female">Female</SelectItem>
+                                  <SelectItem value="Other">Other</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
                     </div>
 
                     <FormField
@@ -555,7 +519,7 @@ function EmployeeManagement() {
                         Cancel
                       </Button>
                       <Button type="submit" className="bg-[#34699a] hover:bg-[#2a5580] text-white w-full sm:w-auto">
-                        {editingEmployee ? 'Update Employee' : 'Add Employee'}
+                        Add Employee
                       </Button>
                     </DialogFooter>
                   </form>
@@ -664,7 +628,7 @@ function EmployeeManagement() {
                     <TableHead>Phone</TableHead>
                     <TableHead>User Level</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
+                        <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -695,15 +659,6 @@ function EmployeeManagement() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 sm:gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEdit(employee)}
-                              className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3"
-                            >
-                              <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
-                              <span className="hidden sm:inline ml-1">Edit</span>
-                            </Button>
                             <Button
                               variant="outline"
                               size="sm"

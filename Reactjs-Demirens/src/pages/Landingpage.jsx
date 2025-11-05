@@ -77,7 +77,7 @@ function Landingpage() {
 
       // Ensure rooms is always an array
       // const data = Array.isArray(res.data) ? res.data : [];
-      setFeedback(res.data);
+      setFeedback(res.data !== 0 ? res.data : []);
     } catch (error) {
       toast.error("Something went wrong");
       console.log(error);
@@ -660,28 +660,40 @@ function Landingpage() {
                 <div className="w-28 h-1.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 mx-auto rounded-full mt-3"></div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {feedback.map((item, index) => (
-                  <Card key={index} className="bg-gradient-to-br from-white to-blue-50/50 border border-blue-100/70 shadow-lg hover:shadow-2xl transition-shadow rounded-2xl">
-                    <CardContent className="p-5">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center font-semibold shadow-md">
-                            {(item.customer_fullname || 'G').charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="text-blue-900 font-semibold leading-tight">{item.customer_fullname}</p>
-                            <div className="flex items-center gap-1 mt-1" aria-label={`Rating: ${item.customersreviews_rating} out of 5`}>
-                              {Array.from({ length: 5 }).map((_, i) => (
-                                <span key={i} className={`${i < (Number(item.customersreviews_rating) || 0) ? 'text-yellow-500' : 'text-gray-300'}`}>★</span>
-                              ))}
+                {feedback.length === 0 ? (
+                  <>
+                    <Card className="bg-gradient-to-br from-white to-blue-50/50 border border-blue-100/70 shadow-lg hover:shadow-2xl transition-shadow rounded-2xl">
+                      <CardContent className="p-5">
+                        <p className="text-center text-gray-600">No feedback yet.</p>
+                      </CardContent>
+                    </Card>
+                  </>
+                ) : (
+                  <>
+                    {feedback.map((item, index) => (
+                      <Card key={index} className="bg-gradient-to-br from-white to-blue-50/50 border border-blue-100/70 shadow-lg hover:shadow-2xl transition-shadow rounded-2xl">
+                        <CardContent className="p-5">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center font-semibold shadow-md">
+                                {(item.customer_fullname || 'G').charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="text-blue-900 font-semibold leading-tight">{item.customer_fullname}</p>
+                                <div className="flex items-center gap-1 mt-1" aria-label={`Rating: ${item.customersreviews_rating} out of 5`}>
+                                  {Array.from({ length: 5 }).map((_, i) => (
+                                    <span key={i} className={`${i < (Number(item.customersreviews_rating) || 0) ? 'text-yellow-500' : 'text-gray-300'}`}>★</span>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </div>
-                      <p className="text-gray-700">{item.customersreviews_comment}</p>
-                    </CardContent>
-                  </Card>
-                ))}
+                          <p className="text-gray-700">{item.customersreviews_comment}</p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
           </section>

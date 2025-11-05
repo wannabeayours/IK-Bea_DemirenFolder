@@ -428,6 +428,16 @@ function AdminRoomsList() {
     setEditForm({ price: '', description: '' })
   }
 
+  // Navigate to Room Type Master with auto filter for selected type
+  const handleGoToRoomTypeMaster = () => {
+    const filter = (selectedRoomTypeForEdit?.name || selectedRoomTypeForEdit?.roomtype_name || '').trim()
+    // Close the modal for cleaner navigation UX
+    handleCloseEditModal()
+    // Pass both query param and navigation state for robustness
+    const path = `/admin/roomtypemaster${filter ? `?q=${encodeURIComponent(filter)}` : ''}`
+    navigate(path, { state: { autoFilter: filter } })
+  }
+
   const handleSaveRoomTypeEdit = async () => {
     if (!selectedRoomTypeForEdit) return
 
@@ -1110,11 +1120,16 @@ function AdminRoomsList() {
               className="w-full min-h-[120px]"
             />
           </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={handleCloseEditModal} disabled={savingEdit}>Cancel</Button>
-            <Button onClick={handleSaveRoomTypeEdit} disabled={savingEdit}>
-              {savingEdit ? 'Saving…' : 'Save Changes'}
+          <div className="flex justify-between gap-2 pt-2">
+            <Button variant="ghost" onClick={handleGoToRoomTypeMaster} disabled={!selectedRoomTypeForEdit}>
+              More...
             </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleCloseEditModal} disabled={savingEdit}>Cancel</Button>
+              <Button onClick={handleSaveRoomTypeEdit} disabled={savingEdit}>
+                {savingEdit ? 'Saving…' : 'Save Changes'}
+              </Button>
+            </div>
           </div>
         </div>
       </AdminModal>

@@ -11,6 +11,7 @@ $params = $method === 'POST' ? $_POST : $_GET;
 
 $booking_id = isset($params['booking_id']) ? intval($params['booking_id']) : 0;
 $delivery_mode = isset($params['delivery_mode']) && in_array($params['delivery_mode'], ['pdf','both']) ? $params['delivery_mode'] : 'pdf';
+$doc_type = isset($params['doc_type']) && in_array(strtolower($params['doc_type']), ['invoice','receipt']) ? strtolower($params['doc_type']) : 'invoice';
 $email_to = isset($params['email_to']) ? trim($params['email_to']) : '';
 $stream = isset($params['stream']) ? intval($params['stream']) : 0;
 $employee_id = isset($params['employee_id']) ? intval($params['employee_id']) : 0;
@@ -33,6 +34,7 @@ $payload = [
     'vat_rate' => 12,
     'downpayment' => 0,
     'delivery_mode' => $delivery_mode,
+    'doc_type' => $doc_type,
 ];
 if (!empty($email_to)) {
     $payload['email_to'] = $email_to;
@@ -128,6 +130,6 @@ if ($stream) {
 
 // Otherwise, return JSON with the URL
 header('Content-Type: application/json');
-$payload = ['success' => true, 'message' => 'Invoice generated', 'invoice_id' => $invoice_id, 'pdf_url' => $pdf_url];
+$payload = ['success' => true, 'message' => ($doc_type === 'receipt' ? 'Receipt generated' : 'Invoice generated'), 'invoice_id' => $invoice_id, 'pdf_url' => $pdf_url];
 if (isset($info['email_status'])) { $payload['email_status'] = $info['email_status']; }
 echo json_encode($payload);

@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText, Plus, CheckCircle, AlertCircle, Calculator, Receipt, CreditCard, DollarSign as DollarSignIcon, Eye, X, ChevronDown, ChevronUp, ExternalLink, CalendarPlus } from "lucide-react";
 import NumberFormatter from "../Function_Files/NumberFormatter";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDateTime } from "@/lib/utils";
 
@@ -53,6 +54,7 @@ function InvoiceManagementSubpage({
   const [submittingInvoice, setSubmittingInvoice] = useState(false);
   const [lastPdfUrl, setLastPdfUrl] = useState(null);
   const [discounts, setDiscounts] = useState([]);
+  const navigate = useNavigate();
 
   // Fetch billing amounts when Booking Information modal opens
   useEffect(() => {
@@ -123,6 +125,70 @@ function InvoiceManagementSubpage({
       acc[type].push(room);
       return acc;
     }, {});
+  };
+
+  // Helper: group current booking charges (exclude room charges) by name/category/price
+  const groupBookingChargesForDisplay = (charges) => {
+    if (!Array.isArray(charges)) return [];
+    const map = new Map();
+    for (const c of charges) {
+      if (c.charge_type === 'Room Charges') continue; // skip room charges for billing table
+      const key = [
+        String(c.charge_type || ''),
+        String(c.charge_name || ''),
+        String(c.category || ''),
+        Number(c.unit_price || 0).toFixed(2),
+      ].join('|');
+      if (!map.has(key)) {
+        map.set(key, {
+          charge_type: c.charge_type,
+          charge_name: c.charge_name,
+          category: c.category,
+          unit_price: Number(c.unit_price || 0),
+          quantity: Number(c.quantity || 0),
+          total_amount: Number(c.total_amount || 0),
+          merged_count: 1,
+        });
+      } else {
+        const g = map.get(key);
+        g.quantity += Number(c.quantity || 0);
+        g.total_amount += Number(c.total_amount || 0);
+        g.merged_count += 1;
+      }
+    }
+    return Array.from(map.values());
+  };
+
+  // Helper: group additional charges (in detailed breakdown) by name/category/room/price
+  const groupDetailedAdditionalCharges = (items) => {
+    if (!Array.isArray(items)) return [];
+    const map = new Map();
+    for (const it of items) {
+      const key = [
+        String(it.charge_name || ''),
+        String(it.category || ''),
+        String(it.room_number || it.room_type || ''),
+        Number(it.unit_price || 0).toFixed(2),
+      ].join('|');
+      if (!map.has(key)) {
+        map.set(key, {
+          charge_name: it.charge_name,
+          category: it.category,
+          room_display: it.room_number || it.room_type,
+          unit_price: Number(it.unit_price || 0),
+          quantity: Number(it.quantity || 0),
+          total_amount: Number(it.total_amount || 0),
+          charges_master_description: it.charges_master_description || '-',
+          merged_count: 1,
+        });
+      } else {
+        const g = map.get(key);
+        g.quantity += Number(it.quantity || 0);
+        g.total_amount += Number(it.total_amount || 0);
+        g.merged_count += 1;
+      }
+    }
+    return Array.from(map.values());
   };
 
   const handleImageClick = (imageSrc) => {
@@ -583,29 +649,29 @@ function InvoiceManagementSubpage({
                     </div>
                   </div>
 
-                  {/* Remaining Balance */}
+                  {/* Balance Due - Only show billing amount */}
                   <div className="mb-6">
                     <div className="rounded-lg border px-4 py-3">
                       <div className="flex justify-between items-center py-2 border-b">
-                        <span className="text-sm text-gray-700 dark:text-gray-300">Total Amount</span>
+                        <span className="text-sm text-gray-700 dark:text-gray-300">Total Bill Amount</span>
                         <span className="font-mono font-semibold">
                           {NumberFormatter.formatCurrency(parseFloat(billingBreakdown?.final_total || 0))}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center py-2 border-b">
-                        <span className="text-sm text-gray-700 dark:text-gray-300">Payment</span>
-                        <span className="font-mono font-semibold text-red-600">
-                          -{NumberFormatter.formatCurrency(parseFloat(billingBreakdown?.downpayment || 0))}
-                        </span>
-                      </div>
+                      {/* Show room charges as Fully Paid if booking_payment equals booking_totalAmount */}
+                      {selectedBooking?.booking_totalAmount && selectedBooking?.booking_payment && 
+                       Math.abs(parseFloat(selectedBooking.booking_totalAmount) - parseFloat(selectedBooking.booking_payment)) < 0.01 && (
+                        <div className="flex justify-between items-center py-2 border-b">
+                          <span className="text-sm text-gray-700 dark:text-gray-300">Room Charges</span>
+                          <span className="font-mono font-semibold text-green-600 dark:text-green-400">
+                            {NumberFormatter.formatCurrency(parseFloat(selectedBooking.booking_payment))} (Fully Paid)
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between items-center py-2">
-                        <span className="font-medium">Remaining Balance</span>
+                        <span className="font-medium">Balance Due</span>
                         <span className="font-mono font-semibold text-red-600">
-                          {NumberFormatter.formatCurrency(
-                            parseFloat(
-                              billingBreakdown?.balance ?? ((billingBreakdown?.final_total || 0) - (billingBreakdown?.downpayment || 0))
-                            )
-                          )}
+                          {NumberFormatter.formatCurrency(parseFloat(billingBreakdown?.final_total || 0))}
                         </span>
                       </div>
                     </div>
@@ -759,12 +825,15 @@ function InvoiceManagementSubpage({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {bookingCharges
-                    .filter(charge => charge.charge_type !== 'Room Charges') // Exclude room charges from billing
-                    .map((charge, index) => (
+                  {groupBookingChargesForDisplay(bookingCharges).map((charge, index) => (
                     <TableRow key={index}>
                       <TableCell>{charge.charge_type}</TableCell>
-                      <TableCell>{charge.charge_name}</TableCell>
+                      <TableCell>
+                        {charge.charge_name}
+                        {charge.merged_count > 1 && (
+                          <span className="block text-xs text-muted-foreground">{charge.merged_count} merged items</span>
+                        )}
+                      </TableCell>
                       <TableCell>{charge.category}</TableCell>
                       <TableCell className="text-right font-mono">{NumberFormatter.formatCurrency(charge.unit_price)}</TableCell>
                       <TableCell className="text-center">{charge.quantity}</TableCell>
@@ -800,68 +869,19 @@ function InvoiceManagementSubpage({
           </CardContent>
         </Card>
 
-        {/* Add New Charge - Bottom Section */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Plus className="h-5 w-5" />
-              Add New Charge
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-              <div className="space-y-2">
-                <Label htmlFor="charge_name">Charge Description</Label>
-                <Input
-                  id="charge_name"
-                  type="text"
-                  placeholder="e.g., Aircon Damage, TV Repair, Broken Vase"
-                  value={newChargeForm.charge_name}
-                  onChange={(e) => setNewChargeForm({...newChargeForm, charge_name: e.target.value})}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="charge_price">Price</Label>
-                <Input
-                  id="charge_price"
-                  type="text"
-                  placeholder="0.00"
-                  value={newChargeForm.charge_price}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                      setNewChargeForm({...newChargeForm, charge_price: value});
-                    }
-                  }}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Quantity</Label>
-                <Input
-                  id="quantity"
-                  type="text"
-                  value={newChargeForm.quantity}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '' || /^\d+$/.test(value)) {
-                      setNewChargeForm({...newChargeForm, quantity: parseInt(value) || 1});
-                    }
-                  }}
-                  min="1"
-                />
-              </div>
-              <div>
-                <Button 
-                  onClick={handleAddCharge}
-                  className="w-full"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Charge
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Add New Charge - Redirect to Billings */}
+        <div className="mb-6">
+          <Button
+            onClick={() => {
+              const name = selectedBooking?.customer_name || selectedBooking?.customers_email || selectedBooking?.customers_name || '';
+              const searchParam = name ? `?search=${encodeURIComponent(name)}` : '';
+              navigate(`/admin/billings${searchParam}`);
+            }}
+            className="px-4 py-2"
+          >
+            Add New Charge Here
+          </Button>
+        </div>
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-4 mt-6 pb-6">
@@ -980,20 +1000,24 @@ function InvoiceManagementSubpage({
                         <span className="font-bold text-xl">Total Bill Amount:</span>
                         <span className="font-mono font-bold text-xl">{NumberFormatter.formatCurrency(billingBreakdown.final_total)}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="font-semibold">Total Paid (Charges Only):</span>
-                        <span className="font-mono font-semibold text-blue-600 dark:text-blue-400">{NumberFormatter.formatCurrency(billingBreakdown.downpayment)}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="font-semibold">Remaining Balance:</span>
-                        <span className="font-mono font-semibold text-red-600">{NumberFormatter.formatCurrency(billingBreakdown.balance)}</span>
-                      </div>
+                      {/* Room charges payment - show as Fully Paid if booking_payment equals booking_totalAmount */}
+                      {selectedBooking?.booking_totalAmount && selectedBooking?.booking_payment && 
+                       Math.abs(parseFloat(selectedBooking.booking_totalAmount) - parseFloat(selectedBooking.booking_payment)) < 0.01 && (
+                        <div className="flex justify-between items-center">
+                          <span className="font-semibold">Room Charges:</span>
+                          <span className="font-mono font-semibold text-green-600 dark:text-green-400">
+                            {NumberFormatter.formatCurrency(parseFloat(selectedBooking.booking_payment))} (Fully Paid)
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 gap-4">
                       <div className="flex justify-between items-center py-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 border border-yellow-200 dark:border-yellow-800">
                         <span className="font-bold text-lg">Balance Due:</span>
-                        <span className="font-mono font-bold text-lg text-yellow-800 dark:text-yellow-200">{NumberFormatter.formatCurrency(billingBreakdown.balance || ( (billingBreakdown.downpayment || 0) - (billingBreakdown.final_total || 0) ))}</span>
+                        <span className="font-mono font-bold text-lg text-yellow-800 dark:text-yellow-200">
+                          {NumberFormatter.formatCurrency(billingBreakdown.final_total)}
+                        </span>
                       </div>
                     </div>
                 </div>
@@ -1085,15 +1109,20 @@ function InvoiceManagementSubpage({
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {detailedCharges.additional_charges.map((charge, index) => (
+                                {groupDetailedAdditionalCharges(detailedCharges.additional_charges).map((charge, index) => (
                                   <TableRow key={index} className={index % 2 === 0 ? 'bg-muted/50' : ''}>
-                                    <TableCell>{charge.charge_name}</TableCell>
+                                    <TableCell>
+                                      {charge.charge_name}
+                                      {charge.merged_count > 1 && (
+                                        <span className="block text-xs text-muted-foreground">{charge.merged_count} merged items</span>
+                                      )}
+                                    </TableCell>
                                     <TableCell>{charge.category}</TableCell>
-                                    <TableCell>{charge.room_number || charge.room_type}</TableCell>
-                                    <TableCell className="text-right font-mono">{NumberFormatter.formatCurrency(parseFloat(charge.unit_price) || 0)}</TableCell>
+                                    <TableCell>{charge.room_display}</TableCell>
+                                    <TableCell className="text-right font-mono">{NumberFormatter.formatCurrency(charge.unit_price)}</TableCell>
                                     <TableCell className="text-center">{charge.quantity}</TableCell>
                                     <TableCell className="text-right font-bold font-mono">
-                                      {NumberFormatter.formatCurrency(parseFloat(charge.total_amount) || 0)}
+                                      {NumberFormatter.formatCurrency(charge.total_amount)}
                                     </TableCell>
                                     <TableCell>{charge.charges_master_description || '-'}</TableCell>
                                   </TableRow>
@@ -1141,8 +1170,18 @@ function InvoiceManagementSubpage({
                                   </div>
                                   <div className="flex justify-between font-semibold border-t pt-1 text-lg">
                                     <span>Balance Due:</span>
-                                    <span className="text-red-600">{NumberFormatter.formatCurrency((parseFloat(detailedCharges.summary.balance) || ((parseFloat(detailedCharges.summary.grand_total) || 0) - (parseFloat(detailedCharges.summary.downpayment) || 0))))}</span>
+                                    <span className="text-red-600">{NumberFormatter.formatCurrency(parseFloat(detailedCharges.summary.grand_total) || 0)}</span>
                                   </div>
+                                  {/* Show room charges as Fully Paid if applicable */}
+                                  {selectedBooking?.booking_totalAmount && selectedBooking?.booking_payment && 
+                                   Math.abs(parseFloat(selectedBooking.booking_totalAmount) - parseFloat(selectedBooking.booking_payment)) < 0.01 && (
+                                    <div className="flex justify-between text-sm mt-2">
+                                      <span className="text-green-600 dark:text-green-400">Room Charges:</span>
+                                      <span className="text-green-600 dark:text-green-400 font-semibold">
+                                        {NumberFormatter.formatCurrency(parseFloat(selectedBooking.booking_payment))} (Fully Paid)
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                         </div>

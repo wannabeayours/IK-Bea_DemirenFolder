@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -37,7 +36,6 @@ function AdminRequestedAmenities() {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionType, setActionType] = useState(''); // 'approve' | 'reject' | 'cancel' | 'pending' | 'return'
-  const [adminNotes, setAdminNotes] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [activeTab, setActiveTab] = useState('all');
@@ -280,7 +278,6 @@ function AdminRequestedAmenities() {
   const handleAction = async (request, action) => {
     setSelectedRequest(request);
     setActionType(action);
-    setAdminNotes('');
     setActionDialogOpen(true);
   };
 
@@ -301,8 +298,7 @@ function AdminRequestedAmenities() {
       formData.append('method', apiMethod);
       formData.append('json', JSON.stringify({
         request_id: selectedRequest.request_id,
-        employee_id: 1, // Default admin ID
-        admin_notes: adminNotes
+        employee_id: 1 // Default admin ID
       }));
 
       const response = await axios.post(APIConn, formData);
@@ -557,22 +553,24 @@ function AdminRequestedAmenities() {
               <h1 className="text-3xl font-bold text-[#113f67] mb-2">Amenity Requests Management</h1>
               <p className="text-gray-600">Review and manage customer amenity requests</p>
             </div>
-            <Button 
-              onClick={() => setAddAmenityModalOpen(true)}
-              className="bg-[#113f67] hover:bg-[#0d2a4a] dark:bg-blue-700 dark:hover:bg-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Amenity Request
-            </Button>
-            <Button 
-              onClick={() => {
-                // Global mode: allow +1 Day for all Checked-In customers
-                setPlusOneDialogOpen(true);
-              }}
-              className="ml-2 bg-[#113f67] hover:bg-[#0d2a4a] dark:bg-blue-700 dark:hover:bg-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-            >
-              +1 Day
-            </Button>
+            <div className="flex space-x-2">
+              <Button 
+                onClick={() => setAddAmenityModalOpen(true)}
+                className="bg-[#113f67] hover:bg-[#0d2a4a] dark:bg-blue-700 dark:hover:bg-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Amenity Request
+              </Button>
+              <Button 
+                onClick={() => {
+                  // Global mode: allow +1 Day for all Checked-In customers
+                  setPlusOneDialogOpen(true);
+                }}
+                className="bg-[#113f67] hover:bg-[#0d2a4a] dark:bg-blue-700 dark:hover:bg-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+              >
+                +1 Day
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -965,29 +963,9 @@ function AdminRequestedAmenities() {
                   </div>
                 )}
 
-                {/* Admin Notes */}
-                {selectedRequest.admin_notes && (
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Admin Notes</Label>
-                    <p className="text-sm bg-blue-50 p-3 rounded">{selectedRequest.admin_notes}</p>
-                  </div>
-                )}
+                {/* Admin Notes removed */}
 
-                {/* Action Form */}
-                {actionType && (
-                  <div>
-                    <Label htmlFor="adminNotes" className="text-sm font-medium text-gray-600">
-                      Admin Notes {actionType === 'approve' ? '(Optional)' : '(Optional)'}
-                    </Label>
-                    <Textarea
-                      id="adminNotes"
-                      placeholder={`Enter notes for ${actionType}ing this request...`}
-                      value={adminNotes}
-                      onChange={(e) => setAdminNotes(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                )}
+                {/* Action Form - Admin Notes removed as per request */}
 
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-3">
@@ -1077,38 +1055,83 @@ function AdminRequestedAmenities() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {(
-                            (selectedGroup?.requests || [])
-                              .slice()
-                              .sort((a, b) => {
-                                const normA = typeof a.requested_at === 'string' && !a.requested_at.includes('T') ? a.requested_at.replace(' ', 'T') : a.requested_at;
-                                const normB = typeof b.requested_at === 'string' && !b.requested_at.includes('T') ? b.requested_at.replace(' ', 'T') : b.requested_at;
-                                const da = normA ? new Date(normA) : new Date(0);
-                                const db = normB ? new Date(normB) : new Date(0);
-                                const ta = isNaN(da.getTime()) ? 0 : da.getTime();
-                                const tb = isNaN(db.getTime()) ? 0 : db.getTime();
-                                return timeSortOrder === 'desc' ? tb - ta : ta - tb;
-                              })
-                          ).map((req) => (
-                            <TableRow key={req.request_id}>
-                              <TableCell className="text-gray-900 dark:text-white">
-                                <div>
-                                  <p className="font-bold text-gray-900 dark:text-white">{req.charges_master_name}</p>
-                                  <p className="text-sm text-gray-600 dark:text-gray-300">{req.charges_category_name}</p>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-gray-900 dark:text-white">
-                                <div>
-                                  <p className="font-bold text-gray-900 dark:text-white">{req.roomtype_name}</p>
-                                  <p className="text-sm text-gray-600 dark:text-gray-300">Room: {req.roomnumber_name}</p>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-gray-900 dark:text-white">{formatDate(req.requested_at)}</TableCell>
-                              <TableCell className="text-gray-900 dark:text-white"><Badge variant="outline">{req.request_quantity}</Badge></TableCell>
-                              <TableCell className="text-gray-900 dark:text-white">{formatCurrency(req.request_price)}</TableCell>
-                              <TableCell className="text-gray-900 dark:text-white">{formatCurrency(req.request_total)}</TableCell>
-                            </TableRow>
-                          ))}
+                          {(() => {
+                            const requests = (selectedGroup?.requests || []).slice();
+
+                            // Group by amenity + room + unit price to avoid collapsing different-priced items
+                            const groupsMap = new Map();
+                            for (const r of requests) {
+                              const keyParts = [
+                                r.charges_master_id ?? r.charges_master_name ?? 'unknown',
+                                r.roomnumber_name ?? 'unknown',
+                                // lock to two decimals to normalize floating-point
+                                Number(r.request_price ?? 0).toFixed(2),
+                              ];
+                              const key = keyParts.join('|');
+                              const dtStr = typeof r.requested_at === 'string' && !r.requested_at.includes('T')
+                                ? r.requested_at.replace(' ', 'T')
+                                : r.requested_at;
+                              const dt = dtStr ? new Date(dtStr) : new Date(0);
+
+                              if (!groupsMap.has(key)) {
+                                groupsMap.set(key, {
+                                  charges_master_name: r.charges_master_name,
+                                  charges_category_name: r.charges_category_name,
+                                  roomtype_name: r.roomtype_name,
+                                  roomnumber_name: r.roomnumber_name,
+                                  unit_price: Number(r.request_price ?? 0),
+                                  total_quantity: Number(r.request_quantity ?? 0),
+                                  total_amount: Number(r.request_total ?? 0),
+                                  earliest_at: dt,
+                                  latest_at: dt,
+                                  merged_count: 1,
+                                  status_set: new Set([String(r.request_status).toLowerCase()]),
+                                });
+                              } else {
+                                const g = groupsMap.get(key);
+                                g.total_quantity += Number(r.request_quantity ?? 0);
+                                g.total_amount += Number(r.request_total ?? 0);
+                                g.merged_count += 1;
+                                g.earliest_at = g.earliest_at && g.earliest_at <= dt ? g.earliest_at : dt;
+                                g.latest_at = g.latest_at && g.latest_at >= dt ? g.latest_at : dt;
+                                g.status_set.add(String(r.request_status).toLowerCase());
+                              }
+                            }
+
+                            const grouped = Array.from(groupsMap.values()).sort((a, b) => {
+                              const ta = (timeSortOrder === 'desc' ? a.latest_at : a.earliest_at).getTime();
+                              const tb = (timeSortOrder === 'desc' ? b.latest_at : b.earliest_at).getTime();
+                              return timeSortOrder === 'desc' ? tb - ta : ta - tb;
+                            });
+
+                            return grouped.map((g, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell className="text-gray-900 dark:text-white">
+                                  <div>
+                                    <p className="font-bold text-gray-900 dark:text-white">{g.charges_master_name}</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300">{g.charges_category_name}</p>
+                                    {g.merged_count > 1 && (
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">{g.merged_count} merged requests</p>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-gray-900 dark:text-white">
+                                  <div>
+                                    <p className="font-bold text-gray-900 dark:text-white">{g.roomtype_name}</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300">Room: {g.roomnumber_name}</p>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-gray-900 dark:text-white">
+                                  {g.merged_count > 1
+                                    ? `${formatDate(g.earliest_at)} – ${formatDate(g.latest_at)}`
+                                    : formatDate(g.earliest_at)}
+                                </TableCell>
+                                <TableCell className="text-gray-900 dark:text-white"><Badge variant="outline">{g.total_quantity}</Badge></TableCell>
+                                <TableCell className="text-gray-900 dark:text-white">{formatCurrency(g.unit_price)}</TableCell>
+                                <TableCell className="text-gray-900 dark:text-white">{formatCurrency(g.total_amount)}</TableCell>
+                              </TableRow>
+                            ));
+                          })()}
                           {/* Separator + Total row */}
                           <TableRow>
                             <TableCell colSpan={6} className="p-0">

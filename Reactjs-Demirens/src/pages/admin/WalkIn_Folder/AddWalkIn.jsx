@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertTriangle } from "lucide-react";
 
 const AddWalkIn = () => {
   const APIConn = `${localStorage.url}admin.php`;
@@ -24,6 +26,46 @@ const AddWalkIn = () => {
   }, [walkInData, navigate]);
   const [nationalities, setNationalities] = useState([]);
   const [errors, setErrors] = useState({});
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [validationMessages, setValidationMessages] = useState([]);
+
+  // Centralized sanitization rules and limits
+  const MAX_LENGTH = {
+    customers_fname: 50,
+    customers_lname: 50,
+    customers_email: 100,
+    customers_phone_number: 11,
+    customers_address: 200,
+  };
+
+  const sanitizeField = (name, value) => {
+    if (typeof value !== 'string') return value;
+    let next = value;
+
+    switch (name) {
+      case 'customers_fname':
+      case 'customers_lname':
+        next = next.replace(/[^a-zA-Z\s'-]/g, '');
+        break;
+      case 'customers_email':
+        next = next.toLowerCase().trim();
+        break;
+      case 'customers_phone_number':
+        next = next.replace(/[^0-9]/g, '');
+        break;
+      case 'customers_address':
+        next = next.replace(/[^a-zA-Z0-9\s\.,\-#\/]/g, '');
+        break;
+      default:
+        break;
+    }
+
+    const limit = MAX_LENGTH[name];
+    if (limit && next.length > limit) {
+      next = next.substring(0, limit);
+    }
+    return next;
+  };
 
   useEffect(() => {
     // Fetch all nationalities from backend
@@ -48,159 +90,72 @@ const AddWalkIn = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    // Real-time validation and input sanitization
-    let sanitizedValue = value;
-    
-    switch (name) {
-      case 'customers_fname':
-      case 'customers_lname':
-        // Only allow letters, spaces, hyphens, and apostrophes
-        sanitizedValue = value.replace(/[^a-zA-Z\s'-]/g, '');
-        // Limit length
-        if (sanitizedValue.length > 50) {
-          sanitizedValue = sanitizedValue.substring(0, 50);
-        }
-        break;
-        
-      case 'customers_email':
-        // Convert to lowercase and remove extra spaces
-        sanitizedValue = value.toLowerCase().trim();
-        // Limit length
-        if (sanitizedValue.length > 100) {
-          sanitizedValue = sanitizedValue.substring(0, 100);
-        }
-        break;
-        
-      case 'customers_phone_number':
-        // Only allow numbers; enforce exactly 11 digits max
-        sanitizedValue = value.replace(/[^0-9]/g, '');
-        // Limit length to 11 digits
-        if (sanitizedValue.length > 11) {
-          sanitizedValue = sanitizedValue.substring(0, 11);
-        }
-        break;
-        
-      case 'customers_address':
-        // Allow alphanumeric, spaces, and common address characters
-        sanitizedValue = value.replace(/[^a-zA-Z0-9\s\.,\-#\/]/g, '');
-        // Limit length
-        if (sanitizedValue.length > 200) {
-          sanitizedValue = sanitizedValue.substring(0, 200);
-        }
-        break;
-        
-      default:
-        sanitizedValue = value;
-    }
-    
+    const sanitizedValue = sanitizeField(name, value);
     setWalkInData((prev) => ({ ...prev, [name]: sanitizedValue }));
-    
-    // Clear error for this field when user starts typing
+
     if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+      setErrors((prev) => ({ ...prev, [name]: '' }));
     }
   };
 
   const validateCustomerInfo = () => {
     const nextErrors = {};
 
-    // First Name - Strict validation
-    if (!walkInData.customers_fname?.trim()) {
-      nextErrors.customers_fname = "First name is required";
-    } else if (walkInData.customers_fname.trim().length < 2) {
-      nextErrors.customers_fname = "First name must be at least 2 characters";
-    } else if (!/^[a-zA-Z\s'-]+$/.test(walkInData.customers_fname.trim())) {
-      nextErrors.customers_fname = "First name can only contain letters, spaces, hyphens, and apostrophes";
-    } else if (walkInData.customers_fname.trim().length > 50) {
-      nextErrors.customers_fname = "First name must be less than 50 characters";
-    }
+    const first = walkInData.customers_fname?.trim() || '';
+    const last = walkInData.customers_lname?.trim() || '';
+    const email = walkInData.customers_email?.trim() || '';
+    const phone = walkInData.customers_phone_number?.trim() || '';
+    const address = walkInData.customers_address?.trim() || '';
 
-    // Last Name - Strict validation
-    if (!walkInData.customers_lname?.trim()) {
-      nextErrors.customers_lname = "Last name is required";
-    } else if (walkInData.customers_lname.trim().length < 2) {
-      nextErrors.customers_lname = "Last name must be at least 2 characters";
-    } else if (!/^[a-zA-Z\s'-]+$/.test(walkInData.customers_lname.trim())) {
-      nextErrors.customers_lname = "Last name can only contain letters, spaces, hyphens, and apostrophes";
-    } else if (walkInData.customers_lname.trim().length > 50) {
-      nextErrors.customers_lname = "Last name must be less than 50 characters";
-    }
+    if (!first) nextErrors.customers_fname = 'First name is required';
+    else if (first.length < 2) nextErrors.customers_fname = 'First name must be at least 2 characters';
+    else if (!/^[a-zA-Z\s'-]+$/.test(first)) nextErrors.customers_fname = 'First name can only contain letters, spaces, hyphens, and apostrophes';
+    else if (first.length > MAX_LENGTH.customers_fname) nextErrors.customers_fname = 'First name must be less than 50 characters';
 
-    // Email - Strict validation
-    if (!walkInData.customers_email?.trim()) {
-      nextErrors.customers_email = "Email is required";
-    } else {
-      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      if (!emailRegex.test(walkInData.customers_email.trim())) {
-        nextErrors.customers_email = "Please enter a valid email address";
-      } else if (walkInData.customers_email.trim().length > 100) {
-        nextErrors.customers_email = "Email must be less than 100 characters";
-      }
-    }
+    if (!last) nextErrors.customers_lname = 'Last name is required';
+    else if (last.length < 2) nextErrors.customers_lname = 'Last name must be at least 2 characters';
+    else if (!/^[a-zA-Z\s'-]+$/.test(last)) nextErrors.customers_lname = 'Last name can only contain letters, spaces, hyphens, and apostrophes';
+    else if (last.length > MAX_LENGTH.customers_lname) nextErrors.customers_lname = 'Last name must be less than 50 characters';
 
-    // Phone Number - Strict validation
-    if (!walkInData.customers_phone_number?.trim()) {
-      nextErrors.customers_phone_number = "Phone number is required";
-    } else {
-      const phoneRegex = /^[0-9]{11}$/;
-      if (!phoneRegex.test(walkInData.customers_phone_number.trim())) {
-        nextErrors.customers_phone_number = "Please enter a valid 11-digit phone number";
-      }
-    }
+    if (!email) nextErrors.customers_email = 'Email is required';
+    else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) nextErrors.customers_email = 'Please enter a valid email address';
+    else if (email.length > MAX_LENGTH.customers_email) nextErrors.customers_email = 'Email must be less than 100 characters';
 
-    // Address - Strict validation
-    if (!walkInData.customers_address?.trim()) {
-      nextErrors.customers_address = "Address is required";
-    } else if (walkInData.customers_address.trim().length < 10) {
-      nextErrors.customers_address = "Address must be at least 10 characters";
-    } else if (walkInData.customers_address.trim().length > 200) {
-      nextErrors.customers_address = "Address must be less than 200 characters";
-    }
+    if (!phone) nextErrors.customers_phone_number = 'Phone number is required';
+    else if (!/^[0-9]{11}$/.test(phone)) nextErrors.customers_phone_number = 'Please enter a valid 11-digit phone number';
 
-    // Date of Birth - Strict validation
+    if (!address) nextErrors.customers_address = 'Address is required';
+    else if (address.length < 10) nextErrors.customers_address = 'Address must be at least 10 characters';
+    else if (address.length > MAX_LENGTH.customers_address) nextErrors.customers_address = 'Address must be less than 200 characters';
+
     if (!walkInData.customers_date_of_birth?.toString().trim()) {
-      nextErrors.customers_date_of_birth = "Date of birth is required";
+      nextErrors.customers_date_of_birth = 'Date of birth is required';
     } else {
       const birthDate = new Date(walkInData.customers_date_of_birth);
       const today = new Date();
       const age = today.getFullYear() - birthDate.getFullYear();
       const monthDiff = today.getMonth() - birthDate.getMonth();
-      
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-        // Birthday hasn't occurred this year
-        const actualAge = age - 1;
-        if (actualAge < 18) {
-          nextErrors.customers_date_of_birth = "Customer must be at least 18 years old";
-        } else if (actualAge > 120) {
-          nextErrors.customers_date_of_birth = "Please enter a valid birth date";
-        }
-      } else {
-        if (age < 18) {
-          nextErrors.customers_date_of_birth = "Customer must be at least 18 years old";
-        } else if (age > 120) {
-          nextErrors.customers_date_of_birth = "Please enter a valid birth date";
-        }
-      }
-      
-      // Check if date is in the future
-      if (birthDate > today) {
-        nextErrors.customers_date_of_birth = "Birth date cannot be in the future";
-      }
+      const adjustedAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate()) ? age - 1 : age;
+
+      if (birthDate > today) nextErrors.customers_date_of_birth = 'Birth date cannot be in the future';
+      else if (adjustedAge < 18) nextErrors.customers_date_of_birth = 'Customer must be 18+';
+      else if (adjustedAge > 120) nextErrors.customers_date_of_birth = 'Please enter a valid birth date';
     }
 
-    // Nationality - Strict validation
     if (!walkInData.nationality_id?.toString().trim()) {
-      nextErrors.nationality_id = "Nationality is required";
+      nextErrors.nationality_id = 'Nationality is required';
     }
 
     setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    const messages = Object.values(nextErrors);
+    return { isValid: Object.keys(nextErrors).length === 0, errors: nextErrors, messages };
   };
 
   const handleNext = () => {
-    if (!validateCustomerInfo()) {
-      alert("Please complete the required fields before proceeding.");
+    const result = validateCustomerInfo();
+    if (!result.isValid) {
+      setValidationMessages(result.messages);
+      setShowValidationModal(true);
       return;
     }
     navigate("/admin/payment-method");
@@ -366,23 +321,48 @@ const AddWalkIn = () => {
           </CardContent>
 
           {/* Footer with Next Button */}
--         <CardFooter className="flex justify-end border-t pt-4">
--            <Button onClick={handleNext} className="px-6">
--              Next: Payment →
--            </Button>
--          </CardFooter>
-+         <CardFooter className="flex justify-between border-t pt-4">
-+            <Button variant="outline" onClick={() => navigate('/admin/choose-rooms')}>
-+              ← Previous: Rooms
-+            </Button>
-+            <Button onClick={handleNext} className="px-6">
-+              Next: Payment →
-+            </Button>
-+          </CardFooter>
+          <CardFooter className="flex justify-between border-t pt-4">
+            <Button variant="outline" onClick={() => navigate('/admin/choose-rooms')}>
+              ← Previous: Rooms
+            </Button>
+            <Button onClick={handleNext} className="px-6">
+              Next: Payment →
+            </Button>
+          </CardFooter>
         </Card>
       </div>
+      {/* Validation Warning Modal */}
+      <Dialog open={showValidationModal} onOpenChange={setShowValidationModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-yellow-600" />
+              Missing Required Information
+            </DialogTitle>
+            <DialogDescription>
+              Please fill the following required fields to proceed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <ul className="list-disc pl-5 text-sm text-gray-800 dark:text-gray-200">
+              {Array.isArray(validationMessages) && validationMessages.length > 0 ? (
+                validationMessages.map((msg, idx) => (
+                  <li key={idx}>{msg}</li>
+                ))
+              ) : (
+                <li>Please complete all required fields.</li>
+              )}
+            </ul>
+            <Button variant="outline" onClick={() => setShowValidationModal(false)} className="w-full">Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
 
 export default AddWalkIn;
+
+// Validation Warning Modal
+// Rendered at the end to avoid layout shifts
+// This modal lists missing/invalid fields and enforces the 18+ age rule

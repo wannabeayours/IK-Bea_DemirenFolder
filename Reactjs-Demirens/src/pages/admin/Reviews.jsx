@@ -93,6 +93,13 @@ function AdminReviews() {
     return String(num)
   }
 
+  // Format rating with one decimal, defaulting to 0.0
+  const fmtRating = (v) => {
+    const num = Number(v || 0)
+    if (isNaN(num)) return '0.0'
+    return num.toFixed(1)
+  }
+
   // Build 1–5 star distribution for filtered reviews
   const distribution = useMemo(() => {
     const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
@@ -239,9 +246,9 @@ function AdminReviews() {
                   <Skeleton className="h-20 w-32" />
                 ) : (
                   <>
-                    <div className="text-5xl font-bold">{summary.overall ?? '—'}</div>
+                    <div className="text-5xl font-bold">{fmtRating(summary.total === 0 ? 0 : summary.overall)}</div>
                     <div className="flex items-center gap-2">
-                      {renderStars(summary.overall, 18)}
+                      {renderStars(summary.total === 0 ? 0 : summary.overall, 18)}
                       <span className="text-muted-foreground text-sm">{fmtCount(summary.total)} ratings</span>
                     </div>
                   </>

@@ -66,6 +66,10 @@ function AdminVisitorsLog() {
   // Modal (Add/Edit)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingLog, setEditingLog] = useState(null) // row object or null
+  
+  // Lead Guests Only view
+  const [showLeadGuestsOnly, setShowLeadGuestsOnly] = useState(false)
+  const [bookingsById, setBookingsById] = useState({})
   const [formVisitorName, setFormVisitorName] = useState('')
   const [formPurpose, setFormPurpose] = useState('')
   const [formCheckin, setFormCheckin] = useState('')
@@ -162,6 +166,69 @@ function AdminVisitorsLog() {
       setLoading(false)
     }
   }, [APIConn])
+
+  // Build a map of booking_id -> { reference_no, customer_name }
+  const ensureBookingsMap = useCallback(async () => {
+    try {
+      if (Object.keys(bookingsById).length > 0) return
+      const fd = new FormData()
+      fd.append('method', 'get_booking_rooms')
+      const res = await axios.post(APIConn, fd)
+      const rooms = Array.isArray(res.data) ? res.data : []
+      const map = {}
+      rooms.forEach(r => {
+        const key = String(r.booking_id || '')
+        if (!key) return
+        map[key] = {
+          reference_no: r.reference_no || '—',
+          customer_name: r.customer_name || '—'
+        }
+      })
+      setBookingsById(map)
+    } catch (err) {
+      console.error('Failed to load booking summaries:', err)
+    }
+  }, [APIConn, bookingsById])
+
+  useEffect(() => {
+    if (showLeadGuestsOnly) {
+      ensureBookingsMap()
+    }
+  }, [showLeadGuestsOnly, ensureBookingsMap])
+
+  // Aggregate filtered logs by booking_id for Lead Guests Only view
+  const leadGuestRows = useMemo(() => {
+    if (!showLeadGuestsOnly) return []
+    const groups = {}
+    filteredLogs.forEach(row => {
+      const bId = String(row.booking_id || '')
+      if (!bId) return
+      if (!groups[bId]) {
+        groups[bId] = { booking_id: bId, checkinTimes: [], checkoutTimes: [], totalVisitors: 0 }
+      }
+      groups[bId].totalVisitors += 1
+      if (row.visitorlogs_checkin_time) {
+        groups[bId].checkinTimes.push(new Date(row.visitorlogs_checkin_time))
+      }
+      if (row.visitorlogs_checkout_time) {
+        groups[bId].checkoutTimes.push(new Date(row.visitorlogs_checkout_time))
+      }
+    })
+    const rows = Object.values(groups).map(g => {
+      const info = bookingsById[g.booking_id] || {}
+      const earliestCheckin = g.checkinTimes.length ? new Date(Math.min(...g.checkinTimes.map(d => d.getTime()))) : null
+      const latestCheckout = g.checkoutTimes.length ? new Date(Math.max(...g.checkoutTimes.map(d => d.getTime()))) : null
+      return {
+        booking_id: g.booking_id,
+        reference_no: info.reference_no || '—',
+        customer_name: info.customer_name || '—',
+        checkin: earliestCheckin,
+        checkout: latestCheckout,
+        totalVisitors: g.totalVisitors,
+      }
+    })
+    return rows
+  }, [showLeadGuestsOnly, filteredLogs, bookingsById])
  
    useEffect(() => {
      // Initial fetch
@@ -678,6 +745,9 @@ function AdminVisitorsLog() {
                 <div className="flex gap-2">
                   <Input className="bg-muted/30 border-border" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
                   <Button variant="outline" onClick={clearFilters}>Clear</Button>
+                  <Button variant={showLeadGuestsOnly ? 'default' : 'secondary'} onClick={() => setShowLeadGuestsOnly(v => !v)}>
+                    {showLeadGuestsOnly ? 'Show Detailed Logs' : 'Show Lead Guests Only'}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -688,95 +758,140 @@ function AdminVisitorsLog() {
         <Card className="bg-muted/20 border-border">
           <CardContent className="py-0">
             <ScrollArea className="w-full max-h-[60vh]">
-              <Table>
-                <TableHeader className="sticky top-0 z-10">
-                  <TableRow className="bg-muted/40">
-                    {/* Removed ID column globally */}
-                    <TableHead>Visitor</TableHead>
-                    <TableHead>Purpose</TableHead>
-                    <TableHead>Check-in</TableHead>
-                    <TableHead>Check-out</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Booking</TableHead>
-                    {isAdmin && (<TableHead>Employee</TableHead>)}
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <TableRow key={`sk-${i}`}>
-                        <TableCell><div className="h-4 w-40 bg-muted animate-pulse rounded" /></TableCell>
-                        <TableCell><div className="h-4 w-56 bg-muted animate-pulse rounded" /></TableCell>
-                        <TableCell><div className="h-4 w-40 bg-muted animate-pulse rounded" /></TableCell>
-                        <TableCell><div className="h-4 w-40 bg-muted animate-pulse rounded" /></TableCell>
-                        <TableCell><div className="h-6 w-24 bg-muted animate-pulse rounded" /></TableCell>
-                        <TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>
-                        {isAdmin && (<TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>)}
-                        <TableCell className="text-right"><div className="h-6 w-40 bg-muted animate-pulse rounded ml-auto" /></TableCell>
-                      </TableRow>
-                    ))
-                  ) : filteredLogs.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={isAdmin ? 8 : 7}>
-                        <div className="py-8 text-center text-sm text-muted-foreground">No logs found. Try adjusting filters or adding a new visitor log.</div>
-                      </TableCell>
+              {showLeadGuestsOnly ? (
+                <Table>
+                  <TableHeader className="sticky top-0 z-10">
+                    <TableRow className="bg-muted/40">
+                      <TableHead>Reference Number</TableHead>
+                      <TableHead>Lead Guest</TableHead>
+                      <TableHead>Check-In and Check-Out</TableHead>
+                      <TableHead className="text-right">Total Visitor Amount</TableHead>
                     </TableRow>
-                  ) : (
-                    filteredLogs.map(row => (
-                      <TableRow key={row.visitorlogs_id}>
-                        {/* Removed ID cell globally */}
-                        <TableCell className="font-medium flex items-center gap-2">
-                          <UserRound className="h-4 w-4" /> {row.visitorlogs_visitorname || '—'}
-                        </TableCell>
-                        <TableCell className="max-w-[280px] truncate">{row.visitorlogs_purpose || '—'}</TableCell>
-                        <TableCell>{row.visitorlogs_checkin_time ? new Date(row.visitorlogs_checkin_time).toLocaleString() : '—'}</TableCell>
-                        <TableCell>{row.visitorlogs_checkout_time ? new Date(row.visitorlogs_checkout_time).toLocaleString() : '—'}</TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(getStatusNameById(row.visitorapproval_id))}>
-                            {getStatusNameById(row.visitorapproval_id)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="w-24">
-                          {row.booking_id ? (
-                            <Button variant="link" className="p-0 h-auto text-primary" onClick={() => openBookingPreview(row)}>
-                              {row.booking_id}
-                            </Button>
-                          ) : '—'}
-                        </TableCell>
-                        {isAdmin && (<TableCell className="w-20">{row.employee_id ?? '—'}</TableCell>)}
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" size="sm" onClick={() => openEditDialog(row)} className="gap-1">
-                              <Pencil className="h-3 w-3" /> Edit
-                            </Button>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm" className="gap-1" disabled={!canChangeStatus(row)} title={!canChangeStatus(row) ? 'Status locked; only Pending or Approved can change' : ''}>
-                                  Choose Status
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-                                {!(getStatusNameById(row.visitorapproval_id) || '').toLowerCase().includes('approved') && (
-                                  <DropdownMenuItem disabled={!canChangeStatus(row)} onClick={() => setRowStatus(row, 'Approved')} className="text-gray-900 dark:text-gray-100">
-                                    <CheckCircle className="h-3 w-3 mr-2" /> Approve
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem disabled={!canChangeStatus(row)} onClick={() => setRowStatus(row, 'Declined')} className="text-gray-900 dark:text-gray-100">
-                                  <XCircle className="h-3 w-3 mr-2" /> Decline
-                                </DropdownMenuItem>
-                                <DropdownMenuItem disabled={!canChangeStatus(row)} onClick={() => setCheckoutNow(row)} className="text-gray-900 dark:text-gray-100">
-                                  <LogOut className="h-3 w-3 mr-2" /> Left
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      Array.from({ length: 4 }).map((_, i) => (
+                        <TableRow key={`sk-lg-${i}`}>
+                          <TableCell><div className="h-4 w-40 bg-muted animate-pulse rounded" /></TableCell>
+                          <TableCell><div className="h-4 w-56 bg-muted animate-pulse rounded" /></TableCell>
+                          <TableCell><div className="h-4 w-64 bg-muted animate-pulse rounded" /></TableCell>
+                          <TableCell className="text-right"><div className="h-6 w-24 bg-muted animate-pulse rounded ml-auto" /></TableCell>
+                        </TableRow>
+                      ))
+                    ) : leadGuestRows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4}>
+                          <div className="py-8 text-center text-sm text-muted-foreground">No lead guests found for the current filters.</div>
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      leadGuestRows.map(r => (
+                        <TableRow key={`lg-${r.booking_id}`}>
+                          <TableCell className="font-medium">{r.reference_no}</TableCell>
+                          <TableCell>{r.customer_name}</TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <div>Check-In: {r.checkin ? new Date(r.checkin).toLocaleString() : '—'}</div>
+                              <div>Check-Out: {r.checkout ? new Date(r.checkout).toLocaleString() : '—'}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">{r.totalVisitors}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              ) : (
+                <Table>
+                  <TableHeader className="sticky top-0 z-10">
+                    <TableRow className="bg-muted/40">
+                      {/* Removed ID column globally */}
+                      <TableHead>Visitor</TableHead>
+                      <TableHead>Purpose</TableHead>
+                      <TableHead>Check-in</TableHead>
+                      <TableHead>Check-out</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Booking</TableHead>
+                      {isAdmin && (<TableHead>Employee</TableHead>)}
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <TableRow key={`sk-${i}`}>
+                          <TableCell><div className="h-4 w-40 bg-muted animate-pulse rounded" /></TableCell>
+                          <TableCell><div className="h-4 w-56 bg-muted animate-pulse rounded" /></TableCell>
+                          <TableCell><div className="h-4 w-40 bg-muted animate-pulse rounded" /></TableCell>
+                          <TableCell><div className="h-4 w-40 bg-muted animate-pulse rounded" /></TableCell>
+                          <TableCell><div className="h-6 w-24 bg-muted animate-pulse rounded" /></TableCell>
+                          <TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>
+                          {isAdmin && (<TableCell><div className="h-4 w-20 bg-muted animate-pulse rounded" /></TableCell>)}
+                          <TableCell className="text-right"><div className="h-6 w-40 bg-muted animate-pulse rounded ml-auto" /></TableCell>
+                        </TableRow>
+                      ))
+                    ) : filteredLogs.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={isAdmin ? 8 : 7}>
+                          <div className="py-8 text-center text-sm text-muted-foreground">No logs found. Try adjusting filters or adding a new visitor log.</div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredLogs.map(row => (
+                        <TableRow key={row.visitorlogs_id}>
+                          {/* Removed ID cell globally */}
+                          <TableCell className="font-medium flex items-center gap-2">
+                            <UserRound className="h-4 w-4" /> {row.visitorlogs_visitorname || '—'}
+                          </TableCell>
+                          <TableCell className="max-w-[280px] truncate">{row.visitorlogs_purpose || '—'}</TableCell>
+                          <TableCell>{row.visitorlogs_checkin_time ? new Date(row.visitorlogs_checkin_time).toLocaleString() : '—'}</TableCell>
+                          <TableCell>{row.visitorlogs_checkout_time ? new Date(row.visitorlogs_checkout_time).toLocaleString() : '—'}</TableCell>
+                          <TableCell>
+                            <Badge className={getStatusColor(getStatusNameById(row.visitorapproval_id))}>
+                              {getStatusNameById(row.visitorapproval_id)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="w-24">
+                            {row.booking_id ? (
+                              <Button variant="link" className="p-0 h-auto text-primary" onClick={() => openBookingPreview(row)}>
+                                {row.booking_id}
+                              </Button>
+                            ) : '—'}
+                          </TableCell>
+                          {isAdmin && (<TableCell className="w-20">{row.employee_id ?? '—'}</TableCell>)}
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button variant="outline" size="sm" onClick={() => openEditDialog(row)} className="gap-1">
+                                <Pencil className="h-3 w-3" /> Edit
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="outline" size="sm" className="gap-1" disabled={!canChangeStatus(row)} title={!canChangeStatus(row) ? 'Status locked; only Pending or Approved can change' : ''}>
+                                    Choose Status
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                                  {!(getStatusNameById(row.visitorapproval_id) || '').toLowerCase().includes('approved') && (
+                                    <DropdownMenuItem disabled={!canChangeStatus(row)} onClick={() => setRowStatus(row, 'Approved')} className="text-gray-900 dark:text-gray-100">
+                                      <CheckCircle className="h-3 w-3 mr-2" /> Approve
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem disabled={!canChangeStatus(row)} onClick={() => setRowStatus(row, 'Declined')} className="text-gray-900 dark:text-gray-100">
+                                    <XCircle className="h-3 w-3 mr-2" /> Decline
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem disabled={!canChangeStatus(row)} onClick={() => setCheckoutNow(row)} className="text-gray-900 dark:text-gray-100">
+                                    <LogOut className="h-3 w-3 mr-2" /> Left
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </ScrollArea>
           </CardContent>
         </Card>

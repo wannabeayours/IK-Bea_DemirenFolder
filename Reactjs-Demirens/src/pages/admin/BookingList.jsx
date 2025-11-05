@@ -213,6 +213,43 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
     return () => clearInterval(timer);
   }, [showCheckInWarning]);
 
+  // State for automated invoice delivery
+  const [invoiceDeliverySuccess, setInvoiceDeliverySuccess] = useState(false);
+
+  // Automated invoice download and email function
+  const handleAutomatedInvoiceDelivery = async () => {
+    if (!invoiceDeliveryBooking) return;
+    
+    try {
+      // Execute both download and email simultaneously
+      await Promise.all([
+        handleDownloadInvoice(),
+        handleSendInvoiceEmail()
+      ]);
+      
+      // Show success message
+      setInvoiceDeliverySuccess(true);
+      toast.success('Successfully downloaded and sent the invoice attachment to the customer through email!');
+    } catch (error) {
+      console.error('Error in automated invoice delivery:', error);
+      toast.error('Failed to complete invoice delivery. Please try again.');
+    }
+  };
+
+  // Auto-execute invoice delivery when modal opens
+  useEffect(() => {
+    if (showInvoiceDelivery && invoiceDeliveryBooking && !invoiceDeliverySuccess) {
+      handleAutomatedInvoiceDelivery();
+    }
+  }, [showInvoiceDelivery, invoiceDeliveryBooking]);
+
+  // Reset success state when modal closes
+  useEffect(() => {
+    if (!showInvoiceDelivery) {
+      setInvoiceDeliverySuccess(false);
+    }
+  }, [showInvoiceDelivery]);
+
   const handleConfirmCheckOutClick = () => {
     if (!selectedBooking) return;
     // Use DB-provided remaining balance to decide the flow
@@ -1464,29 +1501,7 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
     }
   };
 
-  // Recalculate Bills action to refresh billing totals
-  const handleRecalculateBills = async (booking) => {
-    try {
-      const url = localStorage.getItem("url") + "transactions.php";
-      const formData = new FormData();
-      formData.append("operation", "recalculateBilling");
-      formData.append("json", JSON.stringify({ booking_id: booking.booking_id }));
-
-      const res = await axios.post(url, formData);
-      if (res.data?.success) {
-        toast.success("Billing recalculated successfully.");
-        await fetchBillingData(booking);
-        await fetchInvoiceData(booking);
-        await fetchBookingChargesTotal(booking.booking_id);
-        getBookings();
-      } else {
-        toast.error(res.data?.message || "Failed to recalculate billing.");
-      }
-    } catch (err) {
-      console.error("Recalculate error:", err);
-      toast.error(`Error recalculating billing: ${err.message}`);
-    }
-  };
+  // Removed: Recalculate Bills handler (no longer used)
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -1665,9 +1680,7 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
 
   const confirmAntedateUpdate = async () => {
     const ok = await saveEditDates();
-    if (ok && selectedBooking?.booking_id) {
-      await handleRecalculateBills(selectedBooking);
-    }
+    // Recalculate Bills was removed; simply close the warning on success
     setShowAntedateWarning(false);
   };
 
@@ -2237,7 +2250,7 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
 
         {/* Customer Details Modal */}
         <Dialog open={showCustomerDetails} onOpenChange={setShowCustomerDetails}>
-          <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[85vh] overflow-y-auto mx-4">
+          <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[85vh] overflow-y-auto mx-4 bg-white text-gray-900 dark:bg-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl">
             <DialogHeader className="text-center pb-6 border-b">
               <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">
                 Booking Information
@@ -2265,11 +2278,12 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                     </div>
                     <div className="text-right">
                       {(() => {
-                        const finalTotal = finalTotalAmount;
+                        const chargesSum = parseFloat(selectedBooking?.booking_charges_total_sum || 0) || 0;
+                        const grandTotal = (finalTotalAmount || 0) + chargesSum;
                         return (
                           <>
                             <div className="text-2xl font-bold text-[#34699a] dark:text-[#34699a]">
-                              {NumberFormatter.formatCurrency(finalTotal)}
+                              {NumberFormatter.formatCurrency(grandTotal)}
                             </div>
                             <div className="text-sm text-gray-600 dark:text-gray-400">Total Amount</div>
                           </>
@@ -2322,6 +2336,50 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                       <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Reference Number</label>
                       <p className="text-gray-900 dark:text-white font-mono">{selectedBooking.reference_no || 'N/A'}</p>
                     </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Payment Method</label>
+                      <div className="mt-1">
+                        {(() => {
+                          const name = selectedBooking?.payment_method_name || 'N/A';
+                          const lower = (name || '').toLowerCase();
+
+                          // GCash: Blue and White
+                          if (lower === 'gcash') {
+                            return (
+                              <span
+                                className="inline-flex items-center px-2.5 py-1 rounded-full font-medium bg-blue-600 text-white shadow-sm"
+                                title={name}
+                              >
+                                {name}
+                              </span>
+                            );
+                          }
+
+                          // PayPal: color scheme based on provided palette
+                          if (lower === 'paypal') {
+                            return (
+                              <span
+                                className="inline-flex items-center px-2.5 py-1 rounded-full font-medium text-white shadow-sm"
+                                style={{
+                                  backgroundImage:
+                                    'linear-gradient(90deg, #003087 0%, #003087 33%, #0070BA 33%, #0070BA 66%, #FFC439 66%, #FFC439 100%)'
+                                }}
+                                title={name}
+                              >
+                                {name}
+                              </span>
+                            );
+                          }
+
+                          // Fallback for other methods
+                          return (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full font-medium bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white">
+                              {name}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start md:col-span-2">
                       <div>
                         <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Check-in Date</label>
@@ -2338,18 +2396,28 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                       </div>
                     </div>
                     <div className="md:col-span-2">
-                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Remaining Balance</label>
+                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Remaining Balance ni dari</label>
                       {(() => {
                         const finalTotal = finalTotalAmount;
-                        const totalPaidAmount = Array.isArray(billingData) && billingData.length > 0
-                          ? billingData.reduce((sum, bill) => sum + (parseFloat(bill.billing_downpayment) || 0), 0)
-                          : (parseFloat(selectedBooking.downpayment) || 0);
-                        const balance = Math.max(finalTotal - totalPaidAmount, 0);
+                        const chargesSum = parseFloat(selectedBooking?.booking_charges_total_sum || 0) || 0;
+                        const totalPaidAmount = parseFloat(selectedBooking?.booking_payment || 0) || 0;
+                        const subtotal = (finalTotal || 0) + chargesSum;
+                        const vatAmount = subtotal * 0.12;
+                        const grandTotal = subtotal + vatAmount;
+                        const balance = Math.max(grandTotal - totalPaidAmount, 0);
                         return (
                           <div className="mt-1 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 p-3">
                             <div className="grid grid-cols-2 text-sm mb-1">
                               <span className="text-gray-600 dark:text-gray-400">Total Amount</span>
                               <span className="text-right text-gray-900 dark:text-white font-medium">{NumberFormatter.formatCurrency(finalTotal)}</span>
+                            </div>
+                            <div className="grid grid-cols-2 text-sm mb-1">
+                              <span className="text-gray-600 dark:text-gray-400">Total Charges</span>
+                              <span className="text-right text-gray-900 dark:text-white font-medium">{NumberFormatter.formatCurrency(chargesSum)}</span>
+                            </div>
+                            <div className="grid grid-cols-2 text-sm mb-1">
+                              <span className="text-gray-600 dark:text-gray-400">VAT (12%)</span>
+                              <span className="text-right text-gray-900 dark:text-white font-medium">{NumberFormatter.formatCurrency(vatAmount)}</span>
                             </div>
                             <div className="grid grid-cols-2 text-sm">
                               <span className="text-gray-600 dark:text-gray-400">Payment</span>
@@ -2363,10 +2431,6 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                           </div>
                         );
                       })()}
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Payment Method</label>
-                      <p className="text-gray-900 dark:text-white">{selectedBooking.booking_paymentMethod || 'N/A'}</p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Room Details</label>
@@ -2581,15 +2645,7 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                                   No Invoice Present - Bills Available
                                 </span>
                               </div>
-                              <Button
-                                onClick={() => handleRecalculateBills(selectedBooking)}
-                                disabled={!selectedBooking?.booking_id}
-                                size="sm"
-                                className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <Settings className="w-4 h-4 mr-2" />
-                                Recalculate Bills
-                              </Button>
+                              {/* Recalculate Bills button removed as requested */}
                             </div>
                             <p className="text-xs text-orange-600 dark:text-orange-400 mb-3">
                               Customer has bills but no invoice has been generated yet.
@@ -2673,54 +2729,59 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                   }}>
                     Close
                   </Button>
-                  {selectedBooking.booking_status !== 'Cancelled' && (
-                    <Button
-                      onClick={() => {
-                        setCancelTargetBooking(selectedBooking);
-                        setShowCancelWarning(true);
-                      }}
-                      className="bg-orange-600 hover:bg-red-600"
-                    >
-                      <XCircle className="w-4 h-4 mr-2" />
-                      Cancel Booking
-                    </Button>
-                  )}
-                  {selectedBooking.booking_status !== 'Checked-In' && (
-                    <Button
-                      onClick={() => {
-                        setCheckInTargetBooking(selectedBooking);
-                        setShowCheckInWarning(true);
-                      }}
-                      disabled={selectedBooking.booking_status !== 'Confirmed'}
-                      className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Confirm Check-In
-                    </Button>
-                  )}
-                  {/* Confirm Check-Out Button - Only shows for Checked-In status */}
-                  {selectedBooking.booking_status === 'Checked-In' && (
-                    <Button
-                      onClick={handleConfirmCheckOutClick}
-                      className="bg-blue-600 hover:bg-green-700 flex items-center gap-2"
-                    >
-                      <CalendarIcon className="w-4 h-4" />
-                      Confirm Check-Out
-                    </Button>
-                  )}
-                  {/* Recalculate Bills moved to Invoice & Billing Information card header */}
-                  {selectedBooking.booking_status !== 'Cancelled' && (
-                    <Button
-                      onClick={() => {
-                        handleChangeRoom(selectedBooking);
-                        setShowCustomerDetails(false);
-                      }}
-                      disabled={selectedBooking.booking_status === 'Pending'}
-                      className="bg-[#34699a] hover:bg-[#2a5580] disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <ArrowRightLeft className="w-4 h-4 mr-2" />
-                      Change Room
-                    </Button>
+                  {/* Hide all action buttons when booking status is 'Checked-Out' */}
+                  {selectedBooking.booking_status !== 'Checked-Out' && (
+                    <>
+                      {selectedBooking.booking_status !== 'Cancelled' && (
+                        <Button
+                          onClick={() => {
+                            setCancelTargetBooking(selectedBooking);
+                            setShowCancelWarning(true);
+                          }}
+                          className="bg-orange-600 hover:bg-red-600"
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Cancel Booking
+                        </Button>
+                      )}
+                      {selectedBooking.booking_status !== 'Checked-In' && (
+                        <Button
+                          onClick={() => {
+                            setCheckInTargetBooking(selectedBooking);
+                            setShowCheckInWarning(true);
+                          }}
+                          disabled={selectedBooking.booking_status !== 'Confirmed'}
+                          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Confirm Check-In
+                        </Button>
+                      )}
+                      {/* Confirm Check-Out Button - Only shows for Checked-In status */}
+                      {selectedBooking.booking_status === 'Checked-In' && (
+                        <Button
+                          onClick={handleConfirmCheckOutClick}
+                          className="bg-blue-600 hover:bg-green-700 flex items-center gap-2"
+                        >
+                          <CalendarIcon className="w-4 h-4" />
+                          Confirm Check-Out
+                        </Button>
+                      )}
+                      {/* Recalculate Bills moved to Invoice & Billing Information card header */}
+                      {selectedBooking.booking_status !== 'Cancelled' && (
+                        <Button
+                          onClick={() => {
+                            handleChangeRoom(selectedBooking);
+                            setShowCustomerDetails(false);
+                          }}
+                          disabled={selectedBooking.booking_status === 'Pending'}
+                          className="bg-[#34699a] hover:bg-[#2a5580] disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ArrowRightLeft className="w-4 h-4 mr-2" />
+                          Change Room
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -2800,7 +2861,7 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
 
         {/* Edit Dates Modal */}
         <Dialog open={isEditDatesOpen} onOpenChange={setIsEditDatesOpen}>
-          <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[85vh] overflow-y-auto mx-4">
+          <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[85vh] overflow-y-auto mx-4 bg-white text-gray-900 dark:bg-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl">
             <DialogHeader>
               <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <CalendarPlus className="w-5 h-5" />
@@ -2868,7 +2929,7 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
 
         {/* Antedate Warning Modal */}
         <Dialog open={showAntedateWarning} onOpenChange={setShowAntedateWarning}>
-          <DialogContent className="max-w-[95vw] sm:max-w-md mx-4">
+          <DialogContent className="max-w-[95vw] sm:max-w-md mx-4 bg-white text-gray-900 dark:bg-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl">
             <DialogHeader>
               <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">Warning</DialogTitle>
             </DialogHeader>
@@ -2886,7 +2947,7 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
 
         {/* Extend Booking Modal */}
         <Dialog open={showExtendBooking} onOpenChange={setShowExtendBooking}>
-          <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto mx-4">
+          <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto mx-4 bg-white text-gray-900 dark:bg-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl">
             <DialogHeader>
               <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <CalendarPlus className="w-5 h-5" />
@@ -3632,11 +3693,14 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
 
         {/* Fully Paid Invoice/Email Modal */}
         <Dialog open={showInvoiceDelivery} onOpenChange={setShowInvoiceDelivery}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md bg-white text-gray-900 dark:bg-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl">
             <DialogHeader>
               <DialogTitle>Invoice Actions</DialogTitle>
               <DialogDescription>
-                The customer has fully paid the Total Amount. You can download the invoice and send an email.
+                {invoiceDeliverySuccess 
+                  ? "Invoice delivery completed successfully!"
+                  : "The customer has fully paid the Total Amount. Processing invoice delivery..."
+                }
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
@@ -3646,10 +3710,21 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                   Customer: {invoiceDeliveryBooking.customer_name}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                <Button variant="outline" onClick={handleDownloadInvoice}>Download Invoice</Button>
-                <Button onClick={handleSendInvoiceEmail} className="bg-blue-600 hover:bg-blue-700 text-white">Send Email</Button>
-              </div>
+              {invoiceDeliverySuccess ? (
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                    <CheckCircle className="w-5 h-5" />
+                    <span className="font-medium">Successfully downloaded and sent the invoice attachment to the customer through email!</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-700 dark:border-blue-300"></div>
+                    <span>Processing invoice download and email delivery...</span>
+                  </div>
+                </div>
+              )}
               <Button variant="secondary" onClick={() => setShowInvoiceDelivery(false)} className="w-full">Close</Button>
             </div>
           </DialogContent>

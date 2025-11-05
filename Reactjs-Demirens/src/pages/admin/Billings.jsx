@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import AdminHeader from './components/AdminHeader'
 import axios from 'axios'
 import CustomerPayment from './SubPages/CustomerPayment'
@@ -17,6 +18,7 @@ import { DateFormatter } from './Function_Files/DateFormatter'
 
 const Billings = () => {
  const APIConn = `${localStorage.url}admin.php`
+ const location = useLocation()
 
  const [mainContent, setMainContent] = useState('default')
  const [bookings, setBookings] = useState([])
@@ -190,6 +192,15 @@ const Billings = () => {
   getBookings()
   getPaymentMethods()
  }, [])
+
+ // Prefill search from query param (e.g., ?search=Customer%20Name)
+ useEffect(() => {
+  const params = new URLSearchParams(location.search)
+  const q = params.get('search')
+  if (typeof q === 'string') {
+    setSearchName(q)
+  }
+ }, [location.search])
 
  return (
   <>

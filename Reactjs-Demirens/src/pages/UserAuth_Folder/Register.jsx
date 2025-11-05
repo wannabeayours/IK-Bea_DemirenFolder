@@ -194,8 +194,8 @@ const Register = () => {
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
       // Haven't had birthday this year yet
       const actualAge = age - 1;
-      if (actualAge < 13) {
-        toast.error("You must be at least 13 years old to register");
+      if (actualAge < 18) {
+        toast.error("You must be at least 18 years old to register");
         return false;
       }
       if (actualAge > 120) {
@@ -203,8 +203,8 @@ const Register = () => {
         return false;
       }
     } else {
-      if (age < 13) {
-        toast.error("You must be at least 13 years old to register");
+      if (age < 18) {
+        toast.error("You must be at least 18 years old to register");
         return false;
       }
       if (age > 120) {

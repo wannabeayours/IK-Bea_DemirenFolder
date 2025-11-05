@@ -301,20 +301,28 @@ function EmployeeManagement() {
             </div>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button
+                <Button 
                   className="bg-[#34699a] hover:bg-[#2a5580] text-white"
                   onClick={() => {
                     setEditingEmployee(null);
+                    const today = new Date();
+                    const defaultBirthdate = new Date(
+                      today.getFullYear() - 18,
+                      today.getMonth(),
+                      today.getDate()
+                    )
+                      .toISOString()
+                      .split('T')[0];
                     form.reset({
                       employee_fname: "",
                       employee_lname: "",
                       employee_username: "",
-                      employee_phone: "",
+                      employee_phone: "00000000000",
                       employee_email: "",
                       employee_password: "",
-                      employee_address: "",
-                      employee_birthdate: "",
-                      employee_gender: ""
+                      employee_address: "Not Provided",
+                      employee_birthdate: defaultBirthdate,
+                      employee_gender: "Other"
                     });
                   }}
                 >
@@ -400,27 +408,29 @@ function EmployeeManagement() {
                           </FormItem>
                         )}
                       />
-                      <FormField
-                        control={form.control}
-                        name="employee_phone"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Phone Number *</FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="Enter phone number (11 digits)" 
-                                {...field}
-                                maxLength={11}
-                                pattern="[0-9]{11}"
-                                onInput={(e) => {
-                                  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 11);
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      {editingEmployee && (
+                        <FormField
+                          control={form.control}
+                          name="employee_phone"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Phone Number *</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  placeholder="Enter phone number (11 digits)" 
+                                  {...field}
+                                  maxLength={11}
+                                  pattern="[0-9]{11}"
+                                  onInput={(e) => {
+                                    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 11);
+                                  }}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
                     </div>
 
                     <FormField
@@ -482,67 +492,71 @@ function EmployeeManagement() {
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="employee_address"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Address *</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="Enter full address (min 10 characters)" 
-                              {...field}
-                              maxLength={255}
-                              minLength={10}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {editingEmployee && (
                       <FormField
                         control={form.control}
-                        name="employee_birthdate"
+                        name="employee_address"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Birthdate *</FormLabel>
+                            <FormLabel>Address *</FormLabel>
                             <FormControl>
                               <Input 
-                                type="date" 
+                                placeholder="Enter full address (min 10 characters)" 
                                 {...field}
-                                max={new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().split('T')[0]}
-                                min={new Date(new Date().setFullYear(new Date().getFullYear() - 100)).toISOString().split('T')[0]}
+                                maxLength={255}
+                                minLength={10}
                               />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                      <FormField
-                        control={form.control}
-                        name="employee_gender"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Gender *</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    )}
+
+                    {editingEmployee && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="employee_birthdate"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Birthdate *</FormLabel>
                               <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select gender" />
-                                </SelectTrigger>
+                                <Input 
+                                  type="date" 
+                                  {...field}
+                                  max={new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().split('T')[0]}
+                                  min={new Date(new Date().setFullYear(new Date().getFullYear() - 100)).toISOString().split('T')[0]}
+                                />
                               </FormControl>
-                              <SelectContent>
-                                <SelectItem value="Male">Male</SelectItem>
-                                <SelectItem value="Female">Female</SelectItem>
-                                <SelectItem value="Other">Other</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="employee_gender"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Gender *</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select gender" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="Male">Male</SelectItem>
+                                  <SelectItem value="Female">Female</SelectItem>
+                                  <SelectItem value="Other">Other</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    )}
 
                     {/* Removed user level dropdown - default to Front-Desk (level 2) for new employees */}
 

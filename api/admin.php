@@ -807,12 +807,15 @@ class Admin_Functions
     }
 
     // Visitor Logs: update an existing visitor log entry
-     function updateVisitorLog() {
+    function updateVisitorLog()
+    {
         include "connection.php";
         try {
             $id = isset($_POST['visitorlogs_id']) ? intval($_POST['visitorlogs_id']) : 0;
             if ($id <= 0) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'Invalid visitor log ID']);
                 return;
             }
@@ -825,16 +828,36 @@ class Admin_Functions
             $checkout = isset($_POST['visitorlogs_checkout_time']) ? trim($_POST['visitorlogs_checkout_time']) : null;
 
             $fields = [];
-            $params = [ ':id' => $id ];
-            if ($name !== null) { $fields[] = 'visitorlogs_visitorname = :name'; $params[':name'] = $name; }
-            if ($purpose !== null) { $fields[] = 'visitorlogs_purpose = :purpose'; $params[':purpose'] = $purpose; }
-            if ($statusId !== null) { $fields[] = 'visitorapproval_id = :statusId'; $params[':statusId'] = $statusId; }
-            if ($booking_room_id !== null && $booking_room_id > 0) { $fields[] = 'booking_room_id = :booking_room_id'; $params[':booking_room_id'] = $booking_room_id; }
-            if ($employee_id !== null) { $fields[] = 'employee_id = :employee_id'; $params[':employee_id'] = $employee_id; }
-            if ($checkout !== null && $checkout !== '') { $fields[] = 'visitorlogs_checkout_time = :checkout'; $params[':checkout'] = $checkout; }
+            $params = [':id' => $id];
+            if ($name !== null) {
+                $fields[] = 'visitorlogs_visitorname = :name';
+                $params[':name'] = $name;
+            }
+            if ($purpose !== null) {
+                $fields[] = 'visitorlogs_purpose = :purpose';
+                $params[':purpose'] = $purpose;
+            }
+            if ($statusId !== null) {
+                $fields[] = 'visitorapproval_id = :statusId';
+                $params[':statusId'] = $statusId;
+            }
+            if ($booking_room_id !== null && $booking_room_id > 0) {
+                $fields[] = 'booking_room_id = :booking_room_id';
+                $params[':booking_room_id'] = $booking_room_id;
+            }
+            if ($employee_id !== null) {
+                $fields[] = 'employee_id = :employee_id';
+                $params[':employee_id'] = $employee_id;
+            }
+            if ($checkout !== null && $checkout !== '') {
+                $fields[] = 'visitorlogs_checkout_time = :checkout';
+                $params[':checkout'] = $checkout;
+            }
 
             if (empty($fields)) {
-                if (ob_get_length()) { ob_clean(); }
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 echo json_encode(['success' => false, 'message' => 'No fields to update']);
                 return;
             }
@@ -855,12 +878,14 @@ class Admin_Functions
 
                 // Only process if this specific visitor has both checkin and checkout times
                 // This ensures we only charge the visitor that actually checked out
-                if ($visitorData && 
-                    !empty($visitorData['visitorlogs_checkin_time']) && 
-                    !empty($visitorData['visitorlogs_checkout_time']) && 
+                if (
+                    $visitorData &&
+                    !empty($visitorData['visitorlogs_checkin_time']) &&
+                    !empty($visitorData['visitorlogs_checkout_time']) &&
                     !empty($visitorData['booking_room_id']) &&
-                    $visitorData['visitorlogs_id'] == $id) { // Additional safety check
-                    
+                    $visitorData['visitorlogs_id'] == $id
+                ) { // Additional safety check
+
                     $checkin_time = $visitorData['visitorlogs_checkin_time'];
                     $checkout_time = $visitorData['visitorlogs_checkout_time']; // Get from database after update
                     $booking_room_id = intval($visitorData['booking_room_id']);
@@ -918,10 +943,14 @@ class Admin_Functions
                 }
             }
 
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => $ok === true, 'response' => $ok === true]);
         } catch (Exception $e) {
-            if (ob_get_length()) { ob_clean(); }
+            if (ob_get_length()) {
+                ob_clean();
+            }
             echo json_encode(['success' => false, 'response' => false, 'message' => 'Database error: ' . $e->getMessage()]);
         }
     }
@@ -1073,10 +1102,22 @@ class Admin_Functions
                         rt.roomtype_name,
                         rt.roomtype_price,
                         rt.roomtype_description,
+                        rt.max_capacity,
+                        rt.roomtype_capacity,
+                        rt.roomtype_beds,
+                        rt.roomtype_sizes,
                         GROUP_CONCAT(DISTINCT img.imagesroommaster_filename ORDER BY img.imagesroommaster_id ASC) AS images
                     FROM tbl_roomtype rt
                     LEFT JOIN tbl_imagesroommaster img ON img.roomtype_id = rt.roomtype_id
-                    GROUP BY rt.roomtype_id, rt.roomtype_name, rt.roomtype_price, rt.roomtype_description
+                    GROUP BY 
+                        rt.roomtype_id, 
+                        rt.roomtype_name, 
+                        rt.roomtype_price, 
+                        rt.roomtype_description,
+                        rt.max_capacity,
+                        rt.roomtype_capacity,
+                        rt.roomtype_beds,
+                        rt.roomtype_sizes
                     ORDER BY rt.roomtype_id ASC";
             $stmt = $conn->prepare($sql);
             $stmt->execute();
@@ -1110,6 +1151,18 @@ class Admin_Functions
             $roomtype_name = trim($data['roomtype_name'] ?? '');
             $roomtype_description = trim($data['roomtype_description'] ?? '');
             $roomtype_price = floatval($data['roomtype_price'] ?? 0);
+            $delete_image_ids = [];
+            if (isset($_POST['delete_image_ids'])) {
+                $tmp = $_POST['delete_image_ids'];
+                if (is_string($tmp)) {
+                    $arr = json_decode($tmp, true);
+                    if (is_array($arr)) {
+                        $delete_image_ids = array_filter(array_map('intval', $arr));
+                    }
+                } elseif (is_array($tmp)) {
+                    $delete_image_ids = array_filter(array_map('intval', $tmp));
+                }
+            }
 
             if ($roomtype_id <= 0) {
                 if (ob_get_length()) {
@@ -1161,11 +1214,42 @@ class Admin_Functions
             $stmt->bindParam(':roomtype_price', $roomtype_price, PDO::PARAM_STR);
             $stmt->bindParam(':roomtype_id', $roomtype_id, PDO::PARAM_INT);
 
-            if ($stmt->execute()) {
+            $ok = $stmt->execute();
+
+            // Handle image deletions if provided
+            $deleted_count = 0;
+            if ($ok && !empty($delete_image_ids)) {
+                $selImg = $conn->prepare("SELECT imagesroommaster_id, imagesroommaster_filename FROM tbl_imagesroommaster WHERE imagesroommaster_id = :id AND roomtype_id = :rtid");
+                $delImg = $conn->prepare("DELETE FROM tbl_imagesroommaster WHERE imagesroommaster_id = :id");
+                foreach ($delete_image_ids as $imgId) {
+                    $selImg->bindParam(':id', $imgId, PDO::PARAM_INT);
+                    $selImg->bindParam(':rtid', $roomtype_id, PDO::PARAM_INT);
+                    $selImg->execute();
+                    $row = $selImg->fetch(PDO::FETCH_ASSOC);
+                    if ($row && !empty($row['imagesroommaster_filename'])) {
+                        $filename = $row['imagesroommaster_filename'];
+                        $path = __DIR__ . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR . $filename;
+                        if (is_file($path)) {
+                            @unlink($path);
+                        }
+                        $delImg->bindParam(':id', $imgId, PDO::PARAM_INT);
+                        $delImg->execute();
+                        $deleted_count++;
+                    }
+                }
+            }
+
+            // Handle new image uploads if any files present
+            $added_count = 0;
+            if ($ok && isset($_FILES['images']) && isset($_FILES['images']['name']) && is_array($_FILES['images']['name'])) {
+                $added_count = $this->upload_images_for_roomtype($roomtype_id);
+            }
+
+            if ($ok) {
                 if (ob_get_length()) {
                     ob_clean();
                 }
-                echo json_encode(['success' => true, 'message' => 'Room type updated successfully']);
+                echo json_encode(['success' => true, 'message' => 'Room type updated successfully', 'images_added' => $added_count, 'images_deleted' => $deleted_count]);
             } else {
                 if (ob_get_length()) {
                     ob_clean();
@@ -1234,11 +1318,16 @@ class Admin_Functions
             $stmt->bindParam(':max_capacity', $max_capacity, PDO::PARAM_INT);
 
             if ($stmt->execute()) {
-                $new_id = $conn->lastInsertId();
+                $new_id = intval($conn->lastInsertId());
+                // Handle image uploads if provided
+                $added_count = 0;
+                if (isset($_FILES['images']) && isset($_FILES['images']['name']) && is_array($_FILES['images']['name'])) {
+                    $added_count = $this->upload_images_for_roomtype($new_id);
+                }
                 if (ob_get_length()) {
                     ob_clean();
                 }
-                echo json_encode(['success' => true, 'roomtype_id' => intval($new_id)]);
+                echo json_encode(['success' => true, 'roomtype_id' => $new_id, 'images_added' => $added_count]);
             } else {
                 if (ob_get_length()) {
                     ob_clean();
@@ -1250,6 +1339,67 @@ class Admin_Functions
                 ob_clean();
             }
             echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+        }
+    }
+
+    // Upload multiple images for a room type and insert into tbl_imagesroommaster
+    function upload_images_for_roomtype($roomtype_id)
+    {
+        include "connection.php";
+        $allowed = ["jpg", "jpeg", "png", "gif", "webp"];
+        $added = 0;
+        try {
+            $files = $_FILES['images'] ?? null;
+            if (!$files || !is_array($files['name'])) {
+                return 0;
+            }
+            $count = count($files['name']);
+            $ins = $conn->prepare("INSERT INTO tbl_imagesroommaster (roomtype_id, imagesroommaster_filename) VALUES (:rtid, :filename)");
+            for ($i = 0; $i < $count; $i++) {
+                $name = $files['name'][$i];
+                $tmp = $files['tmp_name'][$i];
+                $size = $files['size'][$i];
+                $err = $files['error'][$i];
+                $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                if ($err !== UPLOAD_ERR_OK) continue;
+                if (!in_array($ext, $allowed)) continue;
+                if ($size > 25000000) continue; // 25MB limit
+                $newName = uniqid("", true) . "." . $ext;
+                $dest = __DIR__ . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR . $newName;
+                if (move_uploaded_file($tmp, $dest)) {
+                    $ins->bindParam(':rtid', $roomtype_id, PDO::PARAM_INT);
+                    $ins->bindParam(':filename', $newName, PDO::PARAM_STR);
+                    $ins->execute();
+                    $added++;
+                }
+            }
+        } catch (Exception $e) {
+            // swallow; return added so far
+        }
+        return $added;
+    }
+
+    // Fetch images (id + filename) for a given roomtype
+    function getRoomTypeImages($json)
+    {
+        include "connection.php";
+        try {
+            $data = is_string($json) ? json_decode($json, true) : (is_array($json) ? $json : []);
+            $roomtype_id = intval($data['roomtype_id'] ?? 0);
+            if ($roomtype_id <= 0) {
+                if (ob_get_length()) { ob_clean(); }
+                echo json_encode([]);
+                return;
+            }
+            $stmt = $conn->prepare("SELECT imagesroommaster_id, imagesroommaster_filename FROM tbl_imagesroommaster WHERE roomtype_id = :rtid ORDER BY imagesroommaster_id ASC");
+            $stmt->bindParam(':rtid', $roomtype_id, PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if (ob_get_length()) { ob_clean(); }
+            echo json_encode($rows);
+        } catch (Exception $e) {
+            if (ob_get_length()) { ob_clean(); }
+            echo json_encode([]);
         }
     }
 
@@ -1641,100 +1791,101 @@ class Admin_Functions
     function viewBookingsEnhanced()
     {
         include "connection.php";
-        $q = "
-        SELECT DISTINCT
-            b.booking_id,
-            b.reference_no,
-            b.booking_checkin_dateandtime,
-            b.booking_checkout_dateandtime,
-            b.booking_created_at,
-            COALESCE(CONCAT(c.customers_fname, ' ', c.customers_lname),
-                     CONCAT(w.customers_walk_in_fname, ' ', w.customers_walk_in_lname)) AS customer_name,
-            COALESCE(c.customers_email, w.customers_walk_in_email) AS customer_email,
-            COALESCE(c.customers_phone, w.customers_walk_in_phone) AS customer_phone,
-            brinfo.room_numbers,
-            brinfo.roomtype_name,
-            brinfo.roomtype_price,
-            CASE 
-                WHEN latest_billing.billing_id IS NOT NULL THEN
-                    CASE 
-                        WHEN latest_invoice.invoice_status_id = 1 THEN 0
-                        ELSE COALESCE(latest_billing.billing_balance, 0)
-                    END
-                ELSE COALESCE(b.booking_totalAmount, 0) - COALESCE(b.booking_payment, 0)
-            END AS balance,
-            CASE 
-                WHEN latest_billing.billing_id IS NOT NULL THEN
-                    COALESCE(latest_billing.billing_total_amount, b.booking_totalAmount)
-                ELSE b.booking_totalAmount
-            END AS total_amount,
-            CASE 
-                WHEN latest_billing.billing_id IS NOT NULL THEN
-                    COALESCE(latest_billing.billing_downpayment, b.booking_payment)
-                ELSE b.booking_payment
-            END AS downpayment,
-            b.booking_totalAmount,
-            b.booking_payment,
-            COALESCE((
-                SELECT SUM(bc2.booking_charges_total)
-                FROM tbl_booking_room br2
-                INNER JOIN tbl_booking_charges bc2 ON bc2.booking_room_id = br2.booking_room_id
-                WHERE br2.booking_id = b.booking_id
-                  AND bc2.booking_charge_status = 2
-            ), 0) AS booking_charges_total_sum,
-            COALESCE(bs.booking_status_name, 'Pending') AS booking_status,
-            latest_billing.billing_id,
-            latest_invoice.invoice_id,
-            latest_invoice.invoice_status_id,
-            CASE 
-                WHEN latest_invoice.invoice_status_id = 1 THEN 'Complete'
-                WHEN latest_invoice.invoice_status_id = 2 THEN 'Incomplete'
-                WHEN latest_billing.billing_id IS NOT NULL THEN 'Billed'
-                ELSE 'Not Billed'
-            END AS billing_status
-        FROM tbl_booking b
-        LEFT JOIN tbl_customers c ON b.customers_id = c.customers_id
-        LEFT JOIN tbl_customers_walk_in w ON b.customers_walk_in_id = w.customers_walk_in_id
-        LEFT JOIN (
-            SELECT bh1.booking_id, bs.booking_status_name
-            FROM tbl_booking_history bh1
-            INNER JOIN (
-                SELECT booking_id, MAX(booking_history_id) AS latest_history_id
-                FROM tbl_booking_history
-                GROUP BY booking_id
-            ) latest ON latest.booking_id = bh1.booking_id AND latest.latest_history_id = bh1.booking_history_id
-            INNER JOIN tbl_booking_status bs ON bh1.status_id = bs.booking_status_id
-        ) bs ON bs.booking_id = b.booking_id
-        LEFT JOIN (
-            SELECT b1.billing_id, b1.booking_id, b1.billing_total_amount, b1.billing_balance, b1.billing_downpayment
-            FROM tbl_billing b1
-            INNER JOIN (
-                SELECT booking_id, MAX(billing_id) AS latest_billing_id
-                FROM tbl_billing
-                GROUP BY booking_id
-            ) latest ON latest.booking_id = b1.booking_id AND latest.latest_billing_id = b1.billing_id
-        ) latest_billing ON latest_billing.booking_id = b.booking_id
-        LEFT JOIN (
-            SELECT i1.invoice_id, i1.billing_id, i1.invoice_status_id
-            FROM tbl_invoice i1
-            INNER JOIN (
-                SELECT billing_id, MAX(invoice_id) AS latest_invoice_id
-                FROM tbl_invoice
-                GROUP BY billing_id
-            ) latest ON latest.billing_id = i1.billing_id AND latest.latest_invoice_id = i1.invoice_id
-        ) latest_invoice ON latest_invoice.billing_id = latest_billing.billing_id
-        LEFT JOIN (
-            SELECT br.booking_id,
-                   GROUP_CONCAT(br.roomnumber_id ORDER BY br.booking_room_id SEPARATOR ',') AS room_numbers,
-                   MIN(rt.roomtype_name) AS roomtype_name,
-                   MIN(rt.roomtype_price) AS roomtype_price
-            FROM tbl_booking_room br
-            LEFT JOIN tbl_rooms r ON r.roomnumber_id = br.roomnumber_id
-            LEFT JOIN tbl_roomtype rt ON rt.roomtype_id = r.roomtype_id
-            GROUP BY br.booking_id
-        ) brinfo ON brinfo.booking_id = b.booking_id
-        ORDER BY b.booking_id DESC
-        ";
+        $q = "SELECT DISTINCT
+                b.booking_id,
+                b.reference_no,
+                b.booking_checkin_dateandtime,
+                b.booking_checkout_dateandtime,
+                b.booking_created_at,
+                pm.payment_method_name,
+                COALESCE(CONCAT(c.customers_fname, ' ', c.customers_lname),
+                        CONCAT(w.customers_walk_in_fname, ' ', w.customers_walk_in_lname)) AS customer_name,
+                COALESCE(c.customers_email, w.customers_walk_in_email) AS customer_email,
+                COALESCE(c.customers_phone, w.customers_walk_in_phone) AS customer_phone,
+                brinfo.room_numbers,
+                brinfo.roomtype_name,
+                brinfo.roomtype_price,
+                CASE 
+                    WHEN latest_billing.billing_id IS NOT NULL THEN
+                        CASE 
+                            WHEN latest_invoice.invoice_status_id = 1 THEN 0
+                            ELSE COALESCE(latest_billing.billing_balance, 0)
+                        END
+                    ELSE COALESCE(b.booking_totalAmount, 0) - COALESCE(b.booking_payment, 0)
+                END AS balance,
+                CASE 
+                    WHEN latest_billing.billing_id IS NOT NULL THEN
+                        COALESCE(latest_billing.billing_total_amount, b.booking_totalAmount)
+                    ELSE b.booking_totalAmount
+                END AS total_amount,
+                CASE 
+                    WHEN latest_billing.billing_id IS NOT NULL THEN
+                        COALESCE(latest_billing.billing_downpayment, b.booking_payment)
+                    ELSE b.booking_payment
+                END AS downpayment,
+                b.booking_totalAmount,
+                b.booking_payment,
+                COALESCE((
+                    SELECT SUM(bc2.booking_charges_total)
+                    FROM tbl_booking_room br2
+                    INNER JOIN tbl_booking_charges bc2 ON bc2.booking_room_id = br2.booking_room_id
+                    WHERE br2.booking_id = b.booking_id
+                    AND bc2.booking_charge_status = 2
+                ), 0) AS booking_charges_total_sum,
+                COALESCE(bs.booking_status_name, 'Pending') AS booking_status,
+                latest_billing.billing_id,
+                latest_billing.billing_vat,
+                latest_invoice.invoice_id,
+                latest_invoice.invoice_status_id,
+                CASE 
+                    WHEN latest_invoice.invoice_status_id = 1 THEN 'Complete'
+                    WHEN latest_invoice.invoice_status_id = 2 THEN 'Incomplete'
+                    WHEN latest_billing.billing_id IS NOT NULL THEN 'Billed'
+                    ELSE 'Not Billed'
+                END AS billing_status
+            FROM tbl_booking b
+            INNER JOIN tbl_payment_method pm ON b.booking_paymentMethod = pm.payment_method_id
+            LEFT JOIN tbl_customers c ON b.customers_id = c.customers_id
+            LEFT JOIN tbl_customers_walk_in w ON b.customers_walk_in_id = w.customers_walk_in_id
+            LEFT JOIN (
+                SELECT bh1.booking_id, bs.booking_status_name
+                FROM tbl_booking_history bh1
+                INNER JOIN (
+                    SELECT booking_id, MAX(booking_history_id) AS latest_history_id
+                    FROM tbl_booking_history
+                    GROUP BY booking_id
+                ) latest ON latest.booking_id = bh1.booking_id AND latest.latest_history_id = bh1.booking_history_id
+                INNER JOIN tbl_booking_status bs ON bh1.status_id = bs.booking_status_id
+            ) bs ON bs.booking_id = b.booking_id
+            LEFT JOIN (
+                SELECT b1.billing_id, b1.booking_id, b1.billing_total_amount, b1.billing_balance, b1.billing_downpayment, b1.billing_vat
+                FROM tbl_billing b1
+                INNER JOIN (
+                    SELECT booking_id, MAX(billing_id) AS latest_billing_id
+                    FROM tbl_billing
+                    GROUP BY booking_id
+                ) latest ON latest.booking_id = b1.booking_id AND latest.latest_billing_id = b1.billing_id
+            ) latest_billing ON latest_billing.booking_id = b.booking_id
+            LEFT JOIN (
+                SELECT i1.invoice_id, i1.billing_id, i1.invoice_status_id
+                FROM tbl_invoice i1
+                INNER JOIN (
+                    SELECT billing_id, MAX(invoice_id) AS latest_invoice_id
+                    FROM tbl_invoice
+                    GROUP BY billing_id
+                ) latest ON latest.billing_id = i1.billing_id AND latest.latest_invoice_id = i1.invoice_id
+            ) latest_invoice ON latest_invoice.billing_id = latest_billing.billing_id
+            LEFT JOIN (
+                SELECT br.booking_id,
+                    GROUP_CONCAT(br.roomnumber_id ORDER BY br.booking_room_id SEPARATOR ',') AS room_numbers,
+                    MIN(rt.roomtype_name) AS roomtype_name,
+                    MIN(rt.roomtype_price) AS roomtype_price
+                FROM tbl_booking_room br
+                LEFT JOIN tbl_rooms r ON r.roomnumber_id = br.roomnumber_id
+                LEFT JOIN tbl_roomtype rt ON rt.roomtype_id = r.roomtype_id
+                GROUP BY br.booking_id
+            ) brinfo ON brinfo.booking_id = b.booking_id    
+        ORDER BY b.booking_id DESC";
         $stmt = $conn->prepare($q);
         $stmt->execute();
         echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
@@ -2426,9 +2577,21 @@ class Admin_Functions
             $stored = $user['employee_password'] ?? '';
             $verified = false;
             if (is_string($stored) && password_get_info($stored)['algo'] !== null) {
+                // Modern PHP password_hash formats (bcrypt/argon/etc.)
                 $verified = password_verify($password, $stored);
             } else {
-                $verified = ($password === $stored);
+                // Legacy fallback: support MD5/SHA1 hex hashes, else compare plaintext
+                $storedLower = is_string($stored) ? strtolower($stored) : '';
+                if (is_string($storedLower) && preg_match('/^[a-f0-9]{32}$/', $storedLower)) {
+                    // MD5 legacy
+                    $verified = (md5($password) === $storedLower);
+                } elseif (is_string($storedLower) && preg_match('/^[a-f0-9]{40}$/', $storedLower)) {
+                    // SHA1 legacy
+                    $verified = (sha1($password) === $storedLower);
+                } else {
+                    // Plaintext legacy
+                    $verified = ($password === $stored);
+                }
             }
 
             if (!$verified) {
@@ -2883,12 +3046,27 @@ class Admin_Functions
             $conn->beginTransaction();
             $insert = $conn->prepare("INSERT INTO tbl_booking_charges (charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, booking_charges_total, booking_charge_status, booking_charge_datetime, booking_return_datetime)
                                        VALUES (:cmid, :brid, :price, :qty, :total, :status, NOW(), NOW())");
+            $insertedIds = [];
+            // Prepare once for note insertion; reuse per note
+            $insNote = $conn->prepare("INSERT INTO tbl_booking_charges_notes (booking_c_notes_charges_id, booking_c_notes) VALUES (:charge_id, :notes)");
+            $notesInserted = 0;
 
             foreach ($amenities as $a) {
                 $cmid = intval($a['charges_master_id'] ?? 0);
                 $price = floatval($a['booking_charges_price'] ?? 0);
                 $qty = intval($a['booking_charges_quantity'] ?? 1);
-                $total = $price * $qty;
+                // Allow client to explicitly pass a precomputed total to support aggregated rows
+                // Fallback to price * qty when not provided
+                $total = isset($a['booking_charges_total']) ? floatval($a['booking_charges_total']) : ($price * $qty);
+                // Optional notes support: accept either a single 'note' string or an array 'notes'
+                $notes = [];
+                if (isset($a['notes']) && is_array($a['notes'])) {
+                    $notes = $a['notes'];
+                } else if (isset($a['note']) && is_string($a['note'])) {
+                    $notes = [ $a['note'] ];
+                }
+                // Normalize notes: trim and remove empties
+                $notes = array_values(array_filter(array_map(function($n){ return is_string($n) ? trim($n) : ''; }, $notes), function($n){ return $n !== ''; }));
                 if ($cmid <= 0 || $qty <= 0) {
                     continue;
                 }
@@ -2900,13 +3078,27 @@ class Admin_Functions
                     ':total' => $total,
                     ':status' => $status
                 ]);
+                // Collect inserted booking_charges_id for client-side note association
+                $bookingChargeId = $conn->lastInsertId();
+                $insertedIds[] = $bookingChargeId;
+
+                // Persist notes (if any) directly tied to this inserted charge
+                if (count($notes) > 0) {
+                    foreach ($notes as $noteTxt) {
+                        $insNote->execute([
+                            ':charge_id' => intval($bookingChargeId),
+                            ':notes' => $noteTxt,
+                        ]);
+                        $notesInserted++;
+                    }
+                }
             }
 
             $conn->commit();
             if (ob_get_length()) {
                 ob_clean();
             }
-            echo json_encode(['success' => true]);
+            echo json_encode(['success' => true, 'ids' => $insertedIds, 'notes_inserted' => $notesInserted]);
         } catch (Exception $e) {
             if ($conn && $conn->inTransaction()) {
                 $conn->rollBack();
@@ -2914,7 +3106,7 @@ class Admin_Functions
             if (ob_get_length()) {
                 ob_clean();
             }
-            echo json_encode(['success' => false]);
+            echo json_encode(['success' => false, 'message' => $e->getMessage(), 'code' => $e->getCode()]);
         }
     }
 
@@ -2931,7 +3123,7 @@ class Admin_Functions
                         COALESCE(c.customers_email, w.customers_walk_in_email, '') AS customer_email,
                         COALESCE(c.customers_phone, w.customers_walk_in_phone, '') AS customer_phone,
                         rt.roomtype_name,
-                        r.roomnumber_id AS roomnumber_name,
+                        COALESCE(r.roomnumber_id, br.roomnumber_id, 'N/A') AS roomnumber_name,
                         cm.charges_master_name,
                         cc.charges_category_name,
                         bc.booking_charges_quantity AS request_quantity,
@@ -2940,14 +3132,12 @@ class Admin_Functions
                         CASE bc.booking_charge_status WHEN 1 THEN 'pending' WHEN 2 THEN 'approved' WHEN 3 THEN 'rejected' WHEN 4 THEN 'return' ELSE 'pending' END AS request_status,
                         bc.booking_charge_datetime AS requested_at,
                         CASE WHEN bc.booking_charge_status IN (2,3,4) THEN bc.booking_return_datetime ELSE NULL END AS processed_at,
-                        bn.booking_c_notes AS admin_notes,
                         NULL AS customer_notes
                     FROM tbl_booking_charges bc
-                    LEFT JOIN tbl_booking_charges_notes bn ON bn.booking_c_notes_id = bc.booking_charges_notes_id
                     LEFT JOIN tbl_booking_room br ON br.booking_room_id = bc.booking_room_id
                     LEFT JOIN tbl_booking b ON b.booking_id = br.booking_id
+                    LEFT JOIN tbl_roomtype rt ON rt.roomtype_id = br.roomtype_id
                     LEFT JOIN tbl_rooms r ON r.roomnumber_id = br.roomnumber_id
-                    LEFT JOIN tbl_roomtype rt ON rt.roomtype_id = r.roomtype_id
                     LEFT JOIN tbl_customers c ON b.customers_id = c.customers_id
                     LEFT JOIN tbl_customers_walk_in w ON b.customers_walk_in_id = w.customers_walk_in_id
                     LEFT JOIN tbl_charges_master cm ON cm.charges_master_id = bc.charges_master_id
@@ -3010,7 +3200,6 @@ class Admin_Functions
         try {
             $data = is_string($json) ? json_decode($json, true) : $json;
             $request_id = intval($data['request_id'] ?? 0);
-            $admin_notes = trim($data['admin_notes'] ?? '');
             if ($request_id <= 0) {
                 if (ob_get_length()) {
                     ob_clean();
@@ -3021,19 +3210,8 @@ class Admin_Functions
 
             $conn->beginTransaction();
 
-            $note_id = null;
-            if ($admin_notes !== '') {
-                $stmtN = $conn->prepare("INSERT INTO tbl_booking_charges_notes (booking_c_notes) VALUES (:notes)");
-                $stmtN->execute([':notes' => $admin_notes]);
-                $note_id = $conn->lastInsertId();
-            }
-
-            $stmt = $conn->prepare("UPDATE tbl_booking_charges SET booking_charge_status=2, booking_return_datetime=NOW()" . ($note_id ? ", booking_charges_notes_id=:nid" : "") . " WHERE booking_charges_id=:id");
-            $params = [':id' => $request_id];
-            if ($note_id) {
-                $params[':nid'] = $note_id;
-            }
-            $stmt->execute($params);
+            $stmt = $conn->prepare("UPDATE tbl_booking_charges SET booking_charge_status=2, booking_return_datetime=NOW() WHERE booking_charges_id=:id");
+            $stmt->execute([':id' => $request_id]);
 
             $conn->commit();
             if (ob_get_length()) {
@@ -3058,7 +3236,6 @@ class Admin_Functions
         try {
             $data = is_string($json) ? json_decode($json, true) : $json;
             $request_id = intval($data['request_id'] ?? 0);
-            $admin_notes = trim($data['admin_notes'] ?? '');
             if ($request_id <= 0) {
                 if (ob_get_length()) {
                     ob_clean();
@@ -3069,19 +3246,8 @@ class Admin_Functions
 
             $conn->beginTransaction();
 
-            $note_id = null;
-            if ($admin_notes !== '') {
-                $stmtN = $conn->prepare("INSERT INTO tbl_booking_charges_notes (booking_c_notes) VALUES (:notes)");
-                $stmtN->execute([':notes' => $admin_notes]);
-                $note_id = $conn->lastInsertId();
-            }
-
-            $stmt = $conn->prepare("UPDATE tbl_booking_charges SET booking_charge_status=3, booking_return_datetime=NOW()" . ($note_id ? ", booking_charges_notes_id=:nid" : "") . " WHERE booking_charges_id=:id");
-            $params = [':id' => $request_id];
-            if ($note_id) {
-                $params[':nid'] = $note_id;
-            }
-            $stmt->execute($params);
+            $stmt = $conn->prepare("UPDATE tbl_booking_charges SET booking_charge_status=3, booking_return_datetime=NOW() WHERE booking_charges_id=:id");
+            $stmt->execute([':id' => $request_id]);
 
             $conn->commit();
             if (ob_get_length()) {
@@ -3106,7 +3272,6 @@ class Admin_Functions
         try {
             $data = is_string($json) ? json_decode($json, true) : $json;
             $request_id = intval($data['request_id'] ?? 0);
-            $admin_notes = trim($data['admin_notes'] ?? '');
             if ($request_id <= 0) {
                 if (ob_get_length()) {
                     ob_clean();
@@ -3117,19 +3282,8 @@ class Admin_Functions
 
             $conn->beginTransaction();
 
-            $note_id = null;
-            if ($admin_notes !== '') {
-                $stmtN = $conn->prepare("INSERT INTO tbl_booking_charges_notes (booking_c_notes) VALUES (:notes)");
-                $stmtN->execute([':notes' => $admin_notes]);
-                $note_id = $conn->lastInsertId();
-            }
-
-            $stmt = $conn->prepare("UPDATE tbl_booking_charges SET booking_charge_status=1, booking_return_datetime=NULL" . ($note_id ? ", booking_charges_notes_id=:nid" : "") . " WHERE booking_charges_id=:id");
-            $params = [':id' => $request_id];
-            if ($note_id) {
-                $params[':nid'] = $note_id;
-            }
-            $stmt->execute($params);
+            $stmt = $conn->prepare("UPDATE tbl_booking_charges SET booking_charge_status=1, booking_return_datetime=NULL WHERE booking_charges_id=:id");
+            $stmt->execute([':id' => $request_id]);
 
             $conn->commit();
             if (ob_get_length()) {
@@ -3154,7 +3308,6 @@ class Admin_Functions
         try {
             $data = is_string($json) ? json_decode($json, true) : $json;
             $request_id = intval($data['request_id'] ?? 0);
-            $admin_notes = trim($data['admin_notes'] ?? '');
             if ($request_id <= 0) {
                 if (ob_get_length()) {
                     ob_clean();
@@ -3165,19 +3318,8 @@ class Admin_Functions
 
             $conn->beginTransaction();
 
-            $note_id = null;
-            if ($admin_notes !== '') {
-                $stmtN = $conn->prepare("INSERT INTO tbl_booking_charges_notes (booking_c_notes) VALUES (:notes)");
-                $stmtN->execute([':notes' => $admin_notes]);
-                $note_id = $conn->lastInsertId();
-            }
-
-            $stmt = $conn->prepare("UPDATE tbl_booking_charges SET booking_charge_status=4, booking_return_datetime=NOW()" . ($note_id ? ", booking_charges_notes_id=:nid" : "") . " WHERE booking_charges_id=:id");
-            $params = [':id' => $request_id];
-            if ($note_id) {
-                $params[':nid'] = $note_id;
-            }
-            $stmt->execute($params);
+            $stmt = $conn->prepare("UPDATE tbl_booking_charges SET booking_charge_status=4, booking_return_datetime=NOW() WHERE booking_charges_id=:id");
+            $stmt->execute([':id' => $request_id]);
 
             $conn->commit();
             if (ob_get_length()) {
@@ -3576,6 +3718,9 @@ switch ($method) {
     case 'updateRoomTypes': // alias for legacy frontend naming
         $admin->updateRoomType($json);
         break;
+    case 'getRoomTypeImages':
+        $admin->getRoomTypeImages($json);
+        break;
     case 'viewCharges':
         $admin->viewCharges();
         break;
@@ -3764,9 +3909,6 @@ switch ($method) {
         break;
     case 'addEmployee':
         $admin->addEmployee($json);
-        break;
-    case 'updateEmployee':
-        $admin->updateEmployee($json);
         break;
     case 'changeEmployeeStatus':
         $admin->changeEmployeeStatus($json);

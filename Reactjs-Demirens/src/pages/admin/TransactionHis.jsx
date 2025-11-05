@@ -12,7 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
-import { DollarSign as DollarSignIcon } from 'lucide-react'
 
 // Icons
 import { 
@@ -36,6 +35,9 @@ import { formatDateTime } from "@/lib/utils"
 
 // Custom Components
 import { RevenueCard, TransactionCard } from './Function_Files/MoneyCard'
+
+// Custom Peso sign component instead of DollarSign
+const DollarSignIcon = ({ className }) => <span className={className}>₱</span>
 
 function AdminTransactionHis() {
   const APIConn = `${localStorage.url}admin.php`

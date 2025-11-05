@@ -506,7 +506,7 @@ function AdminDashboard() {
             </label>
 
             {/* Alert: Pending Online Requests */}
-            {/* {onlinePendingCount > 0 && (
+            {onlinePendingCount > 0 && (
               <div className="mb-3 flex justify-end">
                 <button
                   onClick={() => navigate('/admin/online')}
@@ -520,7 +520,7 @@ function AdminDashboard() {
                   </span>
                 </button>
               </div>
-            )} */}
+            )}
 
             {/* Compact single-row layout */}
             <div id="CardGroup" className="grid grid-cols-1 sm:grid-cols-3 gap-4">

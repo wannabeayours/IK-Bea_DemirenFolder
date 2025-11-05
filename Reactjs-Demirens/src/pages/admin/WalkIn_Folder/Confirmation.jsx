@@ -199,13 +199,22 @@ export default function Confirmation() {
         totalPay: numericAmountPaid
       };
 
+      // Add billing data with VAT
+      const billingData = {
+        billing_vat: Number(walkInData.billing?.vat || 0),
+        billing_total_amount: Number(cleanedData.billing.total || 0),
+        billing_downpayment: numericAmountPaid,
+        billing_balance: Number(cleanedData.billing.total || 0) - numericAmountPaid
+      };
+
       const payload = {
         walkinfirstname: cleanedData.customers_fname,
         walkinlastname: cleanedData.customers_lname,
         email: cleanedData.customers_email,
         contactNumber: cleanedData.customers_phone_number,
         bookingDetails,
-        roomDetails
+        roomDetails,
+        billingData // Add billing data to the payload
       };
 
       // Prepare and send data

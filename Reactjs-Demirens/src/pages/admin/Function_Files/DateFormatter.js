@@ -486,24 +486,23 @@ export class DateFormatter {
 /**
  * Convenience functions for direct import
  */
-export const {
-  formatDate,
-  formatDateOnly,
-  formatTimeOnly,
-  formatShortDate,
-  formatLongDate,
-  formatRelativeDate,
-  formatDateRange,
-  formatCompactDate,
-  formatForTable,
-  getCurrentPhilippinesDate,
-  compareDates,
-  isToday,
-  isPast,
-  isFuture,
-  parseDateInput,
-  formatArray
-} = DateFormatter;
+// Bound convenience functions to preserve DateFormatter `this` context
+export const formatDate = (d, options) => DateFormatter.formatDate(d, options);
+export const formatDateOnly = (d, options) => DateFormatter.formatDateOnly(d, options);
+export const formatTimeOnly = (d, options) => DateFormatter.formatTimeOnly(d, options);
+export const formatShortDate = (d) => DateFormatter.formatCompactDate(d);
+export const formatLongDate = (d) => DateFormatter.formatLongDate(d);
+export const formatRelativeDate = (d) => DateFormatter.formatRelativeDate(d);
+export const formatDateRange = (start, end, options) => DateFormatter.formatDateRange(start, end, options);
+export const formatCompactDate = (d) => DateFormatter.formatCompactDate(d);
+export const formatForTable = (d) => DateFormatter.formatForTable(d);
+export const getCurrentPhilippinesDate = () => DateFormatter.getCurrentPhilippinesDate();
+export const compareDates = (a, b) => DateFormatter.compareDates(a, b);
+export const isToday = (d) => DateFormatter.isToday(d);
+export const isPast = (d) => DateFormatter.isPast(d);
+export const isFuture = (d) => DateFormatter.isFuture(d);
+export const parseDateInput = (input) => DateFormatter.parseDateInput(input);
+export const formatArray = (arr, method) => DateFormatter.formatArray(arr, method);
 
 // Default export
 export default DateFormatter;

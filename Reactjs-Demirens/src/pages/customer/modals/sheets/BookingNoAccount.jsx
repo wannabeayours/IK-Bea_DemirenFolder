@@ -590,6 +590,23 @@ function BookingNoaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber
     }
   };
 
+
+  const isEmailUnique = async () => {
+    try {
+      const url = localStorage.getItem('url') + "customer.php";
+      const formData = new FormData();
+      const jsonData = { "email": form.getValues('email') };
+      formData.append("operation", "isEmailUnique");
+      formData.append("json", JSON.stringify(jsonData));
+      const res = await axios.post(url, formData);
+      console.log("res ni email", res);
+      return res.data;
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to check email uniqueness.");
+    }
+  }
+
   // ---------------------- Step Navigation ----------------------
   const handleNextStep = async () => {
     if (currentStep === 1) {
@@ -597,9 +614,26 @@ function BookingNoaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber
         toast.error("Please select at least one room.");
         return;
       }
-    } else if (currentStep === 2) {
-      // Validate the form using react-hook-form
-      const isValid = await form.trigger(["walkinfirstname", "walkinlastname", "email", "contactNumber"]);
+    }
+    else if (currentStep === 2) {
+      // ✅ WAIT FOR BACKEND RESPONSE
+      const isEmailValid = await isEmailUnique();
+
+      if (Number(isEmailValid) === 0) {
+        toast.error("Email already exists.");
+        return;
+      } else if (Number(isEmailValid) === -1) {
+        toast.error("This email is already in use. Please register");
+        return;
+      }
+
+      // Validate the form
+      const isValid = await form.trigger([
+        "walkinfirstname",
+        "walkinlastname",
+        "email",
+        "contactNumber",
+      ]);
       if (!isValid) {
         toast.error("Invalid walk-in customer information.");
         return;
@@ -610,6 +644,7 @@ function BookingNoaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber
       setCurrentStep(currentStep + 1);
     }
   };
+
 
   const handlePrevStep = () => {
     if (currentStep > 1) {
@@ -1277,7 +1312,7 @@ function BookingNoaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber
 
       <SheetTrigger asChild>
         <Button
-          
+
           className="w-full bg-gradient-to-r from-blue-900 to-indigo-700 hover:from-blue-700 hover:to-indigo-700 text-white"
         >
           Book Now

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import axios from 'axios'
 import AdminModal from '@/pages/admin/components/AdminModal';
 import { toast } from 'sonner';
@@ -16,41 +17,19 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-import { z } from "zod"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Textarea } from '@/components/ui/textarea';
 import AdminHeader from '../components/AdminHeader'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { NumberFormatter } from '@/pages/admin/Function_Files/NumberFormatter';
+import AddEditRoomType from '@/pages/admin/SubPages/AddEdit_RoomType';
 
-const formSchema = z.object({
-  roomType_name: z.string().min(1).max(20, {
-    message: "Please Input Room Name"
-  }),
-  roomType_price: z.string()
-    .min(1, "Price is required")
-    .regex(/^\d*\.?\d*$/, "Please enter a valid number")
-    .refine((val) => parseFloat(val) > 0, "Price must be greater than 0"),
-  roomType_desc: z.string().min(10, {
-    message: "Missing Room Description"
-  })
-})
+// Form moved to AddEditRoomType subpage component
 
 function RoomTypeMaster() {
   const APIConn = `${localStorage.url}admin.php`;
   const [isLoading, setIsLoading] = useState(false);
+  const location = useLocation();
 
   // --------- Datas --------- //
   const [roomsType, setRoomsType] = useState([]);
@@ -59,20 +38,27 @@ function RoomTypeMaster() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState("");
-
-  const form = useForm({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      roomType_name: '',
-      roomType_price: '',
-      roomType_desc: ''
-    },
-  });
+  const [statusRooms, setStatusRooms] = useState([]);
+  const [statusLoading, setStatusLoading] = useState(false);
+  // Image and form states are handled inside AddEditRoomType
 
   // Load data on component mount
   useEffect(() => {
     loadRoomTypes();
   }, []);
+
+  // Apply auto-filter from navigation state or query param
+  useEffect(() => {
+    try {
+      const stateFilter = location?.state?.autoFilter;
+      const params = new URLSearchParams(location?.search || '');
+      const q = params.get('q');
+      const next = (stateFilter || q || '').trim();
+      if (next) setSearchTerm(next);
+    } catch (e) {
+      // ignore parsing errors
+    }
+  }, [location]);
 
   const loadRoomTypes = async () => {
     setIsLoading(true);
@@ -95,96 +81,37 @@ function RoomTypeMaster() {
     setShowModal(true);
     setModalMode("add");
     setSelectedRoom(null);
-    form.reset();
   };
 
   const popUpdateRoomType = (roomAssets) => {
-    const formattedData = {
-      roomType_name: roomAssets.roomtype_name,
-      roomType_price: roomAssets.roomtype_price.toString(),
-      roomType_desc: roomAssets.roomtype_description
-    };
-    
-    setSelectedRoom({
-      room_id: roomAssets.roomtype_id,
-      ...formattedData
-    });
-    
-    form.reset(formattedData);
+    setSelectedRoom(roomAssets);
     setShowModal(true);
     setModalMode("update");
   };
 
-  const addRoomTypes = async (values) => {
-    setIsLoading(true);
-
-    // Prevent duplicate room type names (case-insensitive, trimmed)
-    const newName = (values.roomType_name || '').trim().toLowerCase();
-    const exists = roomsType.some(rt => (rt.roomtype_name || '').trim().toLowerCase() === newName);
-    if (exists) {
-      toast.error('Room type already exists');
-      setIsLoading(false);
-      return;
-    }
-
-    const jsonData = {
-      roomtype_name: values.roomType_name,
-      roomtype_description: values.roomType_desc,
-      roomtype_price: NumberFormatter.parseCurrencyInput(values.roomType_price),
-      max_capacity: 4, // Default value
-      roomtype_beds: 1, // Default value  
-      roomtype_capacity: 2, // Default value
-      roomtype_sizes: "Standard" // Default value
-    };
-
-    const formData = new FormData();
-    formData.append("method", "addRoomType");
-    formData.append("json", JSON.stringify(jsonData));
+  const popStatusModal = async (room) => {
+    setSelectedRoom(room);
+    setShowModal(true);
+    setModalMode('status');
+    setStatusLoading(true);
+    setStatusRooms([]);
 
     try {
-      const conn = await axios.post(APIConn, formData);
-      if (conn.data) {
-        toast("Successfully added room type!");
-        resetModal();
-        loadRoomTypes(); // Reload data
-      } else {
-        toast("Failed to add room type");
+      const fd = new FormData();
+      fd.append('method', 'viewAllRooms');
+      const res = await axios.post(APIConn, fd);
+      let data = res.data;
+      if (typeof data === 'string') {
+        try { data = JSON.parse(data); } catch { data = []; }
       }
-    } catch (err) {
-      console.log('Cannot Find API...', err);
-      toast("Failed to add room type");
+      const roomtypeId = room.roomtype_id ?? room.room_type_id;
+      const filtered = Array.isArray(data) ? data.filter(r => (r.roomtype_id ?? r.room_type_id) === roomtypeId) : [];
+      setStatusRooms(filtered);
+    } catch (e) {
+      console.error('Failed to load rooms status list:', e);
+      setStatusRooms([]);
     } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updRoomTypes = async (values) => {
-    setIsLoading(true);
-
-    const jsonData = {
-      roomtype_id: selectedRoom.room_id,
-      roomtype_name: values.roomType_name,
-      roomtype_description: values.roomType_desc,
-      roomtype_price: NumberFormatter.parseCurrencyInput(values.roomType_price)
-    };
-
-    const formData = new FormData();
-    formData.append("method", "updateRoomType");
-    formData.append("json", JSON.stringify(jsonData));
-
-    try {
-      const conn = await axios.post(APIConn, formData);
-      if (conn.data) {
-        toast("Updated Successfully!!!");
-        resetModal();
-        loadRoomTypes(); // Reload data
-      } else {
-        toast("Failed to update room type");
-      }
-    } catch (err) {
-      toast('Cannot Find API...', err);
-    } finally {
-      setIsLoading(false);
+      setStatusLoading(false);
     }
   };
 
@@ -230,7 +157,6 @@ function RoomTypeMaster() {
     setShowModal(false);
     setModalMode("");
     setSelectedRoom(null);
-    form.reset();
   };
 
   // Filter room types based on search term
@@ -356,7 +282,7 @@ function RoomTypeMaster() {
                           <TableHead className="font-semibold">Room Name</TableHead>
                           <TableHead className="font-semibold">Description</TableHead>
                           <TableHead className="font-semibold text-right">Price</TableHead>
-                          <TableHead className="font-semibold text-center">Status</TableHead>
+                          <TableHead className="font-semibold text-center">Rooms Status</TableHead>
                           <TableHead className="font-semibold text-center">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -381,9 +307,13 @@ function RoomTypeMaster() {
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-center">
-                                <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300">
-                                  Active
-                                </Badge>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => popStatusModal(room)}
+                                >
+                                  View Status
+                                </Button>
                               </TableCell>
                               <TableCell className="text-center">
                                 <Popover>
@@ -438,138 +368,56 @@ function RoomTypeMaster() {
             onClose={resetModal}
             modalTitle={
               modalMode === "add" ? "Add Room New Type" :
-              modalMode === "update" ? "Update Current Room" : "Remove Room Type"
+              modalMode === "update" ? "Update Current Room" :
+              modalMode === 'status' && selectedRoom ? `Rooms Status - ${selectedRoom.roomtype_name}` :
+              "Remove Room Type"
             }
           >
             {modalMode === 'add' && (
-              <div>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(addRoomTypes)} className="space-y-8">
-                    <div className="flex grid-rows-2 place-content-between">
-                      <FormField
-                        control={form.control}
-                        name="roomType_name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Room Type Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Room Here..." {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="roomType_price"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Room Price</FormLabel>
-                            <FormControl>
-                              <Input 
-                                type="text"
-                                placeholder="Room Price Here..." 
-                                {...field}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  // Allow only numbers and decimal point
-                                  if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                                    field.onChange(value);
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={form.control}
-                      name="roomType_desc"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Room Description</FormLabel>
-                          <FormControl>
-                            <Textarea className="w-full h-64 p-2 border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="Type your message here." {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Button type="submit" disabled={isLoading}>Submit</Button>
-                  </form>
-                </Form>
-              </div>
+              <AddEditRoomType
+                mode="add"
+                onClose={resetModal}
+                onSuccess={() => { resetModal(); loadRoomTypes(); }}
+              />
             )}
 
             {modalMode === 'update' && selectedRoom && (
-              <div>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(updRoomTypes)} className="space-y-8">
-                    <div className="flex grid-rows-2 place-content-between">
-                      <FormField
-                        control={form.control}
-                        name="roomType_name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Room Type Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Room Here..." {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+              <AddEditRoomType
+                mode="update"
+                room={selectedRoom}
+                onClose={resetModal}
+                onSuccess={() => { resetModal(); loadRoomTypes(); }}
+              />
+            )}
 
-                      <FormField
-                        control={form.control}
-                        name="roomType_price"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Room Price</FormLabel>
-                            <FormControl>
-                              <Input 
-                                type="text"
-                                placeholder="Room Price Here..." 
-                                {...field}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  // Allow only numbers and decimal point
-                                  if (value === '' || /^\d*\.?\d*$/.test(value)) {
-                                    field.onChange(value);
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+            {modalMode === 'status' && selectedRoom && (
+              <div className="space-y-4">
+                {statusLoading ? (
+                  <div className="text-center py-8">Loading rooms...</div>
+                ) : statusRooms.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">No rooms found for this type.</div>
+                ) : (
+                  <div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {statusRooms.map((r) => (
+                        <div key={r.roomnumber_id} className="border rounded p-3 flex items-center justify-between">
+                          <div>
+                            <div className="font-semibold">Room #{r.roomnumber_id}</div>
+                            <div className="text-sm text-gray-500">Floor {r.roomfloor ?? '-'}</div>
+                          </div>
+                          <Badge variant="secondary" className={
+                            r.room_status_id === 3 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                          }>
+                            {r.status_name || 'Unknown'}
+                          </Badge>
+                        </div>
+                      ))}
                     </div>
-
-                    <FormField
-                      control={form.control}
-                      name="roomType_desc"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Room Description</FormLabel>
-                          <FormControl>
-                            <Textarea className="w-full h-64 p-2 border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="Type your message here." {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Button type="submit" disabled={isLoading}>Submit</Button>
-                  </form>
-                </Form>
+                  </div>
+                )}
+                <div className="flex justify-end">
+                  <Button variant="outline" onClick={resetModal}>Close</Button>
+                </div>
               </div>
             )}
 

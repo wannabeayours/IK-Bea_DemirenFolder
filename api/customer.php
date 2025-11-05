@@ -595,8 +595,6 @@ class Demiren_customer
         }
     }
 
-
-
     function customerViewBookings($json)
     {
         // {"booking_customer_id": 1}
@@ -1182,15 +1180,8 @@ class Demiren_customer
 
     function customerBookingWithAccount($json)
     {
-        // {
-        //     "customerId":2,
-        //     "bookingDetails":{"checkIn":"2023-06-01 02:00:00","checkOut":"2025-06-02 03:00:00","downpayment":1000,"children":2,"adult":3, "totalAmount": 5000},
-        //     "roomDetails":[ {"roomTypeId":1,"adultCount":2,"childrenCount":0}, {"roomTypeId":2,"adultCount":2,"childrenCount":1} ]
-        // }
-        // THANK YOU <333 😭 XOXO xD
-        // okay?
-        // yessssss
         include "connection.php";
+        include "send_email.php";
         $json = json_decode($json, true);
 
         try {
@@ -1200,6 +1191,24 @@ class Demiren_customer
             $bookingDetails = $json["bookingDetails"];
             $roomDetails = $json["roomDetails"];
 
+            // ✅ Fetch registered customer info
+            $stmt = $conn->prepare("
+            SELECT customers_fname, customers_lname, customers_email 
+            FROM tbl_customers 
+            WHERE customers_id = :cid LIMIT 1
+        ");
+            $stmt->bindParam(":cid", $customerId);
+            $stmt->execute();
+            $customer = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$customer) {
+                $conn->rollBack();
+                return -99; // customer not found
+            }
+
+            $guestName = $customer["customers_fname"] . " " . $customer["customers_lname"];
+            $guestEmail = $customer["customers_email"];
+
             $totalGuests = $bookingDetails["adult"] + $bookingDetails["children"];
             $checkIn = $bookingDetails["checkIn"];
             $checkOut = $bookingDetails["checkOut"];
@@ -1207,7 +1216,7 @@ class Demiren_customer
             $referenceNo = "REF" . date("YmdHis") . rand(100, 999);
             $numberOfNights = $bookingDetails["numberOfNights"];
 
-            // ✅ Insert main booking record
+            // ✅ Insert booking
             $stmt = $conn->prepare("
             INSERT INTO tbl_booking 
                 (customers_id, guests_amnt, customers_walk_in_id, booking_payment, 
@@ -1229,108 +1238,100 @@ class Demiren_customer
             $stmt->execute();
             $bookingId = $conn->lastInsertId();
 
-            // ✅ Loop through each selected room
+            // ✅ Loop rooms
             foreach ($roomDetails as $room) {
                 $roomTypeId = $room["roomTypeId"];
 
-                // ✅ Find available physical room number
-                $availabilityStmt = $conn->prepare("
-                SELECT r.roomnumber_id
-                FROM tbl_rooms r
-                WHERE r.roomtype_id = :roomtype_id
-                AND r.room_status_id = 3
-                AND r.roomnumber_id NOT IN (
-                    SELECT br.roomnumber_id
-                    FROM tbl_booking_room br
-                    JOIN tbl_booking b ON br.booking_id = b.booking_id
-                    WHERE br.roomtype_id = :roomtype_id
-                    AND b.booking_isArchive = 0
-                    AND (
-                        b.booking_checkin_dateandtime < :check_out 
-                        AND b.booking_checkout_dateandtime > :check_in
-                    )
-                )
-                LIMIT 1
-            ");
-                $availabilityStmt->bindParam(":roomtype_id", $roomTypeId);
-                $availabilityStmt->bindParam(":check_in", $checkIn);
-                $availabilityStmt->bindParam(":check_out", $checkOut);
-                $availabilityStmt->execute();
-                $availableRoom = $availabilityStmt->fetch(PDO::FETCH_ASSOC);
+            //     $availabilityStmt = $conn->prepare("
+            //     SELECT r.roomnumber_id
+            //     FROM tbl_rooms r
+            //     WHERE r.roomtype_id = :roomtype_id
+            //     AND r.room_status_id = 3
+            //     AND r.roomnumber_id NOT IN (
+            //         SELECT br.roomnumber_id
+            //         FROM tbl_booking_room br
+            //         JOIN tbl_booking b ON br.booking_id = b.booking_id
+            //         WHERE br.roomtype_id = :roomtype_id
+            //         AND b.booking_isArchive = 0
+            //         AND (
+            //             b.booking_checkin_dateandtime < :check_out 
+            //             AND b.booking_checkout_dateandtime > :check_in
+            //         )
+            //     )
+            //     LIMIT 1
+            // ");
+            //     $availabilityStmt->bindParam(":roomtype_id", $roomTypeId);
+            //     $availabilityStmt->bindParam(":check_in", $checkIn);
+            //     $availabilityStmt->bindParam(":check_out", $checkOut);
+            //     $availabilityStmt->execute();
+            //     $availableRoom = $availabilityStmt->fetch(PDO::FETCH_ASSOC);
 
-                if (!$availableRoom) {
-                    $conn->rollBack();
-                    return -1; // No available room
-                }
+            //     if (!$availableRoom) {
+            //         $conn->rollBack();
+            //         return -1; // no available room
+            //     }
 
-                $selectedRoomNumberId = $availableRoom['roomnumber_id'];
-
-                // ✅ Insert into tbl_booking_room
+                // ✅ Insert booking room
                 $sql = "INSERT INTO tbl_booking_room 
-                        (booking_id, roomtype_id, roomnumber_id, bookingRoom_adult, bookingRoom_children) 
-                    VALUES 
-                        (:booking_id, :roomtype_id, :roomnumber_id, :bookingRoom_adult, :bookingRoom_children)";
+                    (booking_id, roomtype_id, roomnumber_id, bookingRoom_adult, bookingRoom_children) 
+                VALUES 
+                    (:booking_id, :roomtype_id, NULL, :bookingRoom_adult, :bookingRoom_children)";
                 $stmt = $conn->prepare($sql);
                 $stmt->bindParam(":booking_id", $bookingId);
                 $stmt->bindParam(":roomtype_id", $roomTypeId);
-                $stmt->bindParam(":roomnumber_id", $selectedRoomNumberId);
                 $stmt->bindParam(":bookingRoom_adult", $room["adultCount"]);
                 $stmt->bindParam(":bookingRoom_children", $room["childrenCount"]);
                 $stmt->execute();
                 $bookingRoomId = $conn->lastInsertId();
 
-                // ✅ Prepare prices
+                // ✅ Charges
                 $extraGuestPrice = $this->getExtraGuestPrice();
                 $bedPrice = $this->getBedPrice();
                 $now = date("Y-m-d H:i:s");
 
-                // ✅ Add extra bed charge if applicable
                 if (isset($room["bedCount"]) && $room["bedCount"] > 0) {
                     $totalCharges = $numberOfNights * $bedPrice;
                     $sql = "INSERT INTO tbl_booking_charges
                         (charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, 
                         booking_charges_total, booking_charge_status, booking_charge_datetime)
                         VALUES 
-                        (2, :booking_room_id, :bedPrice, :booking_charges_quantity, 
-                        :booking_charges_total, 2, :now)";
+                        (2, :booking_room_id, :bedPrice, :qty, :total, 2, :now)";
                     $stmt = $conn->prepare($sql);
                     $stmt->bindParam(":booking_room_id", $bookingRoomId);
                     $stmt->bindParam(":bedPrice", $bedPrice);
-                    $stmt->bindParam(":booking_charges_quantity", $numberOfNights);
-                    $stmt->bindParam(":booking_charges_total", $totalCharges);
+                    $stmt->bindParam(":qty", $numberOfNights);
+                    $stmt->bindParam(":total", $totalCharges);
                     $stmt->bindParam(":now", $now);
                     $stmt->execute();
                 }
 
-                // ✅ Add extra guest charge if applicable
                 if (isset($room["extraGuestCharges"]) && $room["extraGuestCharges"] > 0) {
                     $totalCharges = $numberOfNights * $extraGuestPrice;
                     $sql = "INSERT INTO tbl_booking_charges
                         (charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, 
                         booking_charges_total, booking_charge_status, booking_charge_datetime)
                         VALUES 
-                        (12, :booking_room_id, :extraGuestPrice, :booking_charges_quantity, 
-                        :booking_charges_total, 2, :now)";
+                        (12, :booking_room_id, :extraGuestPrice, :qty, :total, 5, :now)";
                     $stmt = $conn->prepare($sql);
                     $stmt->bindParam(":booking_room_id", $bookingRoomId);
                     $stmt->bindParam(":extraGuestPrice", $extraGuestPrice);
-                    $stmt->bindParam(":booking_charges_quantity", $numberOfNights);
-                    $stmt->bindParam(":booking_charges_total", $totalCharges);
+                    $stmt->bindParam(":qty", $numberOfNights);
+                    $stmt->bindParam(":total", $totalCharges);
                     $stmt->bindParam(":now", $now);
                     $stmt->execute();
                 }
             }
 
-            // ✅ Add booking history
+            // ✅ Booking history
             $sql = "INSERT INTO tbl_booking_history 
-                    (booking_id, employee_id, status_id, updated_at) 
-                VALUES 
-                    (:booking_id, NULL, 2, NOW())";
+                (booking_id, employee_id, status_id, updated_at) 
+            VALUES 
+                (:booking_id, NULL, 2, NOW())";
             $stmt = $conn->prepare($sql);
             $stmt->bindParam(":booking_id", $bookingId);
             $stmt->execute();
 
-            // ✅ Add billing info
+            // ✅ Billing
             if ($bookingDetails["payment_method_id"] == 1) {
                 $balance = $bookingDetails["totalAmount"] - $bookingDetails["totalPay"];
             } else {
@@ -1338,27 +1339,114 @@ class Demiren_customer
             }
 
             $sql = "INSERT INTO tbl_billing
-                    (booking_id, payment_method_id, billing_total_amount, billing_dateandtime, 
-                    billing_vat, billing_balance, billing_downpayment) 
-                VALUES 
-                    (:booking_id, :payment_method_id, :total_amount, NOW(), 
-                    :billing_vat, :billing_balance, :billing_downpayment)";
+                (booking_id, payment_method_id, billing_total_amount, billing_dateandtime, 
+                billing_vat, billing_balance, billing_downpayment) 
+            VALUES 
+                (:booking_id, :method, :total, NOW(), :vat, :bal, :down)";
             $stmt = $conn->prepare($sql);
             $stmt->bindParam(":booking_id", $bookingId);
-            $stmt->bindParam(":payment_method_id", $bookingDetails["payment_method_id"]);
-            $stmt->bindParam(":total_amount", $bookingDetails["totalAmount"]);
-            $stmt->bindParam(":billing_vat", $bookingDetails["displayedVat"]);
-            $stmt->bindParam(":billing_balance", $balance);
-            $stmt->bindParam(":billing_downpayment", $bookingDetails["downpayment"]);
+            $stmt->bindParam(":method", $paymentMethod);
+            $stmt->bindParam(":total", $bookingDetails["totalAmount"]);
+            $stmt->bindParam(":vat", $bookingDetails["displayedVat"]);
+            $stmt->bindParam(":bal", $balance);
+            $stmt->bindParam(":down", $bookingDetails["downpayment"]);
             $stmt->execute();
 
             $conn->commit();
-            return 1; // ✅ Success
+
+            // ✅ EMAIL SUBJECT = Reference Number
+            $emailSubject = $referenceNo;
+
+            // ✅ Format values
+            $paymentMethodName = ($paymentMethod == 1) ? "GCash" : "Paypal";
+            $checkInFmt = date('F j, Y', strtotime($checkIn)) . ' 2:00 PM';
+            $checkOutFmt = date('F j, Y', strtotime($checkOut)) . ' 12:00 PM';
+            $nights = max(1, (int)ceil((strtotime($checkOut) - strtotime($checkIn)) / 86400));
+            $totalAmountFmt = number_format((float)$bookingDetails["totalAmount"], 2);
+
+            // ✅ Room list
+            $roomsListHtml = '';
+            foreach ($roomDetails as $room) {
+                $stmtRt = $conn->prepare("SELECT roomtype_name FROM tbl_roomtype WHERE roomtype_id = :id");
+                $stmtRt->bindParam(':id', $room["roomTypeId"]);
+                $stmtRt->execute();
+                $rtName = $stmtRt->fetchColumn();
+
+                if (!$rtName) $rtName = 'Room Type #' . (int)$room["roomTypeId"];
+
+                $roomsListHtml .= '<li><strong>' . htmlspecialchars($rtName) . '</strong> — Adults: '
+                    . (int)$room["adultCount"] . ', Children: ' . (int)$room["childrenCount"] . '</li>';
+            }
+
+            // ✅ Amenities
+            $amenities = $this->getAllRoomAmenities();
+            $amenityHtml = '';
+            foreach ($amenities as $a) {
+                $amenityHtml .= "<li>" . htmlspecialchars($a["room_amenities_master_name"]) . "</li>";
+            }
+
+            // ✅ Final email body (IDENTICAL FORMAT)
+            $emailBody = '
+        <html><body style="font-family:Segoe UI,Arial;margin:0;padding:0;background:#f4f6f8;">
+        <div style="max-width:600px;margin:auto;background:white;border-radius:12px;overflow:hidden;
+        box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+        
+            <div style="background:#1a73e8;color:white;padding:25px;text-align:center;">
+                <h1 style="margin:0;font-size:22px;">Demiren Hotel & Restaurant</h1>
+            </div>
+
+            <div style="padding:30px;">
+                <h2 style="color:#1a73e8;margin-top:0;">Booking Details</h2>
+
+                <p>Hi <strong>' . $guestName . '</strong>,</p>
+
+                <p>Thank you for booking with Demiren Hotel and Restaurant. Below are the full details of your reservation.</p>
+
+                <div style="background:#f8fbff;border:1px solid #e6ebf1;border-radius:8px;padding:16px;margin-top:18px;">
+                    <div><strong>Reference Number:</strong> ' . $referenceNo . '</div>
+                    <div><strong>Check-in:</strong> ' . $checkInFmt . '</div>
+                    <div><strong>Check-out:</strong> ' . $checkOutFmt . '</div>
+                    <div><strong>Nights:</strong> ' . $nights . '</div>
+                    <div><strong>Payment Method:</strong> ' . $paymentMethodName . '</div>
+                    <div><strong>Total Amount:</strong> ₱' . $totalAmountFmt . '</div>
+                    <br>
+                    <div><strong>Rooms:</strong></div>
+                    <ul>' . $roomsListHtml . '</ul>
+
+                    <br>
+                    <div><strong>Room Amenities:</strong></div>
+                    <ul>' . $amenityHtml . '</ul>
+                </div>
+
+                <br>
+
+                <p><strong>Cancellation Policy:</strong><br>
+                You may cancel within 24 hours, but the payment is non-refundable.</p>
+
+                <p>If you have any concerns, feel free to contact us:</p>
+                <p><strong>📞 0906 231 4236</strong></p>
+
+                <p>Warm regards,<br><strong>The Demiren Team</strong></p>
+            </div>
+
+            <div style="background:#fafafa;padding:15px;text-align:center;font-size:12px;color:#777;">
+                This is an automated message. Please do not reply.
+            </div>
+
+        </div>
+        </body></html>';
+
+            // ✅ SEND EMAIL
+            $sendEmail = new SendEmail();
+            $sendEmail->sendEmail($guestEmail, $emailSubject, $emailBody);
+
+            return 1;
         } catch (PDOException $e) {
             $conn->rollBack();
             return $e->getMessage();
         }
     }
+
 
 
     function customerBookingWithoutAccount($json)

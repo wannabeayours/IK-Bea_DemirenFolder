@@ -150,7 +150,6 @@ function Sidebar({ onCollapse }) {
     { path: "/admin/bookinglist", icon: <File className="w-4 h-4" />, label: "Bookings List" },
     { path: "/admin/transactionhistory", icon: <HistoryIcon className="w-4 h-4" />, label: "Transaction History" },
     { path: "/admin/requestedamenities", icon: <PillBottleIcon className="w-4 h-4" />, label: "Amenity Requests" },
-    { path: "/admin/choose-rooms", icon: <NotebookPen className="w-4 h-4" />, label: "Add Walk In" },
     { path: "/admin/visitorslog", icon: <User2Icon className="w-4 h-4" />, label: "Visitors" },
   ]
 
