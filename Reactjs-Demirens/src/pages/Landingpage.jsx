@@ -189,7 +189,7 @@ function Landingpage() {
 
   useEffect(() => {
     if (localStorage.getItem("userId")) {
-      navigateTo("/customer");
+      navigateTo("/");
     }
     if (localStorage.getItem("url") !== "http://localhost/demirenAPI/api/") {
       localStorage.setItem("url", "http://localhost/demirenAPI/api/");

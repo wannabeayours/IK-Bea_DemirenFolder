@@ -464,7 +464,7 @@ class Transactions
                         $ins = $conn->prepare("
                             INSERT INTO tbl_billing (
                                 booking_id, employee_id, payment_method_id, discounts_id,
-                                billing_dateandtime, billing_invoice_number, billing_payment, 
+                                billing_dateandtime, billing_invoice_number, billing_downpayment, 
                                 billing_vat, billing_total_amount, billing_balance
                             ) VALUES (
                                 :booking_id, :employee_id, :payment_method_id, :discount_id,
@@ -508,7 +508,7 @@ class Transactions
                 // 1. Get billing data directly from tbl_billing (use values already calculated and stored)
                 $stmt = $conn->prepare("
                 SELECT bi.billing_id, bi.booking_id, bi.billing_total_amount, bi.billing_balance, 
-                       bi.billing_payment, bi.billing_vat, bi.discounts_id,
+                       bi.billing_downpayment, bi.billing_vat, bi.discounts_id,
                        b.booking_payment AS booking_downpayment 
                 FROM tbl_billing bi 
                 JOIN tbl_booking b ON bi.booking_id = b.booking_id 
@@ -528,7 +528,7 @@ class Transactions
                 // Use values directly from tbl_billing (no recalculation)
                 $billing_total_amount = floatval($billingRow["billing_total_amount"] ?? 0);
                 $billing_balance = floatval($billingRow["billing_balance"] ?? 0);
-                $billing_payment = floatval($billingRow["billing_payment"] ?? 0);
+                $billing_downpayment = floatval($billingRow["billing_downpayment"] ?? 0);
                 $billing_vat = floatval($billingRow["billing_vat"] ?? 0);
                 $discounts_id = $billingRow["discounts_id"] ?? null;
 
@@ -601,8 +601,8 @@ class Transactions
                     "vat_amount" => $calculated_vat, // Use recalculated VAT, not from tbl_billing
                     "final_total" => $calculated_final_total, // Use recalculated total, not from tbl_billing
                     // Subtract booking deposit + any billing payments
-                    "downpayment" => ($billing_payment + floatval($billingRow['booking_downpayment'] ?? 0)),
-                    "balance" => $calculated_final_total - ($billing_payment + floatval($billingRow['booking_downpayment'] ?? 0))
+                    "downpayment" => ($billing_downpayment + floatval($billingRow['booking_downpayment'] ?? 0)),
+                    "balance" => $calculated_final_total - ($billing_downpayment + floatval($billingRow['booking_downpayment'] ?? 0))
                 ];
 
                 // 3. Create invoice using values from tbl_billing
@@ -755,9 +755,9 @@ class Transactions
                             </div>
                             <div>
                             <div class="h6">From:</div>
-                            <div class="small">Demiren Hotel & Restaurant</div>
-                            <div class="small">123 Anywhere St., Any City</div>
-                            <div class="small">hello@demiren.local</div>
+                            <div class="small">Demiren Hotel Cagayan De Oro</div>
+                            <div class="small">Tiano Kalambaguhan Street, Brgy 14 9000 Cagayan de Oro City Northern Mindanao</div>
+                            <div class="small">Contact Us @: 0976 047 7479</div>
                             </div>
                         </div>
 
@@ -891,7 +891,7 @@ class Transactions
                         @file_put_contents(__DIR__ . DIRECTORY_SEPARATOR . 'email_debug.log', date('c') . " attempting send to {$recipientEmail} for booking {$booking_id}, invoice {$invoice_id}\n", FILE_APPEND);
                         $guestName = htmlspecialchars($customerRow['customer_fullname'] ?? 'Guest');
                         $hotelName = 'Demiren Hotel & Restaurant';
-                        $cityName = 'Iligan City';
+                        $cityName = 'Cagayan de Oro City';
                         $senderName = 'Demiren Hotel Team';
                         $senderPosition = 'Front Desk';
                         $emailBody = '<div style="font-family:Arial,Helvetica,sans-serif;color:#111827;line-height:1.6">'
@@ -1210,14 +1210,14 @@ class Transactions
         // Do NOT use booking_payment (that's for room charges, already paid separately)
         if ($downpayment == 0) {
             $stmt = $conn->prepare("
-                SELECT COALESCE(SUM(billing_payment), 0) AS total_billing_payments 
+                SELECT COALESCE(SUM(billing_downpayment), 0) AS total_billing_downpayments 
                 FROM tbl_billing 
                 WHERE booking_id = :booking_id
             ");
             $stmt->bindParam(':booking_id', $booking_id);
             $stmt->execute();
             $billingData = $stmt->fetch(PDO::FETCH_ASSOC);
-            $downpayment = $billingData ? ($billingData["total_billing_payments"] ?? 0) : 0;
+            $downpayment = $billingData ? ($billingData["total_billing_downpayments"] ?? 0) : 0;
         }
 
         // Ensure downpayment includes the original booking deposit when not overridden
@@ -1379,7 +1379,7 @@ class Transactions
             $stmt = $conn->prepare("
                 INSERT INTO tbl_billing (
                     booking_id, employee_id, payment_method_id, discounts_id,
-                    billing_dateandtime, billing_invoice_number, billing_payment, 
+                    billing_dateandtime, billing_invoice_number, billing_downpayment, 
                     billing_vat, billing_total_amount, billing_balance
                 ) VALUES (
                     :booking_id, :employee_id, :payment_method_id, :discount_id,
@@ -1745,7 +1745,7 @@ class Transactions
             END AS total_amount,
             CASE 
                 WHEN latest_billing.billing_id IS NOT NULL THEN
-                    COALESCE(latest_billing.billing_payment, b.booking_payment)
+                    COALESCE(latest_billing.billing_downpayment, b.booking_payment)
                 ELSE b.booking_payment
             END AS downpayment,
             
@@ -1779,7 +1779,7 @@ class Transactions
                 bi.booking_id,
                 bi.billing_id,
                 bi.billing_total_amount,
-                bi.billing_payment,
+                bi.billing_downpayment,
                 bi.billing_balance,
                 bi.billing_vat,
                 bi.billing_dateandtime
@@ -1835,7 +1835,7 @@ class Transactions
             c.billing_id,
             c.billing_total_amount,
             c.billing_balance,
-            c.billing_payment,
+            c.billing_downpayment,
             d.invoice_id,
             d.invoice_date,
             d.invoice_time,
@@ -1966,7 +1966,7 @@ class Transactions
             return;
         }
         try {
-            $stmt = $conn->prepare("SELECT billing_id, booking_id, billing_total_amount, billing_balance, billing_payment, billing_vat, billing_dateandtime, discounts_id FROM tbl_billing WHERE booking_id = :booking_id ORDER BY billing_id DESC LIMIT 1");
+            $stmt = $conn->prepare("SELECT billing_id, booking_id, billing_total_amount, billing_balance, billing_downpayment, billing_vat, billing_dateandtime, discounts_id FROM tbl_billing WHERE booking_id = :booking_id ORDER BY billing_id DESC LIMIT 1");
             $stmt->bindParam(':booking_id', $booking_id, PDO::PARAM_INT);
             $stmt->execute();
             $billing = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -1994,7 +1994,7 @@ class Transactions
         }
         try {
             $conn->beginTransaction();
-            $stmt = $conn->prepare("SELECT billing_id, billing_payment, discounts_id FROM tbl_billing WHERE booking_id = :booking_id ORDER BY billing_id DESC LIMIT 1");
+            $stmt = $conn->prepare("SELECT billing_id, billing_downpayment, discounts_id FROM tbl_billing WHERE booking_id = :booking_id ORDER BY billing_id DESC LIMIT 1");
             $stmt->bindParam(':booking_id', $booking_id, PDO::PARAM_INT);
             $stmt->execute();
             $billingRow = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -2011,23 +2011,23 @@ class Transactions
             if ($downpayment_override !== null) {
                 $actual_downpayment = $downpayment_override;
             } else {
-                // Get sum of all billing_payment from tbl_billing for this booking
+                // Get sum of all billing_downpayment from tbl_billing for this booking
                 $dpQuery = $conn->prepare("
-                    SELECT COALESCE(SUM(billing_payment), 0) AS total_billing_payments 
+                    SELECT COALESCE(SUM(billing_downpayment), 0) AS total_billing_downpayments 
                     FROM tbl_billing 
                     WHERE booking_id = :booking_id
                 ");
                 $dpQuery->bindParam(':booking_id', $booking_id, PDO::PARAM_INT);
                 $dpQuery->execute();
                 $billingPayments = $dpQuery->fetch(PDO::FETCH_ASSOC);
-                $billing_payments_total = $billingPayments ? ($billingPayments["total_billing_payments"] ?? 0) : 0;
+                $billing_downpayments_total = $billingPayments ? ($billingPayments["total_billing_downpayments"] ?? 0) : 0;
                 // Include original booking deposit as part of downpayment for balance computation
                 $bpStmt = $conn->prepare("SELECT COALESCE(booking_payment, 0) AS booking_payment FROM tbl_booking WHERE booking_id = :booking_id");
                 $bpStmt->bindParam(':booking_id', $booking_id, PDO::PARAM_INT);
                 $bpStmt->execute();
                 $bpRow = $bpStmt->fetch(PDO::FETCH_ASSOC);
                 $booking_payment = $bpRow ? ($bpRow['booking_payment'] ?? 0) : 0;
-                $actual_downpayment = floatval($billing_payments_total) + floatval($booking_payment);
+                $actual_downpayment = floatval($billing_downpayments_total) + floatval($booking_payment);
             }
             $billingBreakdown = $this->calculateComprehensiveBillingInternal($conn, $booking_id, $actual_discount_id, $vat_rate, $actual_downpayment);
             if (!isset($billingBreakdown["success"]) || !$billingBreakdown["success"]) {
@@ -2035,11 +2035,11 @@ class Transactions
                 echo json_encode(["success" => false, "message" => isset($billingBreakdown["message"]) ? $billingBreakdown["message"] : "Failed to calculate billing"]);
                 return;
             }
-            $update = $conn->prepare("UPDATE tbl_billing SET billing_total_amount = :total, billing_balance = :balance, billing_payment = :downpayment, billing_vat = :vat, discounts_id = :discount_id WHERE billing_id = :billing_id");
+            $update = $conn->prepare("UPDATE tbl_billing SET billing_total_amount = :total, billing_balance = :balance, billing_downpayment = :downpayment, billing_vat = :vat, discounts_id = :discount_id WHERE billing_id = :billing_id");
             $update->bindParam(':total', $billingBreakdown["final_total"]);
             $update->bindParam(':balance', $billingBreakdown["balance"]);
-            // Store only the sum of billing payments in billing_payment
-            $update->bindParam(':downpayment', $billing_payments_total);
+            // Store only the sum of billing payments in billing_downpayment
+            $update->bindParam(':downpayment', $billing_downpayments_total);
             $update->bindParam(':vat', $billingBreakdown["vat_amount"]);
             $update->bindParam(':discount_id', $actual_discount_id);
             $update->bindParam(':billing_id', $billing_id);

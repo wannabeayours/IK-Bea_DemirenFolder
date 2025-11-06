@@ -204,6 +204,11 @@ function EmployeeManagement() {
         form.reset();
         fetchEmployees();
       } else {
+        if (response.data.message && response.data.message.includes('Username already exists')) {
+          form.setError('employee_username', { type: 'manual', message: response.data.message });
+        } else if (response.data.message && response.data.message.includes('Email already exists')) {
+          form.setError('employee_email', { type: 'manual', message: response.data.message });
+        }
         toast.error(response.data.message);
         console.error('API Error:', response.data.message);
       }

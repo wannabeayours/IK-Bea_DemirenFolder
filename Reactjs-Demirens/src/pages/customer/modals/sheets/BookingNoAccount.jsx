@@ -273,9 +273,9 @@ function BookingNoaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber
       console.log("[gcashBooking] response:", res.data);
 
       const checkoutUrl = res.data.checkout_url;
+      localStorage.setItem("jsonData", JSON.stringify(jsonData));
       if (checkoutUrl) {
         console.log("jsonData", jsonData);
-        localStorage.setItem("jsonData", JSON.stringify(jsonData));
         window.location.href = checkoutUrl;
       } else {
         toast.error("Error: No checkout URL received.");

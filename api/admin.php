@@ -91,18 +91,18 @@ class Admin_Functions
             }
 
             // Update latest billing with new totals (and optional discount)
-            $lbStmt = $conn->prepare("SELECT billing_id, billing_payment FROM tbl_billing WHERE booking_id = :bid ORDER BY billing_id DESC LIMIT 1");
+            $lbStmt = $conn->prepare("SELECT billing_id, billing_downpayment FROM tbl_billing WHERE booking_id = :bid ORDER BY billing_id DESC LIMIT 1");
             $lbStmt->bindParam(':bid', $booking_id, PDO::PARAM_INT);
             $lbStmt->execute();
             $lbRow = $lbStmt->fetch(PDO::FETCH_ASSOC);
             if ($lbRow) {
                 $billing_id = intval($lbRow['billing_id']);
-                $existing_dp = isset($lbRow['billing_payment']) ? floatval($lbRow['billing_payment']) : 0;
+                $existing_dp = isset($lbRow['billing_downpayment']) ? floatval($lbRow['billing_downpayment']) : 0;
                 $dp = ($new_downpayment !== null) ? $new_downpayment : $existing_dp;
                 $total = ($new_total_with_vat !== null) ? $new_total_with_vat : null;
                 if ($total !== null) {
                     $balance = max($total - $dp, 0);
-                    $updBill = $conn->prepare("UPDATE tbl_billing SET billing_total_amount = :total, billing_balance = :balance, billing_payment = :downpayment, discounts_id = :discounts_id WHERE billing_id = :bid");
+                    $updBill = $conn->prepare("UPDATE tbl_billing SET billing_total_amount = :total, billing_balance = :balance, billing_downpayment = :downpayment, discounts_id = :discounts_id WHERE billing_id = :bid");
                     // Handle nullable discounts_id
                     if ($discounts_id && $discounts_id > 0) {
                         $updBill->bindParam(':discounts_id', $discounts_id, PDO::PARAM_INT);
@@ -268,7 +268,7 @@ class Admin_Functions
 
             // Create billing record referenced to the original booking (always create; VAT = 0 for extensions)
             $billing_id = null;
-            $insertBilling = $conn->prepare("INSERT INTO tbl_billing (booking_id, employee_id, payment_method_id, billing_dateandtime, billing_invoice_number, billing_payment, billing_vat, billing_total_amount, billing_balance) VALUES (:booking_id, :employee_id, :payment_method_id, NOW(), :invoice_number, :payment_amount, 0, :total_amount, :balance)");
+            $insertBilling = $conn->prepare("INSERT INTO tbl_billing (booking_id, employee_id, payment_method_id, billing_dateandtime, billing_invoice_number, billing_downpayment, billing_vat, billing_total_amount, billing_balance) VALUES (:booking_id, :employee_id, :payment_method_id, NOW(), :invoice_number, :payment_amount, 0, :total_amount, :balance)");
             // Generate grouped extension invoice number under original reference e.g., REF1234567890-EXT001
             $baseRef = $originalBooking['reference_no'] ?? null;
             if (!$baseRef) {
@@ -409,7 +409,7 @@ class Admin_Functions
             }
 
             // Create aggregated billing entry (VAT=0), grouped under original reference
-            $insertBilling = $conn->prepare("INSERT INTO tbl_billing (booking_id, employee_id, payment_method_id, billing_dateandtime, billing_invoice_number, billing_payment, billing_vat, billing_total_amount, billing_balance) VALUES (:booking_id, :employee_id, :payment_method_id, NOW(), :invoice_number, :payment_amount, 0, :total_amount, :balance)");
+            $insertBilling = $conn->prepare("INSERT INTO tbl_billing (booking_id, employee_id, payment_method_id, billing_dateandtime, billing_invoice_number, billing_downpayment, billing_vat, billing_total_amount, billing_balance) VALUES (:booking_id, :employee_id, :payment_method_id, NOW(), :invoice_number, :payment_amount, 0, :total_amount, :balance)");
             $baseRef = $originalBooking['reference_no'] ?? 'REF' . date('YmdHis');
             $countStmt = $conn->prepare("SELECT COUNT(*) AS ext_count FROM tbl_billing WHERE booking_id = :booking_id AND billing_invoice_number LIKE :like_pattern");
             $likePattern = $baseRef . '-EXT%';
@@ -597,14 +597,23 @@ class Admin_Functions
                 return;
             }
 
-            // Check uniqueness of username/email (trimmed)
-            $chk = $conn->prepare("SELECT employee_id FROM tbl_employee WHERE TRIM(employee_username) = :u OR TRIM(employee_email) = :e LIMIT 1");
-            $chk->bindParam(':u', $username);
-            $chk->bindParam(':e', $email);
-            $chk->execute();
-            if ($chk->fetch(PDO::FETCH_ASSOC)) {
+            // Check uniqueness of username (trimmed)
+            $chk_user = $conn->prepare("SELECT employee_id FROM tbl_employee WHERE TRIM(employee_username) = :u LIMIT 1");
+            $chk_user->bindParam(':u', $username);
+            $chk_user->execute();
+            if ($chk_user->fetch(PDO::FETCH_ASSOC)) {
                 if (ob_get_length()) { ob_clean(); }
-                echo json_encode(['status' => 'error', 'message' => 'Username or email already exists']);
+                echo json_encode(['status' => 'error', 'message' => 'Username already exists, please try a different username']);
+                return;
+            }
+
+            // Check uniqueness of email (trimmed)
+            $chk_email = $conn->prepare("SELECT employee_id FROM tbl_employee WHERE TRIM(employee_email) = :e LIMIT 1");
+            $chk_email->bindParam(':e', $email);
+            $chk_email->execute();
+            if ($chk_email->fetch(PDO::FETCH_ASSOC)) {
+                if (ob_get_length()) { ob_clean(); }
+                echo json_encode(['status' => 'error', 'message' => 'Email already exists']);
                 return;
             }
 
@@ -1834,7 +1843,7 @@ class Admin_Functions
                 END AS total_amount,
                 CASE 
                     WHEN latest_billing.billing_id IS NOT NULL THEN
-                        COALESCE(latest_billing.billing_payment, b.booking_payment)
+                        COALESCE(latest_billing.billing_downpayment, b.booking_payment)
                     ELSE b.booking_payment
                 END AS downpayment,
                 b.booking_totalAmount,
@@ -1872,7 +1881,7 @@ class Admin_Functions
                 INNER JOIN tbl_booking_status bs ON bh1.status_id = bs.booking_status_id
             ) bs ON bs.booking_id = b.booking_id
             LEFT JOIN (
-                SELECT b1.billing_id, b1.booking_id, b1.billing_total_amount, b1.billing_balance, b1.billing_payment, b1.billing_vat
+                SELECT b1.billing_id, b1.booking_id, b1.billing_total_amount, b1.billing_balance, b1.billing_downpayment, b1.billing_vat
                 FROM tbl_billing b1
                 INNER JOIN (
                     SELECT booking_id, MAX(billing_id) AS latest_billing_id
@@ -2408,7 +2417,7 @@ class Admin_Functions
                     b.billing_id,
                     b.billing_total_amount,
                     b.billing_balance,
-                    b.billing_payment,
+                    b.billing_downpayment,
                     b.billing_vat,
                     bk.booking_id,
                     bk.reference_no,
@@ -2436,7 +2445,7 @@ class Admin_Functions
                     b.billing_id,
                     b.billing_total_amount,
                     b.billing_balance,
-                    b.billing_payment,
+                    b.billing_downpayment,
                     b.billing_vat,
                     bk.booking_id,
                     bk.reference_no,
@@ -2499,7 +2508,7 @@ class Admin_Functions
                     b.billing_invoice_number,
                     b.billing_total_amount,
                     b.billing_balance,
-                    b.billing_payment,
+                    b.billing_downpayment,
                     b.billing_vat,
                     bk.booking_id,
                     bk.reference_no,
@@ -2522,7 +2531,7 @@ class Admin_Functions
                     b.billing_invoice_number,
                     b.billing_total_amount,
                     b.billing_balance,
-                    b.billing_payment,
+                    b.billing_downpayment,
                     b.billing_vat,
                     bk.booking_id,
                     bk.reference_no,
@@ -2916,7 +2925,7 @@ class Admin_Functions
                 b.billing_dateandtime,
                 b.billing_total_amount,
                 b.billing_balance,
-                b.billing_payment,
+                b.billing_downpayment,
                 b.billing_invoice_number,
                 pm.payment_method_name,
                 e.employee_id,

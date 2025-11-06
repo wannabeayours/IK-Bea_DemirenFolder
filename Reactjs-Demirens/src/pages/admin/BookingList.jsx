@@ -25,6 +25,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTr
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Search, Filter, ArrowRightLeft, Eye, Settings, CalendarPlus, ChevronDown, ChevronUp, CalendarIcon, AlertTriangle, ExternalLink, ClockArrowUp, ClockArrowDown, XCircle, CheckCircle } from "lucide-react"
 import { formatDateTime } from "@/lib/utils"
+
 import { NumberFormatter } from './Function_Files/NumberFormatter'
 import RoomChangeSheet from "./SubPages/RoomChangeSheet"
 import { useNavigate } from 'react-router-dom'
@@ -2268,6 +2269,7 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                         </button>
                       </TableHead>
                       <TableHead className="font-semibold text-gray-900 dark:text-white text-center w-[100px] min-w-[100px] text-xs sm:text-sm">Status</TableHead>
+                      <TableHead className="font-semibold text-gray-900 dark:text-white text-center w-[150px] min-w-[150px] text-xs sm:text-sm">Date & Time Requested</TableHead>
                       <TableHead className="font-semibold text-gray-900 dark:text-white text-center w-[280px] min-w-[280px] text-xs sm:text-sm">
                         <span className="hidden sm:inline">Actions</span>
                         <span className="sm:hidden">✨</span>
@@ -2344,6 +2346,9 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                         </TableCell>
                         <TableCell className="text-center py-3">
                           {getStatusBadge(b.booking_status)}
+                        </TableCell>
+                        <TableCell className="text-center py-3">
+                          {formatDateTime(b.booking_created_at)}
                         </TableCell>
                         <TableCell className="text-center py-3">
                           {b.booking_status === 'Checked-In' ? (
@@ -2614,8 +2619,8 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                         return (
                           <div className="mt-1 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 p-3">
                             <div className="grid grid-cols-2 text-sm mb-1">
-                              <span className="text-gray-600 dark:text-gray-400">VAT Exclusive Amount</span>
-                              <span className="text-right text-gray-900 dark:text-white font-medium">{formatCurrency0(vatExclusiveRounded)}</span>
+                              {/* <span className="text-gray-600 dark:text-gray-400">VAT Exclusive Amount</span>
+                              <span className="text-right text-gray-900 dark:text-white font-medium">{formatCurrency0(vatExclusiveRounded)}</span> */}
                             </div>
                             <div className="grid grid-cols-2 text-sm mb-1">
                               <span className="text-gray-600 dark:text-gray-400">Total Charges</span>

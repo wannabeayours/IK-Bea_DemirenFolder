@@ -1065,9 +1065,9 @@ const CustomerPayment = ({ customer, onBack, paymentMethods = [] }) => {
 
           {/* Row 1: Payment in column 3 */}
           <div className="h-fit md:col-span-1">
-            <Card className="h-full">
+            {/* <Card className="h-full">
               <CardHeader>
-                <CardTitle>Payment</CardTitle>
+                <CardTitle>Payment ning daria</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
                 <div className="space-y-2">
@@ -1076,7 +1076,6 @@ const CustomerPayment = ({ customer, onBack, paymentMethods = [] }) => {
                 </div>
                 <p><span className="font-semibold">Change:</span> {NumberFormatter.formatCurrency(changeAmount)}</p>
 
-                {/* Dynamic Payment Methods */}
                 {Array.isArray(paymentMethods) && paymentMethods.length > 0 ? (
                   <div className="space-y-2">
                     <Label htmlFor="payment_method">Payment Method</Label>
@@ -1117,7 +1116,7 @@ const CustomerPayment = ({ customer, onBack, paymentMethods = [] }) => {
                 </Button>
               </CardFooter>
 
-            </Card>
+            </Card> */}
           </div>
           {/* Row 2: Charges List spans two columns */}
           <div className="md:col-span-2">

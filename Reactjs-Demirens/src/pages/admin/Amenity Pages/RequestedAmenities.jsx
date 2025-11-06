@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -36,6 +37,7 @@ function AdminRequestedAmenities() {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionType, setActionType] = useState(''); // 'approve' | 'reject' | 'cancel' | 'pending' | 'return'
+  const [adminNotes, setAdminNotes] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [activeTab, setActiveTab] = useState('all');
@@ -48,28 +50,6 @@ function AdminRequestedAmenities() {
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState(null);
   
-  // Console instrumentation helper
-  const log = useCallback((label, payload) => {
-    try {
-      // compact log wrapper to avoid noisy errors
-      // eslint-disable-next-line no-console
-      console.log(`[%cRequestedAmenities%c] ${label}`,
-        'color:#113f67;font-weight:bold;', 'color:inherit', payload);
-    } catch (_) {
-      // eslint-disable-next-line no-console
-      console.log('[RequestedAmenities]', label);
-    }
-  }, []);
-
-  // Initial environment log
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.info('[RequestedAmenities] Mount: env', {
-      api: APIConn,
-      baseUrl: typeof localStorage !== 'undefined' ? localStorage.url : undefined,
-      location: window.location?.pathname,
-    });
-  }, []);
 
   // Add Amenity Request Modal States
   const [addAmenityModalOpen, setAddAmenityModalOpen] = useState(false);
@@ -107,23 +87,10 @@ function AdminRequestedAmenities() {
       const formData = new FormData();
       formData.append('method', 'get_amenity_requests');
       
-      log('fetchAmenityRequests: POST admin.php', { url: APIConn, method: 'get_amenity_requests' });
       const response = await axios.post(APIConn, formData);
-      log('fetchAmenityRequests: response meta', {
-        status: response?.status,
-        statusText: response?.statusText,
-        headers: response?.headers,
-      });
       
       // Ensure we have an array and add default values for missing fields
-      const isArray = Array.isArray(response?.data);
-      const requests = isArray ? response.data : [];
-      log('fetchAmenityRequests: payload summary', {
-        isArray,
-        length: requests.length,
-        sample: requests.length > 0 ? requests[0] : null,
-        keys: requests.length > 0 ? Object.keys(requests[0] || {}) : [],
-      });
+      const requests = Array.isArray(response.data) ? response.data : [];
       const processedRequests = requests.map(request => ({
         ...request,
         request_status: request.request_status || 'pending',
@@ -136,7 +103,6 @@ function AdminRequestedAmenities() {
         request_quantity: request.request_quantity || 1
       }));
       
-      log('fetchAmenityRequests: processed length', { processedLength: processedRequests.length });
       setAmenityRequests(processedRequests);
     } catch (error) {
       console.error('Error fetching amenity requests:', error);
@@ -151,13 +117,12 @@ function AdminRequestedAmenities() {
     try {
       const formData = new FormData();
       formData.append('method', 'get_amenity_request_stats');
-      log('fetchStats: POST admin.php', { url: APIConn, method: 'get_amenity_request_stats' });
+      
       const response = await axios.post(APIConn, formData);
-      log('fetchStats: response meta', { status: response?.status, statusText: response?.statusText });
       
       // Ensure we have valid stats with default values
       const stats = response.data || {};
-      const nextStats = {
+      setStats({
         total_requests: stats.total_requests || 0,
         pending_requests: stats.pending_requests || 0,
         approved_requests: stats.approved_requests || 0,
@@ -165,13 +130,11 @@ function AdminRequestedAmenities() {
         pending_amount: stats.pending_amount || 0,
         approved_amount: stats.approved_amount || 0,
         current_month_approved: stats.current_month_approved || 0
-      };
-      log('fetchStats: computed stats', nextStats);
-      setStats(nextStats);
+      });
     } catch (error) {
       console.error('Error fetching stats:', error);
       // Set default stats on error
-      const defaultStats = {
+      setStats({
         total_requests: 0,
         pending_requests: 0,
         approved_requests: 0,
@@ -179,9 +142,7 @@ function AdminRequestedAmenities() {
         pending_amount: 0,
         approved_amount: 0,
         current_month_approved: 0
-      };
-      log('fetchStats: default stats used (error)', defaultStats);
-      setStats(defaultStats);
+      });
     }
   }, [APIConn]);
 
@@ -192,14 +153,6 @@ function AdminRequestedAmenities() {
 
   const filterRequests = useCallback(() => {
     let filtered = [...amenityRequests];
-    log('filterRequests: start', {
-      amenityCount: amenityRequests.length,
-      searchTerm,
-      statusFilter,
-      activeTab,
-      dateRange,
-      timeSortOrder,
-    });
 
     // Filter by search term
     if (searchTerm) {
@@ -209,14 +162,16 @@ function AdminRequestedAmenities() {
         request.charges_master_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         request.roomtype_name?.toLowerCase().includes(searchTerm.toLowerCase())
       );
-      log('filterRequests: after search', { count: filtered.length });
     }
 
-    // Apply a single effective status filter to avoid double-filter intersection
-    const effectiveStatus = activeTab === 'all' ? statusFilter : activeTab;
-    if (effectiveStatus !== 'all') {
-      filtered = filtered.filter(request => String(request.request_status).toLowerCase() === String(effectiveStatus).toLowerCase());
-      log('filterRequests: after effectiveStatus', { effectiveStatus, count: filtered.length });
+    // Filter by status
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(request => request.request_status === statusFilter);
+    }
+
+    // Filter by tab
+    if (activeTab !== 'all') {
+      filtered = filtered.filter(request => request.request_status === activeTab);
     }
 
     // Use shared parseDateTime defined at component scope
@@ -246,7 +201,6 @@ function AdminRequestedAmenities() {
             return true;
         }
       });
-      log('filterRequests: after dateRange', { count: filtered.length });
     }
 
     // Sort by requested_at (time) according to selected order
@@ -258,26 +212,13 @@ function AdminRequestedAmenities() {
       return timeSortOrder === 'desc' ? tb - ta : ta - tb;
     });
 
-    if (filtered.length === 0) {
-      log('filterRequests: RESULT EMPTY', {
-        amenityCount: amenityRequests.length,
-        searchTerm,
-        statusFilter,
-        activeTab,
-        dateRange,
-      });
-    } else {
-      log('filterRequests: result summary', {
-        count: filtered.length,
-        first: filtered[0],
-      });
-    }
     setFilteredRequests(filtered);
   }, [amenityRequests, searchTerm, statusFilter, activeTab, dateRange, timeSortOrder]);
 
   const handleAction = async (request, action) => {
     setSelectedRequest(request);
     setActionType(action);
+    setAdminNotes('');
     setActionDialogOpen(true);
   };
 
@@ -298,7 +239,8 @@ function AdminRequestedAmenities() {
       formData.append('method', apiMethod);
       formData.append('json', JSON.stringify({
         request_id: selectedRequest.request_id,
-        employee_id: 1 // Default admin ID
+        employee_id: 1, // Default admin ID
+        admin_notes: adminNotes
       }));
 
       const response = await axios.post(APIConn, formData);
@@ -409,17 +351,6 @@ function AdminRequestedAmenities() {
   useEffect(() => {
     filterRequests();
   }, [filterRequests]);
-
-  // Render-time warning when no data
-  useEffect(() => {
-    if (!loading && filteredRequests.length === 0) {
-      // eslint-disable-next-line no-console
-      console.warn('[RequestedAmenities] No amenity requests to display', {
-        amenityCount: amenityRequests.length,
-        filters: { searchTerm, statusFilter, activeTab, dateRange },
-      });
-    }
-  }, [loading, filteredRequests, amenityRequests.length, searchTerm, statusFilter, activeTab, dateRange]);
 
   // Handle countdown for +1 Day confirmation
   useEffect(() => {
@@ -553,24 +484,22 @@ function AdminRequestedAmenities() {
               <h1 className="text-3xl font-bold text-[#113f67] mb-2">Amenity Requests Management</h1>
               <p className="text-gray-600">Review and manage customer amenity requests</p>
             </div>
-            <div className="flex space-x-2">
-              <Button 
-                onClick={() => setAddAmenityModalOpen(true)}
-                className="bg-[#113f67] hover:bg-[#0d2a4a] dark:bg-blue-700 dark:hover:bg-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Amenity Request
-              </Button>
-              <Button 
-                onClick={() => {
-                  // Global mode: allow +1 Day for all Checked-In customers
-                  setPlusOneDialogOpen(true);
-                }}
-                className="bg-[#113f67] hover:bg-[#0d2a4a] dark:bg-blue-700 dark:hover:bg-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-              >
-                +1 Day
-              </Button>
-            </div>
+            <Button 
+              onClick={() => setAddAmenityModalOpen(true)}
+              className="bg-[#113f67] hover:bg-[#0d2a4a] dark:bg-blue-700 dark:hover:bg-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Amenity Request
+            </Button>
+            <Button 
+              onClick={() => {
+                // Global mode: allow +1 Day for all Checked-In customers
+                setPlusOneDialogOpen(true);
+              }}
+              className="ml-2 bg-[#113f67] hover:bg-[#0d2a4a] dark:bg-blue-700 dark:hover:bg-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+            >
+              +1 Day
+            </Button>
           </div>
         </div>
 
@@ -963,9 +892,20 @@ function AdminRequestedAmenities() {
                   </div>
                 )}
 
-                {/* Admin Notes removed */}
+                {/* Admin Notes */}
+                {selectedRequest.admin_notes && (
+                  <div>
+                    <Label className="text-sm font-medium text-gray-600">Admin Notes</Label>
+                    <p className="text-sm bg-blue-50 p-3 rounded">{selectedRequest.admin_notes}</p>
+                  </div>
+                )}
 
-                {/* Action Form - Admin Notes removed as per request */}
+                {/* Action Form */}
+                {actionType && (
+                  <div>
+                  
+                  </div>
+                )}
 
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-3">
@@ -989,7 +929,7 @@ function AdminRequestedAmenities() {
                         'bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white'
                       }
                     >
-                      {actionType === 'approve' ? 'Approve' : actionType === 'cancel' ? 'Cancel' : actionType === 'pending' ? 'Set Pending' : 'Return'}
+                      {actionType === 'approve' ? 'Approve' : actionType === 'cancel' ? 'Reject Amenity' : actionType === 'pending' ? 'Set Pending' : 'Return'}
                     </Button>
                   )}
                 </div>
@@ -1055,83 +995,38 @@ function AdminRequestedAmenities() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {(() => {
-                            const requests = (selectedGroup?.requests || []).slice();
-
-                            // Group by amenity + room + unit price to avoid collapsing different-priced items
-                            const groupsMap = new Map();
-                            for (const r of requests) {
-                              const keyParts = [
-                                r.charges_master_id ?? r.charges_master_name ?? 'unknown',
-                                r.roomnumber_name ?? 'unknown',
-                                // lock to two decimals to normalize floating-point
-                                Number(r.request_price ?? 0).toFixed(2),
-                              ];
-                              const key = keyParts.join('|');
-                              const dtStr = typeof r.requested_at === 'string' && !r.requested_at.includes('T')
-                                ? r.requested_at.replace(' ', 'T')
-                                : r.requested_at;
-                              const dt = dtStr ? new Date(dtStr) : new Date(0);
-
-                              if (!groupsMap.has(key)) {
-                                groupsMap.set(key, {
-                                  charges_master_name: r.charges_master_name,
-                                  charges_category_name: r.charges_category_name,
-                                  roomtype_name: r.roomtype_name,
-                                  roomnumber_name: r.roomnumber_name,
-                                  unit_price: Number(r.request_price ?? 0),
-                                  total_quantity: Number(r.request_quantity ?? 0),
-                                  total_amount: Number(r.request_total ?? 0),
-                                  earliest_at: dt,
-                                  latest_at: dt,
-                                  merged_count: 1,
-                                  status_set: new Set([String(r.request_status).toLowerCase()]),
-                                });
-                              } else {
-                                const g = groupsMap.get(key);
-                                g.total_quantity += Number(r.request_quantity ?? 0);
-                                g.total_amount += Number(r.request_total ?? 0);
-                                g.merged_count += 1;
-                                g.earliest_at = g.earliest_at && g.earliest_at <= dt ? g.earliest_at : dt;
-                                g.latest_at = g.latest_at && g.latest_at >= dt ? g.latest_at : dt;
-                                g.status_set.add(String(r.request_status).toLowerCase());
-                              }
-                            }
-
-                            const grouped = Array.from(groupsMap.values()).sort((a, b) => {
-                              const ta = (timeSortOrder === 'desc' ? a.latest_at : a.earliest_at).getTime();
-                              const tb = (timeSortOrder === 'desc' ? b.latest_at : b.earliest_at).getTime();
-                              return timeSortOrder === 'desc' ? tb - ta : ta - tb;
-                            });
-
-                            return grouped.map((g, idx) => (
-                              <TableRow key={idx}>
-                                <TableCell className="text-gray-900 dark:text-white">
-                                  <div>
-                                    <p className="font-bold text-gray-900 dark:text-white">{g.charges_master_name}</p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-300">{g.charges_category_name}</p>
-                                    {g.merged_count > 1 && (
-                                      <p className="text-xs text-gray-500 dark:text-gray-400">{g.merged_count} merged requests</p>
-                                    )}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="text-gray-900 dark:text-white">
-                                  <div>
-                                    <p className="font-bold text-gray-900 dark:text-white">{g.roomtype_name}</p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-300">Room: {g.roomnumber_name}</p>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="text-gray-900 dark:text-white">
-                                  {g.merged_count > 1
-                                    ? `${formatDate(g.earliest_at)} – ${formatDate(g.latest_at)}`
-                                    : formatDate(g.earliest_at)}
-                                </TableCell>
-                                <TableCell className="text-gray-900 dark:text-white"><Badge variant="outline">{g.total_quantity}</Badge></TableCell>
-                                <TableCell className="text-gray-900 dark:text-white">{formatCurrency(g.unit_price)}</TableCell>
-                                <TableCell className="text-gray-900 dark:text-white">{formatCurrency(g.total_amount)}</TableCell>
-                              </TableRow>
-                            ));
-                          })()}
+                          {(
+                            (selectedGroup?.requests || [])
+                              .slice()
+                              .sort((a, b) => {
+                                const normA = typeof a.requested_at === 'string' && !a.requested_at.includes('T') ? a.requested_at.replace(' ', 'T') : a.requested_at;
+                                const normB = typeof b.requested_at === 'string' && !b.requested_at.includes('T') ? b.requested_at.replace(' ', 'T') : b.requested_at;
+                                const da = normA ? new Date(normA) : new Date(0);
+                                const db = normB ? new Date(normB) : new Date(0);
+                                const ta = isNaN(da.getTime()) ? 0 : da.getTime();
+                                const tb = isNaN(db.getTime()) ? 0 : db.getTime();
+                                return timeSortOrder === 'desc' ? tb - ta : ta - tb;
+                              })
+                          ).map((req) => (
+                            <TableRow key={req.request_id}>
+                              <TableCell className="text-gray-900 dark:text-white">
+                                <div>
+                                  <p className="font-bold text-gray-900 dark:text-white">{req.charges_master_name}</p>
+                                  <p className="text-sm text-gray-600 dark:text-gray-300">{req.charges_category_name}</p>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-gray-900 dark:text-white">
+                                <div>
+                                  <p className="font-bold text-gray-900 dark:text-white">{req.roomtype_name}</p>
+                                  <p className="text-sm text-gray-600 dark:text-gray-300">Room: {req.roomnumber_name}</p>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-gray-900 dark:text-white">{formatDate(req.requested_at)}</TableCell>
+                              <TableCell className="text-gray-900 dark:text-white"><Badge variant="outline">{req.request_quantity}</Badge></TableCell>
+                              <TableCell className="text-gray-900 dark:text-white">{formatCurrency(req.request_price)}</TableCell>
+                              <TableCell className="text-gray-900 dark:text-white">{formatCurrency(req.request_total)}</TableCell>
+                            </TableRow>
+                          ))}
                           {/* Separator + Total row */}
                           <TableRow>
                             <TableCell colSpan={6} className="p-0">
