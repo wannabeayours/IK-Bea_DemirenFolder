@@ -464,7 +464,7 @@ class Transactions
                         $ins = $conn->prepare("
                             INSERT INTO tbl_billing (
                                 booking_id, employee_id, payment_method_id, discounts_id,
-                                billing_dateandtime, billing_invoice_number, billing_downpayment, 
+                                billing_dateandtime, billing_invoice_number, billing_payment, 
                                 billing_vat, billing_total_amount, billing_balance
                             ) VALUES (
                                 :booking_id, :employee_id, :payment_method_id, :discount_id,
@@ -508,7 +508,7 @@ class Transactions
                 // 1. Get billing data directly from tbl_billing (use values already calculated and stored)
                 $stmt = $conn->prepare("
                 SELECT bi.billing_id, bi.booking_id, bi.billing_total_amount, bi.billing_balance, 
-                       bi.billing_downpayment, bi.billing_vat, bi.discounts_id,
+                       bi.billing_payment, bi.billing_vat, bi.discounts_id,
                        b.booking_payment AS booking_downpayment 
                 FROM tbl_billing bi 
                 JOIN tbl_booking b ON bi.booking_id = b.booking_id 
@@ -528,7 +528,7 @@ class Transactions
                 // Use values directly from tbl_billing (no recalculation)
                 $billing_total_amount = floatval($billingRow["billing_total_amount"] ?? 0);
                 $billing_balance = floatval($billingRow["billing_balance"] ?? 0);
-                $billing_downpayment = floatval($billingRow["billing_downpayment"] ?? 0);
+                $billing_payment = floatval($billingRow["billing_payment"] ?? 0);
                 $billing_vat = floatval($billingRow["billing_vat"] ?? 0);
                 $discounts_id = $billingRow["discounts_id"] ?? null;
 
@@ -574,10 +574,16 @@ class Transactions
                     }
                 }
 
-                // Calculate subtotal (charges after discount)
-                $amount_after_discount = $charge_total - $discount_amount;
+                // Calculate room charges (nightly * nights) for this booking
+                $roomStmt = $conn->prepare("\n                    SELECT \n                        SUM(rt.roomtype_price * GREATEST(DATEDIFF(b.booking_checkout_dateandtime, b.booking_checkin_dateandtime), 1)) AS room_total\n                    FROM tbl_booking_room br\n                    JOIN tbl_booking b ON br.booking_id = b.booking_id\n                    JOIN tbl_rooms r ON br.roomnumber_id = r.roomnumber_id\n                    JOIN tbl_roomtype rt ON r.roomtype_id = rt.roomtype_id\n                    WHERE br.booking_id = :booking_id\n                ");
+                $roomStmt->bindParam(':booking_id', $booking_id, PDO::PARAM_INT);
+                $roomStmt->execute();
+                $room_total = floatval($roomStmt->fetchColumn() ?: 0);
 
-                // Recalculate VAT correctly (12% on amount after discount)
+                // Calculate amount after discount including room charges
+                $amount_after_discount = ($charge_total - $discount_amount) + $room_total;
+
+                // Recalculate VAT correctly (12% on room + charges after discount)
                 $vat_rate = 12; // 12% VAT
                 $calculated_vat = $amount_after_discount * ($vat_rate / 100.0);
                 
@@ -588,13 +594,15 @@ class Transactions
                 $billingBreakdown = [
                     "success" => true,
                     "charge_total" => $charge_total,
-                    "subtotal" => $amount_after_discount,
+                    "room_total" => $room_total,
+                    "subtotal" => ($charge_total + $room_total),
                     "discount_amount" => $discount_amount,
                     "amount_after_discount" => $amount_after_discount,
                     "vat_amount" => $calculated_vat, // Use recalculated VAT, not from tbl_billing
                     "final_total" => $calculated_final_total, // Use recalculated total, not from tbl_billing
-                    "downpayment" => $billing_downpayment,
-                    "balance" => $calculated_final_total - $billing_downpayment // Recalculate balance based on new totals
+                    // Subtract booking deposit + any billing payments
+                    "downpayment" => ($billing_payment + floatval($billingRow['booking_downpayment'] ?? 0)),
+                    "balance" => $calculated_final_total - ($billing_payment + floatval($billingRow['booking_downpayment'] ?? 0))
                 ];
 
                 // 3. Create invoice using values from tbl_billing
@@ -613,7 +621,8 @@ class Transactions
                 $insert->bindParam(':payment_method_id', $payment_method_id);
                 $insert->bindParam(':invoice_date', $invoice_date);
                 $insert->bindParam(':invoice_time', $invoice_time);
-                $insert->bindParam(':invoice_total_amount', $billing_total_amount);
+                // Persist the recalculated final total including room charges
+                $insert->bindParam(':invoice_total_amount', $calculated_final_total);
                 $insert->bindParam(':invoice_status_id', $invoice_status_id);
                 $insert->execute();
 
@@ -634,8 +643,18 @@ class Transactions
                 if (!empty($email_to)) {
                     $recipientEmail = trim($email_to);
                 }
+                // Fallback to known customer email fields
                 if (!$recipientEmail) {
-                    $recipientEmail = $customerRow['customers_email'] ?? null;
+                    $recipientEmail = $customerRow['customers_email']
+                        ?? ($customerRow['customer_email'] ?? null);
+                }
+                // Normalize and validate
+                if ($recipientEmail) {
+                    $recipientEmail = trim($recipientEmail);
+                    if (!filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+                        @file_put_contents(__DIR__ . DIRECTORY_SEPARATOR . 'email_debug.log', date('c') . " invalid recipient email detected: '{$recipientEmail}' for booking {$booking_id}\n", FILE_APPEND);
+                        $recipientEmail = null;
+                    }
                 }
 
                 // Fetch payment method name for display
@@ -649,20 +668,42 @@ class Transactions
                 $dueDateRaw = $customerRow['booking_checkout_dateandtime'] ?? null;
                 $dueDateFmt = $dueDateRaw ? date('m/d/Y', strtotime($dueDateRaw)) : $issueDate;
                 $rows = '';
-                // Room charges excluded from invoice (already paid in booking_totalAmount)
-                // Only show additional charges
-                foreach ($additionalCharges as $row) {
-                    $rows .= '<tr><td>' . htmlspecialchars($row['charge_name']) . '</td><td>&#8369; ' . number_format($row['unit_price'], 2) . '</td><td>' . intval($row['quantity']) . '</td><td>&#8369; ' . number_format($row['total_amount'], 2) . '</td></tr>';
+                // Build room rows with correct Quantity and Price (nights x unit price)
+                // and label VAT Exclusive Amount for visibility in the layout
+                try {
+                    $roomQuery = $conn->prepare("\n                        SELECT \n                            rt.roomtype_name AS room_type,\n                            r.roomnumber_id AS room_number,\n                            rt.roomtype_price AS unit_price,\n                            GREATEST(DATEDIFF(b.booking_checkout_dateandtime, b.booking_checkin_dateandtime), 1) AS quantity\n                        FROM tbl_booking_room br\n                        JOIN tbl_booking b ON br.booking_id = b.booking_id\n                        JOIN tbl_rooms r ON br.roomnumber_id = r.roomnumber_id\n                        JOIN tbl_roomtype rt ON r.roomtype_id = rt.roomtype_id\n                        WHERE br.booking_id = :booking_id\n                    ");
+                    $roomQuery->bindParam(':booking_id', $booking_id, PDO::PARAM_INT);
+                    $roomQuery->execute();
+                    $roomLines = $roomQuery->fetchAll(PDO::FETCH_ASSOC);
+                } catch (Exception $e) {
+                    $roomLines = [];
                 }
-                // Use correctly recalculated values from billingBreakdown
-                // Subtotal should be amount_after_discount (charges after discount if any)
-                $subtotalN = $billingBreakdown['subtotal'] ?? $billingBreakdown['charge_total'] ?? 0;
+
+                foreach ($roomLines as $r) {
+                    $qty = intval($r['quantity'] ?? 0);
+                    $unit = floatval($r['unit_price'] ?? 0);
+                    $lineAmount = $unit * $qty;
+                    $rows .= '<tr><td>Room (VAT Exclusive Amount)</td><td>' . $qty . '</td><td>&#8369; ' . number_format($unit, 2) . '</td><td>&#8369; ' . number_format($lineAmount, 2) . '</td></tr>';
+                }
+
+                // Additional charges: ensure column order matches header (Quantity, Price)
+                foreach ($additionalCharges as $row) {
+                    $rows .= '<tr><td>' . htmlspecialchars($row['charge_name']) . '</td><td>' . intval($row['quantity']) . '</td><td>&#8369; ' . number_format($row['unit_price'], 2) . '</td><td>&#8369; ' . number_format($row['total_amount'], 2) . '</td></tr>';
+                }
+
+                // Use values from billingBreakdown without double-counting room_total
+                // If 'subtotal' is available, it already includes room_total + charges
+                $subtotalN = $billingBreakdown['subtotal']
+                    ?? ((($billingBreakdown['charge_total'] ?? 0) + ($billingBreakdown['room_total'] ?? 0)));
                 $subtotal = number_format($subtotalN, 2);
-                // Room total excluded from invoice display
-                // VAT is now correctly recalculated (12% of amount_after_discount)
-                $vatFmt = number_format($billingBreakdown['vat_amount'] ?? 0, 2);
-                // Final total is now correctly recalculated (subtotal + VAT)
-                $finalTotalFmt = number_format($billingBreakdown['final_total'] ?? 0, 2);
+                // VAT base should equal amount after discount (which already includes room_total)
+                $chargesAfterDiscountN = $billingBreakdown['amount_after_discount']
+                    ?? ((($billingBreakdown['charge_total'] ?? 0) + ($billingBreakdown['room_total'] ?? 0)) - ($billingBreakdown['discount_amount'] ?? 0));
+                $vatBaseN = $chargesAfterDiscountN;
+                $vatN = round($vatBaseN * 0.12, 2);
+                $finalTotalN = round($vatBaseN + $vatN, 2);
+                $vatFmt = number_format($vatN, 2);
+                $finalTotalFmt = number_format($finalTotalN, 2);
                 $depositFmt = number_format($billingBreakdown['downpayment'] ?? 0, 2);
                 // Use balance directly from tbl_billing (not recalculated)
                 $balanceFmt = number_format($billingBreakdown['balance'] ?? $billing_balance, 2);
@@ -726,7 +767,7 @@ class Transactions
                             </thead>
                             <tbody>' . $rows . '</tbody>
                             <tfoot>
-                            <tr><td colspan="3" style="text-align:right">Subtotal</td><td style="text-align:right">&#8369; ' . number_format($billingBreakdown['charge_total'] ?? 0, 2) . '</td></tr>
+                            <tr><td colspan="3" style="text-align:right">Subtotal</td><td style="text-align:right">&#8369; ' . $subtotal . '</td></tr>
                             ' . ($discountAmount > 0 ? '<tr><td colspan="3" style="text-align:right">Discount</td><td style="text-align:right">(&#8369; ' . $discountFmt . ')</td></tr>' : '') . '
                             ' . ($discountAmount > 0 ? '<tr><td colspan="3" style="text-align:right">Amount After Discount</td><td style="text-align:right">&#8369; ' . number_format($billingBreakdown['amount_after_discount'] ?? $subtotalN, 2) . '</td></tr>' : '') . '
                             <tr><td colspan="3" style="text-align:right">VAT (12%)</td><td style="text-align:right">&#8369; ' . $vatFmt . '</td></tr>
@@ -752,17 +793,9 @@ class Transactions
                 $pdfPath = null;
                 if (in_array($delivery_mode, ['pdf', 'both', 'email'])) {
                     try {
-                        // Try autoload from local vendor, project root vendor, then packaged dompdf
-                        $localAutoload = __DIR__ . '/vendor/autoload.php';
-                        $rootAutoload = dirname(__DIR__) . '/vendor/autoload.php';
+                        // Prefer packaged Dompdf autoloader to avoid broken Composer warnings
                         $dompdfAutoload = __DIR__ . '/dompdf/autoload.inc.php';
-                        if (file_exists($localAutoload)) {
-                            require_once $localAutoload;
-                        }
-                        if (!class_exists('\\Dompdf\\Dompdf') && file_exists($rootAutoload)) {
-                            require_once $rootAutoload;
-                        }
-                        if (!class_exists('\\Dompdf\\Dompdf') && file_exists($dompdfAutoload)) {
+                        if (file_exists($dompdfAutoload)) {
                             require_once $dompdfAutoload;
                         }
                         if (!class_exists('\\Dompdf\\Dompdf')) {
@@ -813,12 +846,17 @@ class Transactions
 
                 // Send a Thank You email with the invoice PDF attached, if enabled
                 $thank_you_status = null;
-                if (in_array($delivery_mode, ['email', 'both']) && $recipientEmail) {
+                if (in_array($delivery_mode, ['email', 'both']) && $recipientEmail && filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
                     try {
-                        // Load PHPMailer via Composer autoload
-                        $localAutoload = __DIR__ . '/vendor/autoload.php';
-                        if (file_exists($localAutoload)) {
-                            require_once $localAutoload;
+                        // Manually include PHPMailer classes to avoid Composer autoload warnings
+                        if (!class_exists('PHPMailer\\PHPMailer\\PHPMailer')) {
+                            $vendorSrc = __DIR__ . '/vendor/phpmailer/phpmailer/src/';
+                            $phSrcExists = is_dir($vendorSrc);
+                            if ($phSrcExists) {
+                                require_once $vendorSrc . 'Exception.php';
+                                require_once $vendorSrc . 'PHPMailer.php';
+                                require_once $vendorSrc . 'SMTP.php';
+                            }
                         }
                         // Use fully-qualified class names to avoid namespace issues
                         $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
@@ -837,11 +875,20 @@ class Transactions
                         $mail->Timeout    = 10;
                         @ini_set('default_socket_timeout', 10);
                         $mail->CharSet    = 'UTF-8';
+                        // Avoid TLS issues in local environments
+                        $mail->SMTPOptions = [
+                            'ssl' => [
+                                'verify_peer' => false,
+                                'verify_peer_name' => false,
+                                'allow_self_signed' => true,
+                            ],
+                        ];
 
                         $mail->setFrom('ikversoza@gmail.com', 'Demiren Hotel');
                         $mail->addAddress($recipientEmail, $customerRow['customer_fullname'] ?? 'Guest');
                         $mail->isHTML(true);
                         $mail->Subject = 'Demiren Hotel — ' . ($isReceipt ? 'Receipt' : 'Invoice') . ' #' . $invoice_id;
+                        @file_put_contents(__DIR__ . DIRECTORY_SEPARATOR . 'email_debug.log', date('c') . " attempting send to {$recipientEmail} for booking {$booking_id}, invoice {$invoice_id}\n", FILE_APPEND);
                         $guestName = htmlspecialchars($customerRow['customer_fullname'] ?? 'Guest');
                         $hotelName = 'Demiren Hotel & Restaurant';
                         $cityName = 'Iligan City';
@@ -889,6 +936,11 @@ class Transactions
                         $email_status = 'failed';
                         $thank_you_status = $email_status; // backward compatibility
                     }
+                }
+                elseif (in_array($delivery_mode, ['email', 'both'])) {
+                    @file_put_contents(__DIR__ . DIRECTORY_SEPARATOR . 'email_debug.log', date('c') . " email not sent: invalid or missing recipient for booking {$booking_id}, invoice {$invoice_id}\n", FILE_APPEND);
+                    $email_status = 'failed';
+                    $thank_you_status = $email_status;
                 }
 
                 // 6. Update room status to Vacant (3) for check-out
@@ -985,8 +1037,8 @@ class Transactions
             } catch (Exception $_) {
             }
             
-            // Room charges excluded from billing calculations (already paid)
-            $room_total = 0;
+            // Include room charges in billing calculations
+            $room_total = $room_total_ref ?: 0;
 
             // 2. Calculate additional charges (amenities, services, etc.) - ONLY status 2 (Delivered/Approved) charges are included in billing
             $chargesQuery = $conn->prepare("
@@ -1003,8 +1055,8 @@ class Transactions
             $chargeData = $chargesQuery->fetch(PDO::FETCH_ASSOC);
             $charge_total = $chargeData['charge_total'] ?: 0;
 
-            // 3. Calculate subtotal (charges only - room charges excluded)
-            $subtotal = $charge_total;
+            // 3. Calculate subtotal (room charges + additional charges)
+            $subtotal = $charge_total + $room_total;
 
             // 4. Apply discount if provided
             $discount_amount = 0;
@@ -1020,7 +1072,8 @@ class Transactions
 
                 if ($discount) {
                     if ($discount['discounts_percentage']) {
-                        $discount_amount = $subtotal * ($discount['discounts_percentage'] / 100);
+                        // Apply discount to additional charges only
+                        $discount_amount = $charge_total * ($discount['discounts_percentage'] / 100);
                     } else {
                         $discount_amount = $discount['discounts_amount'];
                     }
@@ -1045,14 +1098,14 @@ class Transactions
 
             return [
                 "success" => true,
-                "room_total" => $room_total, // 0 - excluded from billing (already paid)
-                "room_total_ref" => $room_total_ref, // For reference only
+                "room_total" => $room_total,
+                "room_total_ref" => $room_total_ref,
                 "charge_total" => $charge_total,
-                "subtotal" => $subtotal, // charges only
+                "subtotal" => $subtotal,
                 "discount_amount" => $discount_amount,
                 "amount_after_discount" => $amount_after_discount,
-                "vat_amount" => $vat_amount, // VAT on charges only
-                "final_total" => $final_total, // charges + VAT
+                "vat_amount" => $vat_amount,
+                "final_total" => $final_total,
                 "downpayment" => $downpayment,
                 "balance" => $balance,
                 "room_count" => $roomData['room_count'],
@@ -1157,7 +1210,7 @@ class Transactions
         // Do NOT use booking_payment (that's for room charges, already paid separately)
         if ($downpayment == 0) {
             $stmt = $conn->prepare("
-                SELECT COALESCE(SUM(billing_downpayment), 0) AS total_billing_payments 
+                SELECT COALESCE(SUM(billing_payment), 0) AS total_billing_payments 
                 FROM tbl_billing 
                 WHERE booking_id = :booking_id
             ");
@@ -1167,6 +1220,17 @@ class Transactions
             $downpayment = $billingData ? ($billingData["total_billing_payments"] ?? 0) : 0;
         }
 
+        // Ensure downpayment includes the original booking deposit when not overridden
+        if (($json["downpayment"] ?? 0) == 0) {
+            try {
+                $stmtBP = $conn->prepare("SELECT COALESCE(booking_payment, 0) AS booking_payment FROM tbl_booking WHERE booking_id = :booking_id");
+                $stmtBP->bindParam(':booking_id', $booking_id);
+                $stmtBP->execute();
+                $bpRow = $stmtBP->fetch(PDO::FETCH_ASSOC);
+                $bpVal = $bpRow ? ($bpRow['booking_payment'] ?? 0) : 0;
+                $downpayment = floatval($downpayment) + floatval($bpVal);
+            } catch (Exception $_) { }
+        }
         $result = $this->calculateComprehensiveBillingInternal($conn, $booking_id, $discount_id, $vat_rate, $downpayment);
         echo json_encode($result);
     }
@@ -1259,8 +1323,8 @@ class Transactions
             $chargesQuery->execute();
             $charge_total = $chargesQuery->fetchColumn() ?: 0;
 
-            // 4. Calculate subtotal (charges only - room charges excluded)
-            $subtotal = $charge_total;
+            // 4. Calculate subtotal (room charges + additional charges)
+            $subtotal = $room_total + $charge_total;
 
             // 5. Apply discount if provided
             $discount_amount = 0;
@@ -1276,7 +1340,8 @@ class Transactions
 
                 if ($discount) {
                     if ($discount['discounts_percentage']) {
-                        $discount_amount = $subtotal * ($discount['discounts_percentage'] / 100);
+                        // Apply discount to additional charges only
+                        $discount_amount = $charge_total * ($discount['discounts_percentage'] / 100);
                     } else {
                         $discount_amount = $discount['discounts_amount'];
                     }
@@ -1295,13 +1360,17 @@ class Transactions
             $vat_amount = $amount_after_discount * ($vat_rate / 100.0);
             $final_total = $amount_after_discount + $vat_amount;
 
-            // 9. Initial downpayment for new billing record is 0
-            // Do NOT use booking_payment (that's for room charges, already paid separately)
-            // Billing payments will be added later through payment processing
+            // 9. Use original booking deposit as downpayment for balance computation
+            $bpStmt = $conn->prepare("SELECT COALESCE(booking_payment, 0) AS booking_payment FROM tbl_booking WHERE booking_id = :booking_id");
+            $bpStmt->bindParam(':booking_id', $booking_id, PDO::PARAM_INT);
+            $bpStmt->execute();
+            $bpRow = $bpStmt->fetch(PDO::FETCH_ASSOC);
+            $downpayment_display = $bpRow ? ($bpRow['booking_payment'] ?? 0) : 0;
+            // Store-only value: initial billing payments are 0
             $downpayment = 0;
 
             // 10. Calculate balance
-            $balance = $final_total - $downpayment;
+            $balance = $final_total - $downpayment_display;
 
             // 11. Generate invoice number
             $invoice_number = 'BILL' . date('YmdHis') . rand(100, 999);
@@ -1310,7 +1379,7 @@ class Transactions
             $stmt = $conn->prepare("
                 INSERT INTO tbl_billing (
                     booking_id, employee_id, payment_method_id, discounts_id,
-                    billing_dateandtime, billing_invoice_number, billing_downpayment, 
+                    billing_dateandtime, billing_invoice_number, billing_payment, 
                     billing_vat, billing_total_amount, billing_balance
                 ) VALUES (
                     :booking_id, :employee_id, :payment_method_id, :discount_id,
@@ -1349,7 +1418,7 @@ class Transactions
                     'billing_id' => $billing_id,
                     'booking_id' => $booking_id,
                     'total_amount' => $final_total,
-                    'downpayment' => $downpayment,
+                    'downpayment' => $downpayment_display,
                     'balance' => $balance
                 ]);
 
@@ -1364,7 +1433,7 @@ class Transactions
                     "billing_id" => $billing_id,
                     "invoice_number" => $invoice_number,
                     "total_amount" => $final_total,
-                    "downpayment" => $downpayment,
+                    "downpayment" => $downpayment_display,
                     "balance" => $balance
                 ]);
             } else {
@@ -1676,7 +1745,7 @@ class Transactions
             END AS total_amount,
             CASE 
                 WHEN latest_billing.billing_id IS NOT NULL THEN
-                    COALESCE(latest_billing.billing_downpayment, b.booking_payment)
+                    COALESCE(latest_billing.billing_payment, b.booking_payment)
                 ELSE b.booking_payment
             END AS downpayment,
             
@@ -1710,7 +1779,7 @@ class Transactions
                 bi.booking_id,
                 bi.billing_id,
                 bi.billing_total_amount,
-                bi.billing_downpayment,
+                bi.billing_payment,
                 bi.billing_balance,
                 bi.billing_vat,
                 bi.billing_dateandtime
@@ -1766,7 +1835,7 @@ class Transactions
             c.billing_id,
             c.billing_total_amount,
             c.billing_balance,
-            c.billing_downpayment,
+            c.billing_payment,
             d.invoice_id,
             d.invoice_date,
             d.invoice_time,
@@ -1897,7 +1966,7 @@ class Transactions
             return;
         }
         try {
-            $stmt = $conn->prepare("SELECT billing_id, booking_id, billing_total_amount, billing_balance, billing_downpayment, billing_vat, billing_dateandtime, discounts_id FROM tbl_billing WHERE booking_id = :booking_id ORDER BY billing_id DESC LIMIT 1");
+            $stmt = $conn->prepare("SELECT billing_id, booking_id, billing_total_amount, billing_balance, billing_payment, billing_vat, billing_dateandtime, discounts_id FROM tbl_billing WHERE booking_id = :booking_id ORDER BY billing_id DESC LIMIT 1");
             $stmt->bindParam(':booking_id', $booking_id, PDO::PARAM_INT);
             $stmt->execute();
             $billing = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -1925,7 +1994,7 @@ class Transactions
         }
         try {
             $conn->beginTransaction();
-            $stmt = $conn->prepare("SELECT billing_id, billing_downpayment, discounts_id FROM tbl_billing WHERE booking_id = :booking_id ORDER BY billing_id DESC LIMIT 1");
+            $stmt = $conn->prepare("SELECT billing_id, billing_payment, discounts_id FROM tbl_billing WHERE booking_id = :booking_id ORDER BY billing_id DESC LIMIT 1");
             $stmt->bindParam(':booking_id', $booking_id, PDO::PARAM_INT);
             $stmt->execute();
             $billingRow = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -1942,16 +2011,23 @@ class Transactions
             if ($downpayment_override !== null) {
                 $actual_downpayment = $downpayment_override;
             } else {
-                // Get sum of all billing_downpayment from tbl_billing for this booking
+                // Get sum of all billing_payment from tbl_billing for this booking
                 $dpQuery = $conn->prepare("
-                    SELECT COALESCE(SUM(billing_downpayment), 0) AS total_billing_payments 
+                    SELECT COALESCE(SUM(billing_payment), 0) AS total_billing_payments 
                     FROM tbl_billing 
                     WHERE booking_id = :booking_id
                 ");
                 $dpQuery->bindParam(':booking_id', $booking_id, PDO::PARAM_INT);
                 $dpQuery->execute();
                 $billingPayments = $dpQuery->fetch(PDO::FETCH_ASSOC);
-                $actual_downpayment = $billingPayments ? ($billingPayments["total_billing_payments"] ?? 0) : 0;
+                $billing_payments_total = $billingPayments ? ($billingPayments["total_billing_payments"] ?? 0) : 0;
+                // Include original booking deposit as part of downpayment for balance computation
+                $bpStmt = $conn->prepare("SELECT COALESCE(booking_payment, 0) AS booking_payment FROM tbl_booking WHERE booking_id = :booking_id");
+                $bpStmt->bindParam(':booking_id', $booking_id, PDO::PARAM_INT);
+                $bpStmt->execute();
+                $bpRow = $bpStmt->fetch(PDO::FETCH_ASSOC);
+                $booking_payment = $bpRow ? ($bpRow['booking_payment'] ?? 0) : 0;
+                $actual_downpayment = floatval($billing_payments_total) + floatval($booking_payment);
             }
             $billingBreakdown = $this->calculateComprehensiveBillingInternal($conn, $booking_id, $actual_discount_id, $vat_rate, $actual_downpayment);
             if (!isset($billingBreakdown["success"]) || !$billingBreakdown["success"]) {
@@ -1959,10 +2035,11 @@ class Transactions
                 echo json_encode(["success" => false, "message" => isset($billingBreakdown["message"]) ? $billingBreakdown["message"] : "Failed to calculate billing"]);
                 return;
             }
-            $update = $conn->prepare("UPDATE tbl_billing SET billing_total_amount = :total, billing_balance = :balance, billing_downpayment = :downpayment, billing_vat = :vat, discounts_id = :discount_id WHERE billing_id = :billing_id");
+            $update = $conn->prepare("UPDATE tbl_billing SET billing_total_amount = :total, billing_balance = :balance, billing_payment = :downpayment, billing_vat = :vat, discounts_id = :discount_id WHERE billing_id = :billing_id");
             $update->bindParam(':total', $billingBreakdown["final_total"]);
             $update->bindParam(':balance', $billingBreakdown["balance"]);
-            $update->bindParam(':downpayment', $actual_downpayment);
+            // Store only the sum of billing payments in billing_payment
+            $update->bindParam(':downpayment', $billing_payments_total);
             $update->bindParam(':vat', $billingBreakdown["vat_amount"]);
             $update->bindParam(':discount_id', $actual_discount_id);
             $update->bindParam(':billing_id', $billing_id);

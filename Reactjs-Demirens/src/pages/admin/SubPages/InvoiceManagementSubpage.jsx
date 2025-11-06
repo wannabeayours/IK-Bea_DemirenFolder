@@ -132,7 +132,6 @@ function InvoiceManagementSubpage({
     if (!Array.isArray(charges)) return [];
     const map = new Map();
     for (const c of charges) {
-      if (c.charge_type === 'Room Charges') continue; // skip room charges for billing table
       const key = [
         String(c.charge_type || ''),
         String(c.charge_name || ''),
@@ -808,7 +807,7 @@ function InvoiceManagementSubpage({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <DollarSign className="h-5 w-5" />
-              Current Charges (Billing Only - Room Charges Excluded)
+              Current Charges (Includes Room Charges)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -840,7 +839,7 @@ function InvoiceManagementSubpage({
                       <TableCell className="text-right font-mono font-bold">{NumberFormatter.formatCurrency(charge.total_amount)}</TableCell>
                     </TableRow>
                   ))}
-                  {bookingCharges.filter(charge => charge.charge_type !== 'Room Charges').length === 0 && (
+                  {bookingCharges.length === 0 && (
                     <TableRow>
                       <TableCell colSpan="6" className="text-center text-muted-foreground">
                         No additional charges found for this booking
@@ -851,19 +850,15 @@ function InvoiceManagementSubpage({
               </Table>
             </div>
             
-            {/* Total Summary - Only additional charges, excluding room charges */}
-            {bookingCharges.filter(charge => charge.charge_type !== 'Room Charges').length > 0 && (
+            {/* Total Summary - Includes room charges and additional charges */}
+            {bookingCharges.length > 0 && (
               <div className="mt-4 p-4 bg-muted rounded-lg text-right">
                 <span className="font-bold text-xl">
                   Current Total: {NumberFormatter.formatCurrency(
-                    bookingCharges
-                      .filter(charge => charge.charge_type !== 'Room Charges')
-                      .reduce((sum, charge) => sum + (parseFloat(charge.total_amount) || 0), 0)
+                    bookingCharges.reduce((sum, charge) => sum + (parseFloat(charge.total_amount) || 0), 0)
                   )}
                 </span>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Room charges excluded (already paid in booking)
-                </p>
+                <p className="text-sm text-muted-foreground mt-2">Includes room charges</p>
               </div>
             )}
           </CardContent>
@@ -1048,7 +1043,7 @@ function InvoiceManagementSubpage({
                       {detailedCharges.room_charges && detailedCharges.room_charges.length > 0 && (
                         <div className="mb-6">
                           <h5 className="text-blue-600 dark:text-blue-400 mb-4 pb-2 border-b-2 border-blue-200 dark:border-blue-800 font-semibold">
-                            🏨 Room Charges Details (Excluded from Billing - Already Paid)
+                            🏨 Room Charges Details
                           </h5>
                           <div className="rounded-md border overflow-hidden">
                             <Table>
@@ -1142,10 +1137,10 @@ function InvoiceManagementSubpage({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
                             <h6 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">Subtotal Breakdown</h6>
-                            <div className="space-y-1 text-sm">
+                              <div className="space-y-1 text-sm">
                               <div className="flex justify-between">
-                                <span>Room Charges (Excluded):</span>
-                                <span className="text-gray-400 line-through">{NumberFormatter.formatCurrency(detailedCharges.summary.room_total)}</span>
+                                <span>Room Charges:</span>
+                                <span>{NumberFormatter.formatCurrency(detailedCharges.summary.room_total)}</span>
                               </div>
                               {(detailedCharges.summary.charges_total || 0) > 0 && (
                                 <div className="flex justify-between">

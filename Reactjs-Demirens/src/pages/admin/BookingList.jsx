@@ -2563,41 +2563,80 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                       </div>
                     </div>
                     <div className="md:col-span-2">
-                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Remaining Balance ni dari</label>
+                      <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Remaining Balance ni siya</label>
                       {(() => {
-                        const finalTotal = finalTotalAmount;
+                        // Prefer latest billing totals and payments when available
+                        const finalTotalFromBilling = (
+                          // Some endpoints expose explicit billing_total_amount
+                          parseFloat(selectedBooking?.billing_total_amount ?? '') ||
+                          // admin.php:viewBookingsEnhanced exposes combined total as total_amount
+                          parseFloat(selectedBooking?.total_amount ?? '') ||
+                          // Fallback to previous computed final total
+                          parseFloat(finalTotalAmount ?? 0)
+                        );
+
+                        const paidFromBilling = (
+                          // transactions.php enhanced endpoint may expose billing_payment
+                          parseFloat(selectedBooking?.billing_payment ?? '') ||
+                          // admin.php:viewBookingsEnhanced exposes downpayment = latest_billing.billing_downpayment
+                          parseFloat(selectedBooking?.downpayment ?? '') ||
+                          // Fallback to booking_payment
+                          parseFloat(selectedBooking?.booking_payment ?? 0)
+                        );
+
                         const chargesSum = parseFloat(selectedBooking?.booking_charges_total_sum || 0) || 0;
-                        const totalPaidAmount = parseFloat(selectedBooking?.booking_payment || 0) || 0;
-                        const subtotal = (finalTotal || 0) + chargesSum;
-                        const vatAmount = subtotal * 0.12;
-                        const grandTotal = subtotal + vatAmount;
-                        const balance = Math.max(grandTotal - totalPaidAmount, 0);
+
+                        // Helpers: round to whole pesos and format currency without centavos
+                        const roundPeso = (v) => Math.round(parseFloat(v || 0));
+                        const formatCurrency0 = (n) => new Intl.NumberFormat('en-PH', {
+                          style: 'currency',
+                          currency: 'PHP',
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0,
+                        }).format(roundPeso(n || 0));
+
+                        // VAT Exclusive Amount based on current amount (prefer billing total)
+                        const vatExclusiveAmount = ((finalTotalFromBilling || 0) / 1.12);
+                        const vatExclusiveRounded = roundPeso(vatExclusiveAmount);
+                        const chargesRounded = roundPeso(chargesSum);
+                        const subtotalExclusiveRounded = vatExclusiveRounded + chargesRounded;
+
+                        // Prefer VAT from backend (latest_billing.billing_vat via viewBookingsEnhanced)
+                        const dbVatRaw = selectedBooking?.billing_vat ?? selectedBooking?.latest_billing?.billing_vat;
+                        const dbVat = parseFloat(dbVatRaw);
+                        const vatComputed = (Number.isFinite(dbVat) && dbVat >= 0) ? dbVat : (subtotalExclusiveRounded * 0.12);
+                        const vatRounded = roundPeso(vatComputed);
+
+                        const paymentRounded = roundPeso(paidFromBilling);
+                        const grandTotalRounded = subtotalExclusiveRounded + vatRounded;
+                        const balance = Math.max(grandTotalRounded - paymentRounded, 0);
+
                         return (
                           <div className="mt-1 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 p-3">
                             <div className="grid grid-cols-2 text-sm mb-1">
-                              <span className="text-gray-600 dark:text-gray-400">Total Amount</span>
-                              <span className="text-right text-gray-900 dark:text-white font-medium">{NumberFormatter.formatCurrency(finalTotal)}</span>
+                              <span className="text-gray-600 dark:text-gray-400">VAT Exclusive Amount</span>
+                              <span className="text-right text-gray-900 dark:text-white font-medium">{formatCurrency0(vatExclusiveRounded)}</span>
                             </div>
                             <div className="grid grid-cols-2 text-sm mb-1">
                               <span className="text-gray-600 dark:text-gray-400">Total Charges</span>
-                              <span className="text-right text-gray-900 dark:text-white font-medium">{NumberFormatter.formatCurrency(chargesSum)}</span>
+                              <span className="text-right text-gray-900 dark:text-white font-medium">{formatCurrency0(chargesRounded)}</span>
                             </div>
                             <div className="grid grid-cols-2 text-sm mb-1">
                               <span className="text-gray-600 dark:text-gray-400">VAT (12%)</span>
-                              <span className="text-right text-gray-900 dark:text-white font-medium">{NumberFormatter.formatCurrency(vatAmount)}</span>
+                              <span className="text-right text-gray-900 dark:text-white font-medium">{formatCurrency0(vatRounded)}</span>
                             </div>
                             <div className="grid grid-cols-2 text-sm">
                               <span className="text-gray-600 dark:text-gray-400">Payment</span>
-                              <span className="text-right text-red-600 dark:text-red-400 font-medium">- {NumberFormatter.formatCurrency(totalPaidAmount)}</span>
+                              <span className="text-right text-red-600 dark:text-red-400 font-medium">- {formatCurrency0(paymentRounded)}</span>
                             </div>
                             <div className="border-t border-gray-200 dark:border-gray-700 my-2" />
-                            <div className="grid grid-cols-2 text-sm">
-                              <span className="font-semibold text-gray-700 dark:text-gray-300">Remaining Balance</span>
-                              <span className="text-right font-bold text-orange-600 dark:text-orange-400">{NumberFormatter.formatCurrency(balance)}</span>
-                            </div>
-                          </div>
-                        );
-                      })()}
+                             <div className="grid grid-cols-2 text-sm">
+                               <span className="font-semibold text-gray-700 dark:text-gray-300">Remaining Balance</span>
+                              <span className={`text-right font-bold ${balance === 0 ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}>{balance === 0 ? 'Balance Fully Paid' : formatCurrency0(balance)}</span>
+                             </div>
+                           </div>
+                         );
+                       })()}
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Room Details</label>

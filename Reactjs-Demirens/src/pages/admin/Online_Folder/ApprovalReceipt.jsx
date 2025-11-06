@@ -140,33 +140,35 @@ export default function ApprovalReceipt() {
     () => lineItems.reduce((sum, li) => sum + li.lineTotal, 0),
     [lineItems]
   );
-  // VAT removed; grand total equals subtotal
-  const grandTotal = useMemo(() => subtotal, [subtotal]);
+
+  // Compute display subtotal: prefer selected rooms subtotal, else fallback to booking meta total
+  const displaySubtotal = useMemo(() => {
+    if ((lineItems || []).length > 0) return subtotal;
+    const metaTotal = Number(bookingMeta?.total_amount || 0);
+    return Math.max(0, metaTotal);
+  }, [lineItems, subtotal, bookingMeta?.total_amount]);
+
+  // VAT at 12% applied to the subtotal
+  const vatAmount = useMemo(() => Math.max(0, displaySubtotal * 0.12), [displaySubtotal]);
+
+  // Total amount equals Subtotal + VAT
+  const grandTotal = useMemo(() => displaySubtotal + vatAmount, [displaySubtotal, vatAmount]);
+
+  // Keep downpayment/balance for backend payload consistency, though not displayed
   const downpayment = useMemo(() => grandTotal * 0.5, [grandTotal]);
 
   const effectiveTotals = useMemo(() => {
-    const computed = {
-      subtotal,
+    const source = (lineItems || []).length > 0 ? "selection" : "booking";
+    const balance = Math.max(0, grandTotal - downpayment);
+    return {
+      subtotal: displaySubtotal,
+      vat: vatAmount,
       grandTotal,
       downpayment,
-      balance: grandTotal - downpayment,
-      source: "selection",
+      balance,
+      source,
     };
-    if ((lineItems || []).length > 0) return computed;
-    const metaTotal = Number(bookingMeta?.total_amount || 0);
-    const metaDown = Number(bookingMeta?.downpayment || 0);
-    const metaBalance = Number(
-      bookingMeta?.balance ?? Math.max(0, metaTotal - metaDown)
-    );
-    const metaSubtotal = Math.max(0, metaTotal);
-    return {
-      subtotal: metaSubtotal,
-      grandTotal: metaTotal,
-      downpayment: metaDown,
-      balance: metaBalance,
-      source: "booking",
-    };
-  }, [lineItems, subtotal, grandTotal, downpayment, bookingMeta]);
+  }, [lineItems, displaySubtotal, vatAmount, grandTotal, downpayment]);
 
   // Compact per-night price derived from subtotal
   const perNight = useMemo(() => {
@@ -190,9 +192,9 @@ export default function ApprovalReceipt() {
   useEffect(() => {
     setState((prev) => ({
       ...prev,
-      totals: { subtotal, grandTotal, downpayment },
+      totals: { subtotal: effectiveTotals.subtotal, vat: effectiveTotals.vat, grandTotal: effectiveTotals.grandTotal },
     }));
-  }, [subtotal, grandTotal, downpayment, setState]);
+  }, [effectiveTotals.subtotal, effectiveTotals.vat, effectiveTotals.grandTotal, setState]);
 
   // Ensure userId is present in context (fallback to localStorage keys)
   useEffect(() => {
@@ -446,10 +448,10 @@ export default function ApprovalReceipt() {
                  <div className="flex items-center justify-between"><span className="text-muted-foreground">Reference</span><span className="font-medium text-foreground">{bookingMeta?.reference_no || '-'}</span></div>
                  <div className="flex items-center justify-between"><span className="text-muted-foreground">Created at</span><span className="font-medium text-foreground">{DateFormatter.formatDate(bookingMeta?.booking_created_at)}</span></div>
                  <div className="flex items-center justify-between"><span className="text-muted-foreground">Subtotal</span><span className="font-medium text-foreground">{currency(effectiveTotals.subtotal)}</span></div>
-                 <div className="flex items-center justify-between"><span className="text-muted-foreground">Downpayment (50%)</span><span className="font-medium text-blue-600 dark:text-blue-400">{currency(effectiveTotals.downpayment)}</span></div>
-                 <div className="flex items-center justify-between"><span className="text-muted-foreground">Balance (50%)</span><span className="font-medium text-green-600 dark:text-green-400">{currency(effectiveTotals.balance)}</span></div>
+                 <div className="flex items-center justify-between"><span className="text-muted-foreground">VAT (12%)</span><span className="font-medium text-foreground">{currency(effectiveTotals.vat)}</span></div>
+                 <div className="flex items-center justify-between"><span className="text-muted-foreground">Total Amount</span><span className="font-medium text-green-600 dark:text-green-400">{currency(effectiveTotals.grandTotal)}</span></div>
                </div>
-               <div className="text-xs italic text-muted-foreground">{effectiveTotals.source === 'selection' ? 'Totals are based on selected rooms.' : 'Totals reflect booking record amounts (no room selection).'}</div>
+               <div className="text-xs italic text-muted-foreground">{effectiveTotals.source === 'selection' ? 'Totals are based on selected rooms and include 12% VAT.' : 'Totals reflect booking record amounts with 12% VAT (no room selection).'}</div>
              </div>
            </div>
         
