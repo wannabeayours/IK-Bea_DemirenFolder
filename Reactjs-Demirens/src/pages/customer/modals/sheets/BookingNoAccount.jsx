@@ -703,7 +703,20 @@ function BookingNoaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber
               <div className="space-y-2">
                 <div className="flex justify-between items-center text-sm">
                   <span>Subtotals:</span>
-                  <span>₱{subtotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span>
+                    ₱{subtotal.toLocaleString('en-PH', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })}
+                  </span>
+                </div>
+
+                {/* ✅ VAT Included Label */}
+                <div className="flex justify-between items-center text-sm">
+                  <span>VAT Included (12%):</span>
+                  <span>
+                    ₱{Math.round(subtotal / 1.12 * 0.12).toLocaleString('en-PH') + '.00'}
+                  </span>
                 </div>
                 {selectedRooms.reduce((total, room) => { const rk = room.selectionKey || room.room_type; return total + Math.max(0, ((adultCounts[rk] || 0) + (childrenCounts[rk] || 0)) - (room.roomtype_capacity || 0)); }, 0) > 0 && (
                   <>
@@ -1253,7 +1266,20 @@ function BookingNoaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber
                 <div className="space-y-2">
                   <div className="flex justify-between items-center text-sm">
                     <span>Subtotals:</span>
-                    <span>₱{subtotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span>
+                      ₱{subtotal.toLocaleString('en-PH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })}
+                    </span>
+                  </div>
+
+                  {/* ✅ VAT Included Label */}
+                  <div className="flex justify-between items-center text-sm">
+                    <span>VAT Included (12%):</span>
+                    <span>
+                      ₱{Math.round(subtotal / 1.12 * 0.12).toLocaleString('en-PH') + '.00'}
+                    </span>
                   </div>
                   {selectedRooms.reduce((total, room) => { const rk = room.selectionKey || room.room_type; return total + Math.max(0, ((adultCounts[rk] || 0) + (childrenCounts[rk] || 0)) - (room.roomtype_capacity || 0)); }, 0) > 0 && (
                     <>

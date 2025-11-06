@@ -174,6 +174,18 @@ export default function ApprovalReceipt() {
     return effectiveTotals.subtotal > 0 ? (effectiveTotals.subtotal / nights) : 0;
   }, [effectiveTotals.subtotal, nights]);
 
+  // Prefer selected room numbers; otherwise use fallback or booking record
+  const roomNumbersDisplay = useMemo(() => {
+    const selectedIds = Array.isArray(state.selectedRooms)
+      ? state.selectedRooms.map((r) => Number(r.id ?? r.roomnumber_id)).filter(Boolean)
+      : [];
+    if (selectedIds.length > 0) return selectedIds.join(', ');
+    if (Array.isArray(fallbackRoomIds) && fallbackRoomIds.length > 0) return fallbackRoomIds.join(', ');
+    const raw = bookingMeta?.room_numbers;
+    if (typeof raw === 'string' && raw.trim()) return raw.trim();
+    return null;
+  }, [state.selectedRooms, fallbackRoomIds, bookingMeta?.room_numbers]);
+
   // store totals (so you can access them later if needed)
   useEffect(() => {
     setState((prev) => ({
@@ -306,6 +318,23 @@ export default function ApprovalReceipt() {
       const { success, message, emailStatus } = interpretApprovalResponse(res.data);
 
       if (success) {
+        // Immediately mark booking as Checked-In and sync room occupancy
+        try {
+          const statusPayload = {
+            booking_id: bookingId,
+            employee_id: Number(effectiveUserId),
+            booking_status_name: 'Checked-In',
+            room_ids: roomIds,
+          };
+          const fdStatus = new FormData();
+          fdStatus.append('method', 'changeBookingStatus');
+          fdStatus.append('json', JSON.stringify(statusPayload));
+          const statusRes = await axios.post(APIConn, fdStatus);
+          console.log('changeBookingStatus response:', statusRes.data);
+        } catch (statusErr) {
+          console.error('Failed to change booking status to Checked-In:', statusErr);
+        }
+
         setShowConfirmModal(false);
         setEmailStatus(emailStatus ?? null);
         setShowSuccessModal(true);
@@ -393,14 +422,20 @@ export default function ApprovalReceipt() {
            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
              {/* Personal Details */}
              <div className="space-y-2">
-               <div className="text-xs uppercase tracking-wide text-foreground/70">Personal Details</div>
-               <div className="rounded-md border border-border p-3 bg-background/40 space-y-2">
+             <div className="text-xs uppercase tracking-wide text-foreground/70">Personal Details</div>
+              <div className="rounded-md border border-border p-3 bg-background/40 space-y-2">
                  <div className="flex items-center justify-between"><span className="text-muted-foreground">Name</span><span className="font-medium text-foreground">{state.customerName || bookingMeta?.customer_name || '—'}</span></div>
-                 <div className="flex items-center justify-between"><span className="text-muted-foreground">Email</span><span className="font-medium text-foreground">{bookingMeta?.customer_email || '—'}</span></div>
-                 <div className="flex items-center justify-between"><span className="text-muted-foreground">Phone</span><span className="font-medium text-foreground">{bookingMeta?.customer_phone || '—'}</span></div>
-                 <div className="flex items-center justify-between"><span className="text-muted-foreground">Address</span><span className="font-medium text-foreground">{bookingMeta?.customer_address || '—'}</span></div>
+                 {bookingMeta?.customer_email ? (
+                   <div className="flex items-center justify-between"><span className="text-muted-foreground">Email</span><span className="font-medium text-foreground">{bookingMeta.customer_email}</span></div>
+                 ) : null}
+                 {bookingMeta?.customer_phone ? (
+                   <div className="flex items-center justify-between"><span className="text-muted-foreground">Phone</span><span className="font-medium text-foreground">{bookingMeta.customer_phone}</span></div>
+                 ) : null}
+                 {bookingMeta?.customer_address ? (
+                   <div className="flex items-center justify-between"><span className="text-muted-foreground">Address</span><span className="font-medium text-foreground">{bookingMeta.customer_address}</span></div>
+                 ) : null}
                  <div className="flex items-center justify-between"><span className="text-muted-foreground">Guests</span><span className="font-medium text-foreground">{guestCounts.adult} adult{guestCounts.adult === 1 ? '' : 's'}{guestCounts.children > 0 ? `, ${guestCounts.children} child${guestCounts.children === 1 ? '' : 'ren'}` : ''}</span></div>
-                 <div className="flex items-center justify-between"><span className="text-muted-foreground">Rooms</span><span className="font-medium text-foreground">{bookingMeta?.room_numbers || '-'}</span></div>
+                 <div className="flex items-center justify-between"><span className="text-muted-foreground">Rooms</span><span className="font-medium text-foreground">{roomNumbersDisplay || '—'}</span></div>
                </div>
              </div>
 

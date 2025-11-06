@@ -34,6 +34,7 @@ import NewRoomNumber from './pages/admin/SubPages/NewRoomNumber';
 import OnlineReqList from './pages/admin/Online_Folder/OnlineReqList';
 import { ApprovalProvider } from './pages/admin/Online_Folder/ApprovalContext';
 import ApprovalReceipt from './pages/admin/Online_Folder/ApprovalReceipt';
+import ApproveRooms from './pages/admin/Online_Folder/ApproveRooms';
 
 // Walk In
 import AddWalkIn from './pages/admin/WalkIn_Folder/AddWalkIn';
@@ -253,12 +254,13 @@ function App() {
                     <OnlineReqList />
                   </AdminRouteGuard>
                 } />
-                {/* Route temporarily disabled: ApproveRooms component missing */}
-                {/* <Route path="/admin/approve/:bookingId" element={
+
+                <Route path="/admin/approve/:bookingId" element={
                   <AdminRouteGuard>
                     <ApproveRooms />
                   </AdminRouteGuard>
-                } /> */}
+                } />
+
                 <Route path="/admin/receipt/:bookingId" element={
                   <AdminRouteGuard>
                     <ApprovalReceipt />
@@ -287,12 +289,12 @@ function App() {
                   </AdminRouteGuard>
                 } />
 
-                  <Route path="/admin/new-room-number" element={
+                <Route path="/admin/new-room-number" element={
                   <AdminRouteGuard>
                     <NewRoomNumber />
                   </AdminRouteGuard>
                 } />
-                
+
                 {/* Customer Route */}
                 <Route path="/customer/roomview" element={<CustomerRoomView />} />
                 <Route path="/customer/roomsearch" element={<RoomSearch />} />

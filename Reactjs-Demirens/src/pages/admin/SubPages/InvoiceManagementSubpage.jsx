@@ -887,7 +887,6 @@ function InvoiceManagementSubpage({
         <div className="flex justify-end gap-4 mt-6 pb-6">
           <Button 
             onClick={proceedToInvoice}
-            disabled={bookingCharges.filter(charge => charge.charge_type !== 'Room Charges').length === 0}
             className="flex items-center gap-2"
           >
             <Receipt className="h-4 w-4" />

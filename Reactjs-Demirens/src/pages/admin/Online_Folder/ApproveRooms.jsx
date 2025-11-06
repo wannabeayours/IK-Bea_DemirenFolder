@@ -29,6 +29,10 @@ export default function ApproveRooms() {
   const [search, setSearch] = useState("");
   const [checkIn, setCheckIn] = useState(state.checkIn || "");
   const [checkOut, setCheckOut] = useState(state.checkOut || "");
+  const [fallbackRequestedTypeNames, setFallbackRequestedTypeNames] = useState(new Set());
+  // Fallback per-type counts and total requested count when navigating without context
+  const [fallbackRequestedTypeCounts, setFallbackRequestedTypeCounts] = useState({});
+  const [fallbackRequestedRoomCount, setFallbackRequestedRoomCount] = useState(1);
   const [summary, setSummary] = useState({
     reference_no: '',
     customer_name: state.customerName || '',
@@ -40,13 +44,35 @@ export default function ApproveRooms() {
   const bookingId = state.bookingId || Number(bookingIdParam);
 
   useEffect(() => {
-    // Basic guard if someone opens URL directly without context
-    if (!state.bookingId) {
-      // You could redirect back:
+    // Allow direct navigation via URL param; only redirect if neither is present
+    if (!state.bookingId && !bookingIdParam) {
       navigate("/admin/online");
-      // But we'll allow it; just proceed to fetch and let them pick.
     }
-  }, [state.bookingId]);
+    // Otherwise, proceed to fetch and render normally
+  }, [state.bookingId, bookingIdParam, navigate]);
+
+  // Normalize date strings (e.g., MM/DD/YYYY -> YYYY-MM-DD) for date inputs
+  const normalizeDateStr = (str) => {
+    if (!str) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str; // already ISO
+    const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      const [_, mm, dd, yyyy] = m;
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${yyyy}-${pad(mm)}-${pad(dd)}`;
+    }
+    const d = new Date(str);
+    if (!isNaN(d)) return d.toISOString().slice(0, 10);
+    return "";
+  };
+
+  useEffect(() => {
+    const ni = normalizeDateStr(checkIn);
+    const no = normalizeDateStr(checkOut);
+    if (ni && ni !== checkIn) setCheckIn(ni);
+    if (no && no !== checkOut) setCheckOut(no);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Fetch booking summary for Info Card
   useEffect(() => {
@@ -77,13 +103,27 @@ export default function ApproveRooms() {
     setLoading(true);
     try {
       const fd = new FormData();
-      // If your API supports filtering by types, send JSON here:
-      // fd.append("json", JSON.stringify({ roomtype_ids: state.requestedRoomTypes.map(t => t.id) }));
-      fd.append("method", "viewRooms");
+      // Use detailed room listing with room numbers and attached bookings
+      fd.append("method", "viewAllRooms");
       const res = await axios.post(APIConn, fd);
       const data = Array.isArray(res.data) ? res.data : [];
 
-      setRooms(data);
+      // Normalize the shape we rely on
+      const mapped = data.map((r) => ({
+        roomnumber_id: r.roomnumber_id ?? r.roomnumber_id,
+        roomtype_id: r.roomtype_id ?? r.roomtype_id,
+        roomtype_name: r.roomtype_name ?? r.roomtype_name,
+        roomfloor: r.roomfloor ?? r.roomfloor,
+        roomtype_description: r.roomtype_description ?? r.roomtype_description,
+        roomtype_price: Number(r.roomtype_price ?? 0),
+        roomtype_capacity: r.roomtype_capacity ?? r.roomtype_capacity,
+        room_status_id: r.room_status_id ?? r.room_status_id,
+        status_name: r.status_name ?? r.status_name,
+        images: r.images ?? "",
+        bookings: Array.isArray(r.bookings) ? r.bookings : (Array.isArray(r.room_bookings) ? r.room_bookings : []),
+      }));
+
+      setRooms(mapped);
     } catch (err) {
       console.error("Error fetching available rooms:", err);
       setRooms([]);
@@ -103,7 +143,48 @@ export default function ApproveRooms() {
     [state.requestedRoomTypes]
   );
 
-  // Availability helpers
+  // If requested types are missing in state, fetch them from booking rooms
+  useEffect(() => {
+    const fetchRequestedTypes = async () => {
+      if (!bookingId || requestedTypeNames.size) return;
+      try {
+        const fd = new FormData();
+        fd.append('method', 'get_booking_rooms_by_booking');
+        fd.append('json', JSON.stringify({ booking_id: Number(bookingId) }));
+        const res = await axios.post(APIConn, fd);
+        const rows = Array.isArray(res?.data) ? res.data : [];
+        // Build a map: roomtype_id -> roomtype_name from available rooms
+        const idToName = new Map();
+        for (const r of rooms) {
+          if (r.roomtype_id != null && r.roomtype_name) {
+            idToName.set(Number(r.roomtype_id), String(r.roomtype_name));
+          }
+        }
+        const names = new Set();
+        const counts = {};
+        for (const br of rows) {
+          const rawName = br.roomtype_name || idToName.get(Number(br.roomtype_id)) || '';
+          const normalized = String(rawName).trim().toLowerCase();
+          if (normalized) {
+            names.add(normalized);
+            counts[normalized] = (counts[normalized] || 0) + 1;
+          }
+        }
+        if (names.size) {
+          setFallbackRequestedTypeNames(names);
+          setFallbackRequestedTypeCounts(counts);
+          const total = Object.values(counts).reduce((a, b) => a + (b || 0), 0);
+          if (total > 0) setFallbackRequestedRoomCount(total);
+        }
+      } catch (e) {
+        console.error('Failed to fetch requested types for booking', e);
+      }
+    };
+    fetchRequestedTypes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingId, requestedTypeNames.size, APIConn, rooms.length]);
+
+  // Availability helpers (require status Vacant for visibility and selection)
   const parseDate = (str) => (str ? new Date(str + "T00:00:00") : null);
   const rangesOverlap = (startA, endA, startB, endB) => startA < endB && endA > startB; // half-open
   const addDays = (date, days) => {
@@ -116,11 +197,19 @@ export default function ApproveRooms() {
   const isAvailable = (room, startStr, endStr) => {
     const start = parseDate(startStr);
     const end = parseDate(endStr);
+    // Only allow rooms explicitly marked as Vacant; block all other statuses
+    const statusName = String(room.status_name || '').toLowerCase();
+    if (statusName && statusName !== 'vacant') return false;
+    // Hard block if legacy status indicates Occupied (defensive)
+    if ((room.room_status_id && Number(room.room_status_id) === 1) ||
+        statusName === 'occupied') {
+      return false;
+    }
     if (!start || !end) return true;
     const bookings = Array.isArray(room.bookings) ? room.bookings : [];
     for (const b of bookings) {
-      const bStart = parseDate(b.checkin_date);
-      const bEnd = parseDate(b.checkout_date);
+      const bStart = parseDate(b.checkin_date || b.booking_checkin_date || b.booking_checkin_dateandtime?.slice(0,10));
+      const bEnd = parseDate(b.checkout_date || b.booking_checkout_date || b.booking_checkout_dateandtime?.slice(0,10));
       if (!bStart || !bEnd) continue;
       if (rangesOverlap(start, end, bStart, bEnd)) return false;
     }
@@ -129,18 +218,80 @@ export default function ApproveRooms() {
 
   const finalList = useMemo(() => {
     const q = search.toLowerCase();
-    return rooms
-      .filter((room) =>
-        requestedTypeNames.size
-          ? requestedTypeNames.has((room.roomtype_name || "").toLowerCase())
-          : true
-      )
+    // Determine the effective set of requested types (state first, fallback second)
+    const effectiveRequested = requestedTypeNames.size ? requestedTypeNames : fallbackRequestedTypeNames;
+    // Only show room types that were requested; if none, show none
+    const filteredByType = rooms.filter((room) =>
+      effectiveRequested.size
+        ? effectiveRequested.has((room.roomtype_name || "").toLowerCase())
+        : false
+    );
+    // Only show rooms that have status Vacant
+    const filteredByStatus = filteredByType.filter((room) => String(room.status_name || '').toLowerCase() === 'vacant');
+    return filteredByStatus
       .filter((room) =>
         room.roomtype_name?.toLowerCase().includes(q) ||
         room.roomtype_description?.toLowerCase().includes(q)
       )
       .filter((room) => isAvailable(room, checkIn, checkOut));
-  }, [rooms, requestedTypeNames, search, checkIn, checkOut]);
+  }, [rooms, requestedTypeNames, fallbackRequestedTypeNames, search, checkIn, checkOut]);
+
+  // Incremental loading: show 6 rooms initially, load more in chunks of 6
+  const [visibleCount, setVisibleCount] = useState(6);
+  useEffect(() => {
+    // Reset pagination whenever filters change
+    setVisibleCount(6);
+  }, [search, checkIn, checkOut, requestedTypeNames.size]);
+  const displayedList = useMemo(
+    () => finalList.slice(0, Math.max(0, visibleCount)),
+    [finalList, visibleCount]
+  );
+
+  // Availability counts by type for the selected dates
+  const totalByType = useMemo(() => {
+    const map = {};
+    for (const r of rooms) {
+      const key = (r.roomtype_name || '').toLowerCase();
+      map[key] = (map[key] || 0) + 1;
+    }
+    return map;
+  }, [rooms]);
+
+  const availableByType = useMemo(() => {
+    const map = {};
+    for (const r of rooms) {
+      const key = (r.roomtype_name || '').toLowerCase();
+      const statusName = String(r.status_name || '').toLowerCase();
+      // Count only Vacant rooms that are also available in the selected date range
+      if (statusName === 'vacant' && isAvailable(r, checkIn, checkOut)) {
+        map[key] = (map[key] || 0) + 1;
+      } else if (!(key in map)) {
+        map[key] = 0;
+      }
+    }
+    return map;
+  }, [rooms, checkIn, checkOut]);
+
+  // Image helpers: robust fallbacks and URL handling
+  const fallbackImagesForType = (typeName) => {
+    const name = (typeName || '').toLowerCase();
+    if (name.includes('single')) return ['single1.jpg', 'single2.jpg'];
+    if (name.includes('double')) return ['double1.jpg', 'double2.jpg'];
+    if (name.includes('twin')) return ['double1.jpg', 'double2.jpg'];
+    if (name.includes('triple')) return ['triple1.jpg', 'triple2.jpg'];
+    if (name.includes('family')) return ['familya1.jpg', 'familya2.jpg'];
+    return ['demiren.jpg'];
+  };
+
+  const srcForImage = (img) => {
+    if (!img) return `${localStorage.url}images/demiren.jpg`;
+    const t = String(img).trim();
+    if (/^https?:\/\//i.test(t)) return t;
+    if (t.toLowerCase().startsWith('images/') || t.toLowerCase().startsWith('api/')) {
+      return `${localStorage.url}${t}`;
+    }
+    return `${localStorage.url}images/${t}`;
+  };
 
   // Date input handlers with validation
   const handleCheckInChange = (value) => {
@@ -176,8 +327,28 @@ export default function ApproveRooms() {
 
   // Selected rooms (limit: requestedRoomCount)
   const [selected, setSelected] = useState(state.selectedRooms || []);
-  const maxSelect = state.requestedRoomCount || 1;
+  const computedTotals = useMemo(() => {
+    const totals = [];
+    const sCount = Number(state.requestedRoomCount);
+    if (!Number.isNaN(sCount) && sCount > 0) totals.push(sCount);
+    const fCount = Number(fallbackRequestedRoomCount);
+    if (!Number.isNaN(fCount) && fCount > 0) totals.push(fCount);
+    const sumTypes = Object.values(fallbackRequestedTypeCounts || {}).reduce((a, b) => a + Number(b || 0), 0);
+    if (sumTypes > 0) totals.push(sumTypes);
+    const nameLen = Array.isArray(state.requestedRoomTypes) ? state.requestedRoomTypes.length : 0;
+    if (nameLen > 0) totals.push(nameLen);
+    return totals;
+  }, [state.requestedRoomCount, fallbackRequestedRoomCount, fallbackRequestedTypeCounts, state.requestedRoomTypes]);
+
+  const maxSelect = Math.max(...(computedTotals.length ? computedTotals : [1]));
   const remaining = Math.max(0, maxSelect - selected.length);
+
+  // Enforce per-type quotas when available
+  const effectiveTypeCounts = useMemo(() => {
+    // If state has requestedRoomTypes without counts, rely on fallback counts
+    const obj = { ...fallbackRequestedTypeCounts };
+    return obj;
+  }, [fallbackRequestedTypeCounts]);
 
   const toggle = (room) => {
     // prevent selecting rooms that conflict with dates
@@ -186,7 +357,14 @@ export default function ApproveRooms() {
     if (exists) {
       setSelected((prev) => prev.filter((r) => r.id !== room.roomnumber_id));
     } else {
-      if (selected.length >= maxSelect) return; // enforce limit
+      if (selected.length >= maxSelect) return; // enforce overall limit
+      // Per-type limit: if counts known, restrict selection per roomtype
+      const typeKey = String(room.roomtype_name || '').toLowerCase();
+      const allowedForType = Number(effectiveTypeCounts[typeKey] || 0);
+      if (allowedForType > 0) {
+        const alreadyForType = selected.filter((r) => String(r.roomtype_name || '').toLowerCase() === typeKey).length;
+        if (alreadyForType >= allowedForType) return;
+      }
       setSelected((prev) => [
         ...prev,
         {
@@ -229,6 +407,27 @@ export default function ApproveRooms() {
     window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
   };
 
+  // Display string for requested room types (with counts when available)
+  const requestedDisplay = useMemo(() => {
+    const parts = [];
+    // Prefer types from navigation state
+    if (Array.isArray(state.requestedRoomTypes) && state.requestedRoomTypes.length) {
+      state.requestedRoomTypes.forEach((t) => {
+        const name = t?.name || "";
+        const key = name.toLowerCase();
+        const count = Number((fallbackRequestedTypeCounts || {})[key] || t?.count || 0);
+        if (name) parts.push(count > 0 ? `${name} x${count}` : name);
+      });
+    } else if (fallbackRequestedTypeCounts && Object.keys(fallbackRequestedTypeCounts).length) {
+      // Fallback to counts hydrated from backend when state is missing
+      Object.entries(fallbackRequestedTypeCounts).forEach(([key, count]) => {
+        const proper = rooms.find((r) => String(r.roomtype_name || '').toLowerCase() === key)?.roomtype_name || key;
+        parts.push(count > 0 ? `${proper} x${count}` : proper);
+      });
+    }
+    return parts.join(', ') || '-';
+  }, [state.requestedRoomTypes, fallbackRequestedTypeCounts, rooms]);
+
   return (
     <>
       <AdminHeader />
@@ -247,6 +446,10 @@ export default function ApproveRooms() {
               <div>
                 <div className="text-muted-foreground">Fullname</div>
                 <div className="font-medium text-foreground">{summary.customer_name || '-'}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Roomtype Requested</div>
+                <div className="font-medium text-foreground">{requestedDisplay}</div>
               </div>
               <div>
                 <div className="text-muted-foreground">Total Payment</div>
@@ -290,9 +493,11 @@ export default function ApproveRooms() {
             <input
               type="date"
               value={checkIn}
+              disabled
+              readOnly
               onChange={(e) => handleCheckInChange(e.target.value)}
               min={tomorrow}
-              className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground"
+              className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground opacity-70 cursor-not-allowed"
             />
           </div>
           <div>
@@ -300,9 +505,11 @@ export default function ApproveRooms() {
             <input
               type="date"
               value={checkOut}
+              disabled
+              readOnly
               onChange={(e) => handleCheckOutChange(e.target.value)}
               min={checkIn ? fmt(addDays(parseDate(checkIn), 1)) : fmt(new Date())}
-              className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground"
+              className="w-full border border-border rounded-lg px-3 py-2 bg-background text-foreground opacity-70 cursor-not-allowed"
             />
           </div>
         </div>
@@ -320,6 +527,23 @@ export default function ApproveRooms() {
             Types:{" "}
             {(state.requestedRoomTypes || []).map((t) => t.name).join(", ") || "-"}
           </div>
+          {(state.requestedRoomTypes || []).length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {(state.requestedRoomTypes || []).map((t, i) => {
+                const key = (t?.name || '').toLowerCase();
+                const total = totalByType[key] || 0;
+                const avail = availableByType[key] || 0;
+                return (
+                  <div
+                    key={`${key}-${i}`}
+                    className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground"
+                  >
+                    {t?.name || '-'}: <span className="font-semibold">{avail}</span> of {total} available
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Search */}
@@ -338,11 +562,19 @@ export default function ApproveRooms() {
         ) : finalList.length === 0 ? (
           <p className="text-center text-red-500 dark:text-red-400 font-semibold">No Available Rooms</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {finalList.map((room, i) => {
-              const imgs = room.images ? room.images.split(",").map((s) => s.trim()) : [];
+          <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6">
+            {displayedList.map((room, i) => {
+              const imgsRaw = room.images ? room.images.split(",").map((s) => s.trim()).filter(Boolean) : [];
+              const imgs = imgsRaw.length ? imgsRaw : fallbackImagesForType(room.roomtype_name);
               const isPicked = selected.some((r) => r.id === room.roomnumber_id);
               const available = isAvailable(room, checkIn, checkOut);
+              const typeKey = String(room.roomtype_name || '').toLowerCase();
+              const allowedForType = Number((effectiveTypeCounts || {})[typeKey] || 0);
+              const alreadyForType = selected.filter((r) => String(r.roomtype_name || '').toLowerCase() === typeKey).length;
+              const violatesTypeQuota = !isPicked && allowedForType > 0 && alreadyForType >= allowedForType;
+              const violatesTotalQuota = !isPicked && selected.length >= maxSelect;
+              const isDisabled = !available || violatesTotalQuota || violatesTypeQuota;
 
               return (
                 <div
@@ -357,7 +589,7 @@ export default function ApproveRooms() {
                         imgs.map((img, idx) => (
                           <CarouselItem key={idx}>
                             <img
-                              src={`${localStorage.url}images/${img}`}
+                              src={srcForImage(img)}
                               alt={room.roomtype_name}
                               className="w-full h-56 object-cover"
                             />
@@ -404,8 +636,10 @@ export default function ApproveRooms() {
 
                     <button
                       onClick={() => toggle(room)}
-                      className={`mt-3 px-4 py-2 rounded text-white ${isPicked ? "bg-green-600 hover:bg-green-700" : !available ? "bg-gray-400 cursor-not-allowed" : selected.length >= maxSelect ? "bg-gray-400 cursor-not-allowed" : "bg-primary hover:bg-primary/90"}`}
-                      disabled={!available || (!isPicked && selected.length >= maxSelect)}
+                      className={`mt-3 px-4 py-2 rounded text-white ${
+                        isPicked ? "bg-green-600 hover:bg-green-700" : isDisabled ? "bg-gray-400 cursor-not-allowed" : "bg-primary hover:bg-primary/90"
+                      }`}
+                      disabled={isDisabled}
                     >
                       {isPicked ? "Selected" : "Select Room"}
                     </button>
@@ -414,6 +648,18 @@ export default function ApproveRooms() {
               );
             })}
           </div>
+          {displayedList.length < finalList.length && (
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((c) => c + 6)}
+                className="px-6 py-2 rounded bg-primary text-white hover:bg-primary/90 transition-colors"
+              >
+                Show More Rooms
+              </button>
+            </div>
+          )}
+          </>
         )}
 
         <div className="mt-6 flex items-center justify-end gap-2">

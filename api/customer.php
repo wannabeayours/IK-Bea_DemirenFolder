@@ -501,16 +501,17 @@ class Demiren_customer
 
             // ✅ EMAIL SUBJECT = Reference Number
             $emailSubject = $referenceNo;
-
-            // ✅ Guest name
             $guestName = $json["walkinfirstname"] . " " . $json["walkinlastname"];
-
-            // ✅ Format Details
             $paymentMethodName = ($paymentMethod == 1) ? "GCash" : "Paypal";
+
             $checkInFmt = date('F j, Y', strtotime($checkIn)) . ' 2:00 PM';
             $checkOutFmt = date('F j, Y', strtotime($checkOut)) . ' 12:00 PM';
             $nights = max(1, (int)ceil((strtotime($checkOut) - strtotime($checkIn)) / 86400));
             $totalAmountFmt = number_format((float)$bookingDetails["totalAmount"], 2);
+
+            // ✅ Compute VAT Included (12%) — whole number + .00
+            $vatAmount = ($bookingDetails["totalAmount"] / 1.12) * 0.12;
+            $vatAmountRounded = number_format(round($vatAmount), 2); // always .00
 
             // ✅ Room List
             $roomsListHtml = '';
@@ -532,7 +533,7 @@ class Demiren_customer
                 $amenityHtml .= "<li>" . htmlspecialchars($a["room_amenities_master_name"]) . "</li>";
             }
 
-            // ✅ EMAIL BODY UPDATED
+            // ✅ EMAIL BODY WITH VAT LINE ADDED
             $emailBody = '
         <html><body style="font-family:Segoe UI,Arial;margin:0;padding:0;background:#f4f6f8;">
         <div style="max-width:600px;margin:auto;background:white;border-radius:12px;overflow:hidden;
@@ -556,7 +557,9 @@ class Demiren_customer
                     <div><strong>Nights:</strong> ' . $nights . '</div>
                     <div><strong>Payment Method:</strong> ' . $paymentMethodName . '</div>
                     <div><strong>Total Amount:</strong> ₱' . $totalAmountFmt . '</div>
+                    <div><strong>VAT Included (12%):</strong> ₱' . $vatAmountRounded . '</div>
                     <br>
+
                     <div><strong>Rooms:</strong></div>
                     <ul>' . $roomsListHtml . '</ul>
 
@@ -568,7 +571,6 @@ class Demiren_customer
                 <br>
 
                 <p><strong>Cancellation Policy:</strong><br>
-
                 You may cancel within 24 hours, but the payment is non-refundable.</p>
 
                 <p>If you have any concerns, feel free to contact us:</p>
@@ -594,6 +596,7 @@ class Demiren_customer
             return $e->getMessage();
         }
     }
+
 
     function customerViewBookings($json)
     {
@@ -1203,7 +1206,7 @@ class Demiren_customer
 
             if (!$customer) {
                 $conn->rollBack();
-                return -99; // customer not found
+                return -99;
             }
 
             $guestName = $customer["customers_fname"] . " " . $customer["customers_lname"];
@@ -1242,46 +1245,18 @@ class Demiren_customer
             foreach ($roomDetails as $room) {
                 $roomTypeId = $room["roomTypeId"];
 
-            //     $availabilityStmt = $conn->prepare("
-            //     SELECT r.roomnumber_id
-            //     FROM tbl_rooms r
-            //     WHERE r.roomtype_id = :roomtype_id
-            //     AND r.room_status_id = 3
-            //     AND r.roomnumber_id NOT IN (
-            //         SELECT br.roomnumber_id
-            //         FROM tbl_booking_room br
-            //         JOIN tbl_booking b ON br.booking_id = b.booking_id
-            //         WHERE br.roomtype_id = :roomtype_id
-            //         AND b.booking_isArchive = 0
-            //         AND (
-            //             b.booking_checkin_dateandtime < :check_out 
-            //             AND b.booking_checkout_dateandtime > :check_in
-            //         )
-            //     )
-            //     LIMIT 1
-            // ");
-            //     $availabilityStmt->bindParam(":roomtype_id", $roomTypeId);
-            //     $availabilityStmt->bindParam(":check_in", $checkIn);
-            //     $availabilityStmt->bindParam(":check_out", $checkOut);
-            //     $availabilityStmt->execute();
-            //     $availableRoom = $availabilityStmt->fetch(PDO::FETCH_ASSOC);
-
-            //     if (!$availableRoom) {
-            //         $conn->rollBack();
-            //         return -1; // no available room
-            //     }
-
                 // ✅ Insert booking room
                 $sql = "INSERT INTO tbl_booking_room 
-                    (booking_id, roomtype_id, roomnumber_id, bookingRoom_adult, bookingRoom_children) 
-                VALUES 
-                    (:booking_id, :roomtype_id, NULL, :bookingRoom_adult, :bookingRoom_children)";
+                (booking_id, roomtype_id, roomnumber_id, bookingRoom_adult, bookingRoom_children) 
+            VALUES 
+                (:booking_id, :roomtype_id, NULL, :bookingRoom_adult, :bookingRoom_children)";
                 $stmt = $conn->prepare($sql);
                 $stmt->bindParam(":booking_id", $bookingId);
                 $stmt->bindParam(":roomtype_id", $roomTypeId);
                 $stmt->bindParam(":bookingRoom_adult", $room["adultCount"]);
                 $stmt->bindParam(":bookingRoom_children", $room["childrenCount"]);
                 $stmt->execute();
+
                 $bookingRoomId = $conn->lastInsertId();
 
                 // ✅ Charges
@@ -1291,11 +1266,12 @@ class Demiren_customer
 
                 if (isset($room["bedCount"]) && $room["bedCount"] > 0) {
                     $totalCharges = $numberOfNights * $bedPrice;
+
                     $sql = "INSERT INTO tbl_booking_charges
-                        (charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, 
-                        booking_charges_total, booking_charge_status, booking_charge_datetime)
-                        VALUES 
-                        (2, :booking_room_id, :bedPrice, :qty, :total, 2, :now)";
+                    (charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, 
+                    booking_charges_total, booking_charge_status, booking_charge_datetime)
+                    VALUES 
+                    (2, :booking_room_id, :bedPrice, :qty, :total, 2, :now)";
                     $stmt = $conn->prepare($sql);
                     $stmt->bindParam(":booking_room_id", $bookingRoomId);
                     $stmt->bindParam(":bedPrice", $bedPrice);
@@ -1307,11 +1283,12 @@ class Demiren_customer
 
                 if (isset($room["extraGuestCharges"]) && $room["extraGuestCharges"] > 0) {
                     $totalCharges = $numberOfNights * $extraGuestPrice;
+
                     $sql = "INSERT INTO tbl_booking_charges
-                        (charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, 
-                        booking_charges_total, booking_charge_status, booking_charge_datetime)
-                        VALUES 
-                        (12, :booking_room_id, :extraGuestPrice, :qty, :total, 5, :now)";
+                    (charges_master_id, booking_room_id, booking_charges_price, booking_charges_quantity, 
+                    booking_charges_total, booking_charge_status, booking_charge_datetime)
+                    VALUES 
+                    (12, :booking_room_id, :extraGuestPrice, :qty, :total, 5, :now)";
                     $stmt = $conn->prepare($sql);
                     $stmt->bindParam(":booking_room_id", $bookingRoomId);
                     $stmt->bindParam(":extraGuestPrice", $extraGuestPrice);
@@ -1324,25 +1301,25 @@ class Demiren_customer
 
             // ✅ Booking history
             $sql = "INSERT INTO tbl_booking_history 
-                (booking_id, employee_id, status_id, updated_at) 
-            VALUES 
-                (:booking_id, NULL, 2, NOW())";
+            (booking_id, employee_id, status_id, updated_at) 
+        VALUES 
+            (:booking_id, NULL, 2, NOW())";
             $stmt = $conn->prepare($sql);
             $stmt->bindParam(":booking_id", $bookingId);
             $stmt->execute();
 
             // ✅ Billing
-            if ($bookingDetails["payment_method_id"] == 1) {
+            if ($paymentMethod == 1) {
                 $balance = $bookingDetails["totalAmount"] - $bookingDetails["totalPay"];
             } else {
                 $balance = $bookingDetails["totalAmount"] - $bookingDetails["downpayment"];
             }
 
             $sql = "INSERT INTO tbl_billing
-                (booking_id, payment_method_id, billing_total_amount, billing_dateandtime, 
-                billing_vat, billing_balance, billing_downpayment) 
-            VALUES 
-                (:booking_id, :method, :total, NOW(), :vat, :bal, :down)";
+            (booking_id, payment_method_id, billing_total_amount, billing_dateandtime, 
+            billing_vat, billing_balance, billing_downpayment) 
+        VALUES 
+            (:booking_id, :method, :total, NOW(), :vat, :bal, :down)";
             $stmt = $conn->prepare($sql);
             $stmt->bindParam(":booking_id", $bookingId);
             $stmt->bindParam(":method", $paymentMethod);
@@ -1357,12 +1334,16 @@ class Demiren_customer
             // ✅ EMAIL SUBJECT = Reference Number
             $emailSubject = $referenceNo;
 
-            // ✅ Format values
+            // ✅ Format output values
             $paymentMethodName = ($paymentMethod == 1) ? "GCash" : "Paypal";
             $checkInFmt = date('F j, Y', strtotime($checkIn)) . ' 2:00 PM';
             $checkOutFmt = date('F j, Y', strtotime($checkOut)) . ' 12:00 PM';
             $nights = max(1, (int)ceil((strtotime($checkOut) - strtotime($checkIn)) / 86400));
             $totalAmountFmt = number_format((float)$bookingDetails["totalAmount"], 2);
+
+            // ✅ Compute VAT Included (12%) — whole number + .00
+            $vatAmount = ($bookingDetails["totalAmount"] / 1.12) * 0.12;
+            $vatAmountRounded = number_format(round($vatAmount), 2); // always .00
 
             // ✅ Room list
             $roomsListHtml = '';
@@ -1385,7 +1366,7 @@ class Demiren_customer
                 $amenityHtml .= "<li>" . htmlspecialchars($a["room_amenities_master_name"]) . "</li>";
             }
 
-            // ✅ Final email body (IDENTICAL FORMAT)
+            // ✅ EMAIL BODY (VAT ADDED)
             $emailBody = '
         <html><body style="font-family:Segoe UI,Arial;margin:0;padding:0;background:#f4f6f8;">
         <div style="max-width:600px;margin:auto;background:white;border-radius:12px;overflow:hidden;
@@ -1409,7 +1390,9 @@ class Demiren_customer
                     <div><strong>Nights:</strong> ' . $nights . '</div>
                     <div><strong>Payment Method:</strong> ' . $paymentMethodName . '</div>
                     <div><strong>Total Amount:</strong> ₱' . $totalAmountFmt . '</div>
+                    <div><strong>VAT Included (12%):</strong> ₱' . $vatAmountRounded . '</div>
                     <br>
+
                     <div><strong>Rooms:</strong></div>
                     <ul>' . $roomsListHtml . '</ul>
 
@@ -1446,6 +1429,7 @@ class Demiren_customer
             return $e->getMessage();
         }
     }
+
 
 
 

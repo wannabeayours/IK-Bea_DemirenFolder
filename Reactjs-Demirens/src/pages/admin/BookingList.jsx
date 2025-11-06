@@ -46,11 +46,13 @@ function AdminBookingList() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState(null);
   const [dateTo, setDateTo] = useState(null);
-  const [sortOrder, setSortOrder] = useState('desc'); // 'asc' or 'desc'
+  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
   const [sortBy, setSortBy] = useState('booking_created_at');
   const [status, setStatus] = useState([]);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showCustomerDetails, setShowCustomerDetails] = useState(false);
+  // Requested room groups derived from tbl_booking_room for the selected booking
+  const [selectedBookingRoomGroups, setSelectedBookingRoomGroups] = useState([]);
   const [showStatusChange, setShowStatusChange] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [showRoomChange, setShowRoomChange] = useState(false);
@@ -529,6 +531,10 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
       filtered = filtered.filter(booking => booking.booking_status === statusFilter);
     }
 
+    // Exclude 'Pending' bookings entirely (no longer used)
+    const normStatus = (s) => String(s || '').trim().toLowerCase();
+    filtered = filtered.filter(booking => normStatus(booking.booking_status) !== 'pending');
+
     // Date range filter
     if (dateFrom) {
       filtered = filtered.filter(booking => {
@@ -546,13 +552,30 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
 
     // Apply sorting
     filtered.sort((a, b) => {
+      // Primary: status order — Confirmed → Checked-In → Checked-Out → others → Cancelled (last)
+      const statusPriority = (s) => {
+        const norm = String(s || '').trim().toLowerCase();
+        if (norm === 'confirmed') return 0;
+        if (norm === 'checked-in' || norm === 'checked in') return 1;
+        if (norm === 'checked-out' || norm === 'checked out') return 2;
+        if (norm === 'cancelled') return 99; // push cancelled to the very end
+        return 3;
+      };
+      const statusDiff = statusPriority(a.booking_status) - statusPriority(b.booking_status);
+      if (statusDiff !== 0) return statusDiff;
+
+      // Secondary: sort by selected column
       let comparison = 0;
-      
-      if (sortBy === 'booking_created_at' || sortBy === 'booking_checkin_dateandtime' || sortBy === 'booking_checkout_dateandtime') {
+
+      if (
+        sortBy === 'booking_created_at' ||
+        sortBy === 'booking_checkin_dateandtime' ||
+        sortBy === 'booking_checkout_dateandtime'
+      ) {
         // Date sorting
         const aValue = new Date(a[sortBy]);
         const bValue = new Date(b[sortBy]);
-        comparison = aValue - bValue;
+        comparison = aValue - bValue; // oldest first by default (asc)
       } else if (sortBy === 'total_amount') {
         // Numeric sorting
         const aValue = parseFloat(a[sortBy]) || 0;
@@ -564,7 +587,7 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
         const bValue = (b[sortBy] || '').toLowerCase();
         comparison = aValue.localeCompare(bValue);
       }
-      
+
       return sortOrder === 'asc' ? comparison : -comparison;
     });
 
@@ -626,7 +649,9 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
   // New: Confirm check-in navigates to ApproveRooms for Confirmed bookings
   const handleConfirmCheckIn = async (booking) => {
     try {
-      if (booking.booking_status !== 'Confirmed') {
+      // Allow for case/whitespace variations of the status label
+      const statusNorm = String(booking?.booking_status || '').trim().toLowerCase();
+      if (statusNorm !== 'confirmed') {
         toast.error('Check-in can only be confirmed from Confirmed status');
         return;
       }
@@ -641,7 +666,47 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
       const outD = toDateVal(checkOut);
       const nights = inD && outD ? Math.max(1, Math.round((outD - inD) / (1000*60*60*24))) : 1;
       const roomNumbersStr = booking.room_numbers || '';
-      const requestedRoomCount = roomNumbersStr ? roomNumbersStr.split(',').filter(Boolean).length : 1;
+      const requestedRoomCountBase = roomNumbersStr ? roomNumbersStr.split(',').filter(Boolean).length : 1;
+
+      // Derive requested room types from booking rooms via backend list
+      let requestedTypes = [];
+      try {
+        const fd = new FormData();
+        // Use existing endpoint that returns all booking room lines
+        fd.append('method', 'get_booking_rooms');
+        const res = await axios.post(APIConn, fd);
+        const allRows = Array.isArray(res?.data) ? res.data : [];
+        const rows = allRows.filter(r => String(r.booking_id) === String(booking.booking_id));
+        if (rows && rows.length > 0) {
+          const byName = new Map();
+          rows.forEach(r => {
+            // Prefer type from row; fallback to lookup in roomData via roomnumber_id
+            let typeName = (r.roomtype_name || r.room_type_name || '').trim();
+            if (!typeName && Array.isArray(roomData) && roomData.length > 0) {
+              const info = roomData.find(x => String(x.roomnumber_id) === String(r.roomnumber_id));
+              if (info && info.roomtype_name) typeName = String(info.roomtype_name).trim();
+            }
+            // Final fallback to booking.roomtype_name
+            if (!typeName) typeName = String(booking.roomtype_name || '').trim();
+            if (!typeName) return;
+            const key = typeName.toLowerCase();
+            const curr = byName.get(key);
+            byName.set(key, { name: typeName, count: (curr?.count || 0) + 1 });
+          });
+          requestedTypes = Array.from(byName.values());
+        }
+      } catch (e) {
+        console.warn('Failed to fetch booking rooms:', e);
+      }
+
+      // Fallback to single type from booking if API did not return rows
+      if (requestedTypes.length === 0 && booking.roomtype_name) {
+        requestedTypes = [{ name: booking.roomtype_name, count: requestedRoomCountBase }];
+      }
+
+      // Compute final requested count
+      // Prefer count from DB rows when available
+      const requestedRoomCount = requestedTypes.reduce((acc, t) => acc + (t.count || 0), 0) || (Array.isArray(requestedTypes) && requestedTypes.length > 0 ? requestedTypes.length : requestedRoomCountBase);
       // Store in ApprovalContext if available in this component
       // Prefill approval state via context
       try {
@@ -653,14 +718,15 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
             checkIn: (checkIn || '').toString().slice(0, 10),
             checkOut: (checkOut || '').toString().slice(0, 10),
             nights,
-            requestedRoomTypes: booking.roomtype_name ? [{ name: booking.roomtype_name }] : prev.requestedRoomTypes || [],
+            requestedRoomTypes: requestedTypes.map(t => ({ name: t.name })),
             requestedRoomCount,
             selectedRooms: [],
           }));
         }
       } catch {}
 
-      navigate(`/admin/approve-rooms/${booking.booking_id}`);
+      // Route must align with App.js: /admin/approve/:bookingId
+      navigate(`/admin/approve/${booking.booking_id}`);
     } catch (err) {
       console.error('Confirm check-in navigation error:', err);
       toast.error('Failed to navigate');
@@ -712,6 +778,8 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
     fetchInvoiceData(booking);
     fetchBillingData(booking);
     fetchBookingChargesTotal(booking.booking_id);
+    // Hydrate requested room groups from DB for accurate type/count even when room numbers are pending
+    fetchRequestedRoomGroups(booking);
   };
 
   const handleRoomChangeSuccess = () => {
@@ -1516,6 +1584,7 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
   const getRoomTypeGroupsFromBooking = (booking) => {
     // Parse room numbers from the booking
     if (!booking.room_numbers) {
+      // Fallback shown when no DB groups are available
       return [{ roomType: booking.roomtype_name || 'Standard Room', count: 1, roomNumbers: ['Pending'] }];
     }
 
@@ -1546,6 +1615,128 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
 
     return Object.values(roomTypeGroups);
   };
+
+  // Build requested room type groups using tbl_booking_room lines
+  const fetchRequestedRoomGroups = useCallback(async (booking) => {
+    try {
+      if (!booking?.booking_id) {
+        setSelectedBookingRoomGroups([]);
+        return [];
+      }
+      // Use endpoint that returns rows even when roomnumber_id is NULL
+      const fd = new FormData();
+      fd.append('method', 'get_booking_rooms_by_booking');
+      fd.append('json', JSON.stringify({ booking_id: booking.booking_id }));
+      const res = await axios.post(APIConn, fd);
+      const rows = Array.isArray(res?.data) ? res.data : [];
+
+      if (!rows || rows.length === 0) {
+        setSelectedBookingRoomGroups([]);
+        return [];
+      }
+
+      // Map of roomtype_id -> roomtype_name from roomData and viewRoomTypes for reliable naming
+      const typeMap = new Map();
+      if (Array.isArray(roomData)) {
+        roomData.forEach(r => {
+          const id = r.roomtype_id ?? r.room_type_id;
+          const name = r.roomtype_name ?? r.name;
+          if (id != null && name) {
+            const key = String(id);
+            if (!typeMap.has(key)) typeMap.set(key, String(name));
+          }
+        });
+      }
+      // If typeMap is empty or missing some ids, fetch viewRoomTypes for a definitive mapping
+      try {
+        const rtFd = new FormData();
+        rtFd.append('method', 'viewRoomTypes');
+        const rtRes = await axios.post(APIConn, rtFd);
+        let rtData = rtRes?.data;
+        if (typeof rtData === 'string') {
+          try { rtData = JSON.parse(rtData); } catch { rtData = []; }
+        }
+        if (Array.isArray(rtData)) {
+          rtData.forEach(rt => {
+            const id = rt.roomtype_id ?? rt.id;
+            const name = rt.roomtype_name ?? rt.name;
+            if (id != null && name) {
+              const key = String(id);
+              if (!typeMap.has(key)) typeMap.set(key, String(name));
+            }
+          });
+        }
+      } catch (e) {
+        // silently ignore; we'll still fall back gracefully
+      }
+
+      // Additional fallback: some parts of the app use action=getRoomTypes
+      // Ensure we integrate that source as well to cover all deployments
+      try {
+        const gtRes = await axios.post(APIConn, { action: 'getRoomTypes' });
+        let gtData = gtRes?.data;
+        if (typeof gtData === 'string') {
+          try { gtData = JSON.parse(gtData); } catch { gtData = []; }
+        }
+        if (Array.isArray(gtData)) {
+          gtData.forEach(rt => {
+            const id = rt.roomtype_id ?? rt.id;
+            const name = rt.roomtype_name ?? rt.name;
+            if (id != null && name) {
+              const key = String(id);
+              if (!typeMap.has(key)) typeMap.set(key, String(name));
+            }
+          });
+        }
+      } catch (_) {
+        // ignore
+      }
+
+      const groups = new Map();
+      rows.forEach(r => {
+        const typeIdRaw = r.roomtype_id ?? r.room_type_id;
+        const typeId = typeIdRaw != null ? String(typeIdRaw) : undefined;
+        // Endpoint includes roomtype_name even when roomnumber_id is NULL
+        let typeName = (r.roomtype_name || r.room_type_name || '').trim();
+        if (!typeName && typeId && typeMap.has(typeId)) {
+          typeName = String(typeMap.get(typeId));
+        }
+        if (!typeName) {
+          // Final fallback: infer via roomnumber_id from roomData
+          const match = Array.isArray(roomData)
+            ? roomData.find(x => String(x.roomnumber_id) === String(r.roomnumber_id))
+            : null;
+          if (match?.roomtype_name) {
+            typeName = String(match.roomtype_name);
+          }
+        }
+        if (!typeName) {
+          if (typeId) {
+            typeName = `Type #${typeId}`;
+          } else {
+            typeName = booking.roomtype_name || 'Standard Room';
+          }
+        }
+
+        const key = typeId ? `id:${typeId}` : `name:${typeName.toLowerCase()}`;
+        const existing = groups.get(key);
+        if (existing) {
+          existing.count += 1;
+          if (r.roomnumber_id) existing.roomNumbers.push(String(r.roomnumber_id));
+        } else {
+          groups.set(key, { roomType: typeName, count: 1, roomNumbers: r.roomnumber_id ? [String(r.roomnumber_id)] : [] });
+        }
+      });
+
+      const arr = Array.from(groups.values());
+      setSelectedBookingRoomGroups(arr);
+      return arr;
+    } catch (e) {
+      console.warn('Failed to fetch requested room groups:', e);
+      setSelectedBookingRoomGroups([]);
+      return [];
+    }
+  }, [APIConn, roomData]);
 
   // Date edit & conflict helpers
   const getRoomNumbers = (booking) => {
@@ -2181,14 +2372,16 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                                   <CalendarPlus className="w-3 h-3 mr-2 text-green-600" />
                                   Extend Booking
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => { handleChangeRoom(b); setOpenActionsForBookingId(null); }}
-                                  disabled={b.booking_status === 'Pending'}
-                                  className="disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <ArrowRightLeft className="w-3 h-3 mr-2 text-[#34699a]" />
-                                  Change Room
-                                </DropdownMenuItem>
+                                {b.booking_status !== 'Confirmed' && (
+                                  <DropdownMenuItem
+                                    onClick={() => { handleChangeRoom(b); setOpenActionsForBookingId(null); }}
+                                    disabled={b.booking_status === 'Pending'}
+                                    className="disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <ArrowRightLeft className="w-3 h-3 mr-2 text-[#34699a]" />
+                                    Change Room
+                                  </DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           ) : (
@@ -2410,7 +2603,10 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                       <label className="text-sm font-medium text-gray-600 dark:text-gray-400">Room Details</label>
                       <div className="text-gray-900 dark:text-white">
                         {(() => {
-                          const roomGroups = getRoomTypeGroupsFromBooking(selectedBooking);
+                          // Prefer requested groups from DB; fallback to parsing room_numbers
+                          const roomGroups = (Array.isArray(selectedBookingRoomGroups) && selectedBookingRoomGroups.length > 0)
+                            ? selectedBookingRoomGroups
+                            : getRoomTypeGroupsFromBooking(selectedBooking);
                           const totalRooms = roomGroups.reduce((sum, group) => sum + group.count, 0);
 
                           return (
@@ -2425,11 +2621,6 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                                   ) : (
                                     <span className="font-semibold flex items-center gap-2">
                                       {roomGroups[0]?.roomType || 'Standard Room'}
-                                      <Badge variant="outline" className="text-xs font-medium">
-                                        {NumberFormatter.formatCurrency(
-                                          roomGroups[0]?.rooms?.[0]?.roomtype_price || parseFloat(selectedBooking.roomtype_price || 0)
-                                        )}
-                                      </Badge>
                                       {roomGroups[0]?.count > 1 && (
                                         <span className="ml-2 bg-[#34699a]/10 dark:bg-[#34699a]/20 text-[#34699a] dark:text-[#34699a] px-2 py-1 rounded text-xs font-medium">
                                           ×{roomGroups[0].count}
@@ -2466,9 +2657,6 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                                       <div key={index} className="bg-gray-50 dark:bg-gray-800 p-3 rounded border">
                                         <div className={group.count > 1 ? 'flex items-center gap-2' : ''}>
                                           <span className="font-semibold text-sm">{group.roomType}</span>
-                                          <Badge variant="outline" className="ml-2 text-xs font-medium">
-                                            {NumberFormatter.formatCurrency(group?.rooms?.[0]?.roomtype_price || parseFloat(selectedBooking.roomtype_price || 0))}
-                                          </Badge>
                                           {group.count > 1 && (
                                             <span className="bg-[#34699a]/10 dark:bg-[#34699a]/20 text-[#34699a] dark:text-[#34699a] px-2 py-1 rounded text-xs font-medium">
                                               ×{group.count}
@@ -2476,7 +2664,9 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                                           )}
                                         </div>
                                         <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                          Room #{group.roomNumbers.join(', #')}
+                                          {group.roomNumbers && group.roomNumbers.length > 0
+                                            ? `Room #${group.roomNumbers.join(', #')}`
+                                            : 'Awaiting for Check-in'}
                                         </div>
                                       </div>
                                     ))}
@@ -2721,8 +2911,9 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                       {selectedBooking.booking_status !== 'Checked-In' && (
                         <Button
                           onClick={() => {
-                            setCheckInTargetBooking(selectedBooking);
-                            setShowCheckInWarning(true);
+                            // Directly confirm check-in without showing a modal
+                            handleConfirmCheckIn(selectedBooking);
+                            setShowCustomerDetails(false);
                           }}
                           disabled={selectedBooking.booking_status !== 'Confirmed'}
                           className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -2742,7 +2933,7 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
                         </Button>
                       )}
                       {/* Recalculate Bills moved to Invoice & Billing Information card header */}
-                      {selectedBooking.booking_status !== 'Cancelled' && (
+                      {selectedBooking.booking_status !== 'Cancelled' && selectedBooking.booking_status !== 'Confirmed' && (
                         <Button
                           onClick={() => {
                             handleChangeRoom(selectedBooking);
@@ -3704,30 +3895,7 @@ const [openActionsForBookingId, setOpenActionsForBookingId] = useState(null);
           </DialogContent>
         </Dialog>
 
-        {/* Check-In Confirmation Modal (3-second countdown) */}
-        <WarningDialog
-          open={showCheckInWarning}
-          onOpenChange={setShowCheckInWarning}
-          title="Are you sure this customer is going to check-in?"
-          icon={<AlertTriangle className="h-5 w-5 text-orange-500" />}
-          confirmText={checkInCountdown > 0 ? `Confirm (${checkInCountdown})` : "Confirm"}
-          cancelText="Go Back"
-          confirmDisabled={checkInCountdown > 0}
-          onCancel={() => {
-            setShowCheckInWarning(false);
-            setCheckInTargetBooking(null);
-          }}
-          onConfirm={async () => {
-            setShowCheckInWarning(false);
-            if (checkInTargetBooking) {
-              await handleConfirmCheckIn(checkInTargetBooking);
-              setShowCustomerDetails(false);
-            }
-            setCheckInTargetBooking(null);
-          }}
-          contentClassName="max-w-[95vw] sm:max-w-md mx-4"
-          confirmClassName="bg-blue-600 hover:bg-blue-700 px-6"
-        />
+        {/* Check-In Confirmation Modal removed per requirement. Direct action is now used. */}
 
         {/* Full Image Viewer Modal */}
         <Dialog open={isImageViewerOpen} onOpenChange={setIsImageViewerOpen}>

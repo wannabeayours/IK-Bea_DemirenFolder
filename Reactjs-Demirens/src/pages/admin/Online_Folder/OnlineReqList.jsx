@@ -136,16 +136,39 @@ export default function OnlineReqList() {
   }, [bookings, searchTerm, dateFrom, dateTo]);
 
   // Define openApproval earlier so it can be safely referenced in columns
-  const openApproval = (b) => {
+  const openApproval = async (b) => {
     const rooms = Array.isArray(b?.rooms) ? b.rooms : [];
-    // Prefer enhanced fields when available
-    let summary = [];
+    // Build summary from attached rooms when present
+    let summary = summarizeRequested(rooms);
     const roomNumbersStr = b?.room_numbers || '';
     const count = roomNumbersStr ? roomNumbersStr.split(',').filter(Boolean).length : 0;
-    if (b?.roomtype_name) {
-      summary = [{ name: b.roomtype_name, count: count || (rooms.length || 1) }];
-    } else {
-      summary = summarizeRequested(rooms);
+
+    // If no attached rooms summary, hydrate from backend booking_room lines
+    if (summary.length === 0) {
+      try {
+        const fd = new FormData();
+        fd.append('method', 'get_booking_rooms');
+        const res = await axios.post(APIConn, fd);
+        const allRows = Array.isArray(res?.data) ? res.data : [];
+        const rows = allRows.filter(r => String(r.booking_id) === String(b?.booking_id || b?.bookingId));
+        if (rows.length > 0) {
+          const byName = new Map();
+          rows.forEach(r => {
+            const typeName = (r.roomtype_name || r.room_type_name || '').trim();
+            if (!typeName) return;
+            const key = typeName.toLowerCase();
+            const curr = byName.get(key);
+            byName.set(key, { name: typeName, count: (curr?.count || 0) + 1 });
+          });
+          summary = Array.from(byName.values());
+        }
+      } catch (e) {
+        console.warn('Failed to hydrate requested room types from DB:', e);
+        // Final fallback to single type when API not available
+        if (b?.roomtype_name) {
+          summary = [{ name: b.roomtype_name, count: count || (rooms.length || 1) }];
+        }
+      }
     }
 
     const checkIn = b?.booking_checkin_dateandtime || b?.checkin_date;
@@ -165,7 +188,7 @@ export default function OnlineReqList() {
       if (v) { adminId = v; break; }
     }
 
-    const requestedRoomCount = summary.reduce((acc, s) => acc + (s.count || 0), 0) || rooms.length || 1;
+    const requestedRoomCount = summary.reduce((acc, s) => acc + (s.count || 0), 0) || (summary.length > 0 ? summary.length : (rooms.length || 1));
     flushSync(() => {
       setState((prev) => ({
         ...prev,
@@ -181,7 +204,8 @@ export default function OnlineReqList() {
       }));
     });
 
-    navigate(`/admin/receipt/${bookingId}`);
+    // Navigate to room approval to assign room numbers before receipt
+    navigate(`/admin/approve/${bookingId}`);
   };
 
   // Contact view handler
@@ -261,7 +285,7 @@ export default function OnlineReqList() {
             View
           </Button>
           <Button onClick={(e) => { e.stopPropagation(); openApproval(row); }} variant="default">
-            Approve
+            Confirm Check-Out
           </Button>
         </div>
       ),

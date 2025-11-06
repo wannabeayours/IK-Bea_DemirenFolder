@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Sheet, SheetContent, SheetFooter, SheetTrigger } from '@/components/ui/sheet'
 import React, { useEffect, useRef, useState } from 'react'
 import RoomsList from './RoomsList'
@@ -629,8 +629,23 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
               <div className="space-y-2">
                 <div className="flex justify-between items-center text-sm">
                   <span>Subtotals:</span>
-                  <span>₱{subtotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span>
+                    ₱{subtotal.toLocaleString('en-PH', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })}
+                  </span>
                 </div>
+
+                {/* ✅ VAT Included Label */}
+                <div className="flex justify-between items-center text-sm">
+                  <span>VAT Included (12%):</span>
+                  <span>
+                    ₱{Math.round(subtotal / 1.12 * 0.12).toLocaleString('en-PH') + '.00'}
+                  </span>
+                </div>
+
+
                 {selectedRooms.reduce((total, room) => { const rk = room.selectionKey || room.room_type; return total + Math.max(0, ((adultCounts[rk] || 0) + (childrenCounts[rk] || 0)) - (room.roomtype_capacity || 0)); }, 0) > 0 && (
                   <>
                     <div className="flex justify-between items-center text-sm">
@@ -1048,7 +1063,20 @@ function BookingWaccount({ rooms, selectedRoom, guestNumber: initialGuestNumber,
                 <div className="space-y-2">
                   <div className="flex justify-between items-center text-sm">
                     <span>Subtotals:</span>
-                    <span>₱{subtotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span>
+                      ₱{subtotal.toLocaleString('en-PH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })}
+                    </span>
+                  </div>
+
+                  {/* ✅ VAT Included Label */}
+                  <div className="flex justify-between items-center text-sm">
+                    <span>VAT Included (12%):</span>
+                    <span>
+                      ₱{Math.round(subtotal / 1.12 * 0.12).toLocaleString('en-PH') + '.00'}
+                    </span>
                   </div>
                   {selectedRooms.reduce((total, room) => { const rk = room.selectionKey || room.room_type; return total + Math.max(0, ((adultCounts[rk] || 0) + (childrenCounts[rk] || 0)) - (room.roomtype_capacity || 0)); }, 0) > 0 && (
                     <>
